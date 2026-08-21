@@ -161,10 +161,15 @@ export default function ContentChatFeature() {
       if (openedWithFreshConversationRef.current) return;
       openedWithFreshConversationRef.current = true;
       const state = useContentChatStore.getState();
-      const current = state.conversations.find((item) => item.id === state.activeConversationId);
-      // Một chat đang hoàn toàn trống đã chính là màn hình chat mới; dùng lại để
-      // lịch sử không tích tụ thêm mục rỗng sau mỗi lần mở phần AI.
-      if (!current || current.messages.length > 0) state.createConversation();
+      // Danh sách đã sort sẵn: ghim lên đầu, sau đó updatedAt giảm dần. Phải bỏ qua
+      // nhóm ghim mới lấy được hội thoại mới nhất thật sự — nếu không, một chat ghim
+      // đầy tin nhắn sẽ luôn đứng đầu và lần nào mở cũng đẻ thêm chat rỗng.
+      const newest = state.conversations.find((item) => !item.pinned);
+      // Đã có sẵn chat rỗng thì nhảy vào chính nó. Trước đây chỗ này chỉ soi hội
+      // thoại đang active, nên chỉ cần lỡ bấm xem một chat cũ trước khi thoát là
+      // lần mở sau lại đẻ thêm một chat rỗng nữa, chồng lên cái rỗng đang có.
+      if (newest && newest.messages.length === 0) state.selectConversation(newest.id);
+      else state.createConversation();
       setEntryReady(true);
     };
 
