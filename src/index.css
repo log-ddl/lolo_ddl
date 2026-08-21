@@ -1,0 +1,388 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+/* Enable class-based dark mode for Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Semantic colors */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-panel: hsl(var(--panel));
+  --color-panel-elevated: hsl(var(--panel-elevated));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  /* Sidebar / nav surface */
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-active: hsl(var(--sidebar-active));
+  --color-sidebar-active-foreground: hsl(var(--sidebar-active-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Functional colors */
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
+  /* Brand gradient */
+  --color-brand-start: hsl(var(--brand-start));
+  --color-brand-end: hsl(var(--brand-end));
+
+  /* Timeline colors */
+  --color-timeline-video: hsl(var(--timeline-video));
+  --color-timeline-audio: hsl(var(--timeline-audio));
+  --color-timeline-text: hsl(var(--timeline-text));
+  --color-timeline-effect: hsl(var(--timeline-effect));
+
+  /* Font family — Inter (Buzz-inspired) */
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
+
+  /* Font size — tiny meta/glyph sizes (Buzz) */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-3xs: 0.5rem;
+  --text-3xs--line-height: 0.75rem;
+
+  /* Radius — compact, soft corners (12px base) */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: calc(var(--radius) + 2px);
+  --radius-2xl: calc(var(--radius) + 4px);
+
+  /* Shadow system */
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.08);
+  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.12), 0 1px 2px -1px hsl(0 0% 0% / 0.12);
+  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.15), 0 4px 6px -1px hsl(0 0% 0% / 0.15);
+  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.18), 0 8px 16px -2px hsl(0 0% 0% / 0.18);
+  --shadow-card: rgba(0, 0, 0, 0.12) 0 8px 24px 0px;
+}
+
+:root {
+  /* ===== Light Mode — Catppuccin Latte (pink accent) ===== */
+  --background: 220 23% 95%;         /* #EFF1F5 */
+  --foreground: 234 16% 35%;         /* #4C4F69 */
+
+  --panel: 220 23% 93%;              /* #E6E9EF-ish */
+  --panel-elevated: 220 23% 100%;    /* #FFFFFF */
+
+  --card: 220 23% 95%;               /* #EFF1F5 */
+  --card-foreground: 234 16% 35%;    /* #4C4F69 */
+
+  --popover: 220 23% 100%;           /* #FFFFFF */
+  --popover-foreground: 234 16% 35%; /* #4C4F69 */
+
+  --primary: 333 71% 50%;            /* logdd pink #DA2C6C */
+  --primary-foreground: 220 23% 100%;
+
+  --secondary: 223 16% 83%;          /* #CCD0DA */
+  --secondary-foreground: 234 16% 35%;
+
+  --muted: 223 16% 87%;              /* #DCE0E8 */
+  --muted-foreground: 233 13% 41%;   /* #6C6F85 */
+
+  --accent: 223 16% 89%;             /* #E6E9EF hover surface */
+  --accent-foreground: 234 16% 35%;
+
+  --destructive: 347 87% 44%;        /* #D20F39 */
+  --destructive-foreground: 220 23% 100%;
+
+  --border: 225 14% 77%;             /* #BCC0CC */
+  --input: 225 14% 77%;              /* #BCC0CC */
+  --ring: 333 71% 50%;               /* pink */
+
+  --sidebar: 218 25% 94%;            /* #E6E9EF */
+  --sidebar-foreground: 234 16% 35%;
+  --sidebar-accent: 220 23% 96%;
+  --sidebar-active: 333 71% 50%;     /* pink */
+  --sidebar-active-foreground: 220 23% 100%;
+  --sidebar-border: 225 14% 77%;
+  --sidebar-ring: 333 71% 50%;
+
+  --success: 142 71% 45%;            /* #40A02B */
+  --success-foreground: 0 0% 100%;
+  --warning: 35 77% 47%;             /* #DF8E1D */
+  --warning-foreground: 0 0% 100%;
+  --info: 197 75% 47%;               /* #179299 */
+  --info-foreground: 0 0% 100%;
+
+  --brand-start: 333 71% 50%;        /* pink */
+  --brand-end: 328 85% 70%;          /* lighter pink */
+
+  --timeline-video: 333 71% 50%;
+  --timeline-audio: 142 71% 45%;
+  --timeline-text: 35 77% 47%;
+  --timeline-effect: 234 17% 45%;
+
+  /* Buzz "sun-bleached" gradient */
+  --buzz-gradient-top: #e6e6b6;      /* chartreuse-ish */
+  --buzz-gradient-bottom: #c4d0da;   /* pale blue-slate */
+
+  /* Base radius — 12px */
+  --radius: 0.75rem;
+}
+
+:root.dark,
+.dark {
+  /* ===== Dark Mode — neutral black, white text ===== */
+  --background: 0 0% 7%;
+  --foreground: 0 0% 96%;
+
+  --panel: 0 0% 9%;
+  --panel-elevated: 0 0% 13%;
+
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 96%;
+
+  --popover: 0 0% 13%;
+  --popover-foreground: 0 0% 96%;
+
+  --primary: 328 85% 70%;            /* logdd pink dark #F472B6 */
+  --primary-foreground: 0 0% 7%;
+
+  --secondary: 0 0% 18%;
+  --secondary-foreground: 0 0% 96%;
+
+  --muted: 0 0% 17%;
+  --muted-foreground: 0 0% 68%;
+
+  --accent: 0 0% 20%;
+  --accent-foreground: 0 0% 96%;
+
+  --destructive: 351 74% 73%;        /* #ED8796 */
+  --destructive-foreground: 0 0% 7%;
+
+  --border: 0 0% 25%;
+  --input: 0 0% 29%;
+  --ring: 328 85% 70%;               /* pink */
+
+  --sidebar: 0 0% 8%;
+  --sidebar-foreground: 0 0% 96%;
+  --sidebar-accent: 0 0% 18%;
+  --sidebar-active: 328 85% 70%;     /* pink */
+  --sidebar-active-foreground: 0 0% 7%;
+  --sidebar-border: 0 0% 25%;
+  --sidebar-ring: 328 85% 70%;
+
+  --success: 115 54% 76%;            /* #A6DA95 */
+  --success-foreground: 0 0% 7%;
+  --warning: 41 86% 83%;             /* #EED49F */
+  --warning-foreground: 0 0% 7%;
+  --info: 189 71% 73%;               /* #8BD5CA */
+  --info-foreground: 0 0% 7%;
+
+  --brand-start: 328 85% 70%;        /* pink */
+  --brand-end: 351 94% 71%;          /* coral pink */
+
+  --timeline-video: 328 85% 70%;
+  --timeline-audio: 115 54% 76%;
+  --timeline-text: 41 86% 83%;
+  --timeline-effect: 0 0% 96%;
+
+  /* Buzz "sun-bleached" gradient — dark */
+  --buzz-gradient-top: #4a4616;      /* olive */
+  --buzz-gradient-bottom: #0a1423;   /* deep navy */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    font-family: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    overscroll-behavior-x: contain;
+    font-family: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: -0.011em;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  pre, code, kbd, samp, .font-mono {
+    font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
+    font-feature-settings: normal;
+  }
+  #root {
+    height: 100vh;
+    width: 100vw;
+  }
+}
+
+/* ============================
+   Scrollbar — ultra thin
+   ============================ */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================
+   Glass — glass morphism
+   ============================ */
+.glass {
+  background: hsl(var(--card) / 0.8);
+  backdrop-filter: saturate(160%) blur(16px);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+.glass-heavy {
+  background: hsl(var(--background) / 0.75);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+/* ============================
+   Buzz signature gradient (sun-bleached sidebar)
+   ============================ */
+.buzz-rail {
+  background-color: hsl(var(--background));
+  background-image: none;
+}
+.buzz-rail-surface {
+  background-color: hsl(var(--background));
+  background-image: none;
+}
+
+/* Content lift — separates content canvas from the gradient rail */
+.content-edge {
+  box-shadow: none;
+}
+
+/* ============================
+   Brand gradient
+   ============================ */
+.bg-brand-gradient {
+  background: linear-gradient(135deg, hsl(var(--brand-start)), hsl(var(--brand-end)));
+}
+.text-brand-gradient {
+  background: linear-gradient(135deg, hsl(var(--brand-start)), hsl(var(--brand-end)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================
+   Timeline track styles
+   ============================ */
+.track-video {
+  background-color: hsl(var(--timeline-video) / 0.2);
+  border-left: 3px solid hsl(var(--timeline-video));
+}
+.track-audio {
+  background-color: hsl(var(--timeline-audio) / 0.2);
+  border-left: 3px solid hsl(var(--timeline-audio));
+}
+.track-text {
+  background-color: hsl(var(--timeline-text) / 0.2);
+  border-left: 3px solid hsl(var(--timeline-text));
+}
+.track-effect {
+  background-color: hsl(var(--timeline-effect) / 0.2);
+  border-left: 3px solid hsl(var(--timeline-effect));
+}
+
+/* Keep native AutoPilot selects aligned with the app's custom select trigger. */
+.autopilot-panel select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+}
+
+/* Collapsible section chevron rotation for autopilot workspace sections */
+.autopilot-collapsible-chevron {
+  transition: transform 0.2s ease;
+  transform: rotate(-90deg);
+}
+details[open] > summary .autopilot-collapsible-chevron {
+  transform: rotate(0deg);
+}
+
+/* Shot card chevron rotation (right → down) */
+.autopilot-collapsible-chevron-right {
+  transition: transform 0.2s ease;
+}
+
+/* Auto Edit draft preview. The final render uses the FFmpeg implementation;
+   these lightweight animations make the same edit intent visible instantly. */
+@keyframes auto-edit-zoom-in { from { transform: scale(1); } to { transform: scale(1.12); } }
+@keyframes auto-edit-zoom-out { from { transform: scale(1.12); } to { transform: scale(1); } }
+@keyframes auto-edit-pan-left { from { transform: scale(1.1) translateX(3%); } to { transform: scale(1.1) translateX(-3%); } }
+@keyframes auto-edit-pan-right { from { transform: scale(1.1) translateX(-3%); } to { transform: scale(1.1) translateX(3%); } }
+@keyframes auto-edit-pan-up { from { transform: scale(1.1) translateY(3%); } to { transform: scale(1.1) translateY(-3%); } }
+@keyframes auto-edit-pan-down { from { transform: scale(1.1) translateY(-3%); } to { transform: scale(1.1) translateY(3%); } }
+@keyframes auto-edit-transition-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes auto-edit-transition-left { from { opacity: 0.4; clip-path: inset(0 0 0 100%); } to { opacity: 1; clip-path: inset(0); } }
+@keyframes auto-edit-transition-right { from { opacity: 0.4; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0); } }
+@keyframes auto-edit-transition-up { from { opacity: 0.4; clip-path: inset(100% 0 0); } to { opacity: 1; clip-path: inset(0); } }
+@keyframes auto-edit-transition-down { from { opacity: 0.4; clip-path: inset(0 0 100%); } to { opacity: 1; clip-path: inset(0); } }
+.auto-edit-media { animation-duration: 7s; animation-timing-function: ease-in-out; animation-fill-mode: both; }
+.auto-edit-effect-zoom_in { animation-name: auto-edit-zoom-in; }
+.auto-edit-effect-zoom_out { animation-name: auto-edit-zoom-out; }
+.auto-edit-effect-pan_left, .auto-edit-effect-zoom_pan_left { animation-name: auto-edit-pan-left; }
+.auto-edit-effect-pan_right, .auto-edit-effect-zoom_pan_right { animation-name: auto-edit-pan-right; }
+.auto-edit-effect-pan_up { animation-name: auto-edit-pan-up; }
+.auto-edit-effect-pan_down { animation-name: auto-edit-pan-down; }
+.auto-edit-transition-fade, .auto-edit-transition-fade_slow, .auto-edit-transition-dissolve, .auto-edit-transition-fade_black, .auto-edit-transition-fade_white, .auto-edit-transition-dip_white { animation-name: auto-edit-transition-fade, var(--auto-edit-effect, none); animation-duration: 450ms, 7s; }
+.auto-edit-transition-wipe_left, .auto-edit-transition-slide_left, .auto-edit-transition-smooth_left { animation-name: auto-edit-transition-left; animation-duration: 450ms; }
+.auto-edit-transition-wipe_right, .auto-edit-transition-slide_right, .auto-edit-transition-smooth_right { animation-name: auto-edit-transition-right; animation-duration: 450ms; }
+.auto-edit-transition-wipe_up { animation-name: auto-edit-transition-up; animation-duration: 450ms; }
+.auto-edit-transition-wipe_down { animation-name: auto-edit-transition-down; animation-duration: 450ms; }
+.auto-edit-overlay-top_left { left: 4%; top: 4%; }
+.auto-edit-overlay-top_right { right: 4%; top: 4%; }
+.auto-edit-overlay-bottom_left { bottom: 4%; left: 4%; }
+.auto-edit-overlay-bottom_right { bottom: 4%; right: 4%; }
+.auto-edit-overlay-center { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+details[open] > summary .autopilot-collapsible-chevron-right {
+  transform: rotate(90deg);
+}

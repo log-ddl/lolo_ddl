@@ -1,0 +1,69 @@
+{
+  "manifest_version": 3,
+  "name": "logdd",
+  "version": "1.1.27",
+  "description": "Cầu nối cục bộ Google Flow và Grok Video cho ứng dụng logdd.",
+  "icons": {
+    "16": "logo.png",
+    "32": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  },
+  "permissions": ["storage", "alarms", "tabs", "webRequest", "scripting", "declarativeNetRequest", "sidePanel"],
+  "host_permissions": [
+    "https://labs.google/*",
+    "https://aisandbox-pa.googleapis.com/*",
+    "https://flow-content.google/*",
+    "https://grok.com/*",
+    "https://*.grok.com/*",
+    "https://assets.grok.com/*",
+    "http://127.0.0.1:8100/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://labs.google/fx/tools/flow*",
+        "https://labs.google/fx/*/tools/flow*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://grok.com/*", "https://*.grok.com/*"],
+      "js": ["grok-page-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://grok.com/*", "https://*.grok.com/*"],
+      "js": ["grok-content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["https://labs.google/*"]
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "referer_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "side_panel": {
+    "default_path": "side_panel.html"
+  },
+  "action": {
+    "default_icon": "logo.png",
+    "default_popup": "popup.html",
+    "default_title": "logdd"
+  }
+}

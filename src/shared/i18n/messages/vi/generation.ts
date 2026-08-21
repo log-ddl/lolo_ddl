@@ -1,0 +1,28 @@
+const generation = {
+  "stylePicker.placeholder": "Chọn phong cách",
+  "stylePicker.myStyles": "Phong cách của tôi",
+  "stylePicker.category.real": "Thật",
+  "stylePicker.category.stopMotion": "Stop motion",
+  "stylePicker.addStyle": "Thêm phong cách",
+  "stylePicker.editStyle": "Sửa phong cách",
+  "stylePicker.styleName": "Tên phong cách",
+  "stylePicker.styleNamePlaceholder": "Ví dụ: Người que vẽ tay tối giản",
+  "stylePicker.prompt": "Prompt phong cách",
+  "stylePicker.promptPlaceholder": "Mô tả phong cách hình ảnh...",
+  "stylePicker.negativePrompt": "Prompt phủ định (không bắt buộc)",
+  "stylePicker.negativePromptPlaceholder": "Các yếu tố cần tránh...",
+  "stylePicker.save": "Lưu phong cách",
+  "stylePicker.deleteTitle": "Xóa phong cách?",
+  "stylePicker.deleteDescription": "Phong cách “{name}” sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.",
+  "freedom.generating": "Đang tạo...",
+  "voice.mode": "Chế độ voice",
+  "voice.mode.off": "Tắt",
+  "voice.mode.selective": "Theo cảnh",
+  "voice.mode.ref": "Tham chiếu nhân vật",
+  "voice.mode.full": "Full voice",
+  "voice.narrator": "Giọng narrator",
+  "voice.selectNarrator": "Chọn giọng narrator",
+  "voice.sceneUnassigned": "Voice: {mode} chưa gán",
+} as const;
+
+export default generation;

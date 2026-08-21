@@ -1,0 +1,73 @@
+appId: com.longdd.app
+productName: logdd
+protocols:
+  - name: logdd authentication callback
+    schemes:
+      - logdd
+publish:
+  provider: github
+  owner: log-ddl
+  repo: lolo
+directories:
+  buildResources: build
+  output: release/build
+files:
+  - out/**/*
+  - package.json
+  # Desktop-only packaging guard: exclude web/image-toolchain heavy deps
+  - "!node_modules/next/**"
+  - "!node_modules/@next/**"
+  - "!node_modules/sharp/**"
+  - "!node_modules/@img/**"
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "node_modules/ffmpeg-static/**"
+extraResources:
+  - from: build/icon.ico
+    to: build/icon.ico
+  - from: extensions/logdd
+    to: extensions/logdd
+  - from: electron/features/tts-voice/python
+    to: tts-worker
+  - from: electron/features/video-studio/python
+    to: watermark
+  - from: electron/features/tts-voice/vendor/omnivoice
+    to: omnivoice-package
+    filter:
+      - omnivoice/**/*
+      - pyproject.toml
+      - LICENSE
+
+# Icon configuration
+icon: build/icon.ico
+
+mac:
+  icon: build/icon.icns
+  artifactName: ${name}-${version}-${arch}-mac.${ext}
+  target:
+    - dmg
+    - zip
+
+win:
+  executableName: longdd
+  icon: build/icon.ico
+  forceCodeSigning: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+# NSIS installer configuration
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: LONGDD
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico

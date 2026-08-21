@@ -1,0 +1,14 @@
+{
+  "omnivoice": {
+    "upstream": "https://github.com/k2-fsa/OmniVoice",
+    "version": "0.2.1",
+    "runtimeDependency": true,
+    "path": "./omnivoice"
+  },
+  "geminiReference": {
+    "runtimeDependency": false,
+    "path": "./gemini-reference",
+    "integratedRuntime": "../gemini-runtime.ts",
+    "note": "Python/PyQt source is retained only to compare future upstream drops. It is not packaged or executed."
+  }
+}

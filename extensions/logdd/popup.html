@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>logdd</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body class="popup-shell">
+  <header class="app-header popup-header">
+    <div class="brand-mark" aria-hidden="true">L</div>
+    <div class="brand-copy">
+      <div class="brand-title">logdd <span>Bridge</span></div>
+      <div class="brand-subtitle">Google Flow + Grok Video</div>
+    </div>
+    <button type="button" class="language-toggle" data-language-toggle title="Chuyển sang Tiếng Anh" aria-label="Chuyển sang Tiếng Anh">
+      <svg class="language-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m5 8 6 6"></path>
+        <path d="m4 14 6-6 2-3"></path>
+        <path d="M2 5h12"></path>
+        <path d="M7 2h1"></path>
+        <path d="m22 22-5-10-5 10"></path>
+        <path d="M14 18h6"></path>
+      </svg>
+      <span data-language-next>EN</span>
+    </button>
+    <button class="button button-primary button-compact" id="btn-panel" data-i18n="popup.openPanel">Mở bảng điều khiển</button>
+  </header>
+
+  <main class="popup-content">
+    <section class="section-heading">
+      <div>
+        <div class="eyebrow" data-i18n="common.activity">Hoạt động</div>
+        <h1 data-i18n="popup.recentRequests">Yêu cầu gần đây</h1>
+      </div>
+      <span class="count-pill" id="log-count">0</span>
+    </section>
+
+    <div class="request-list" id="log-list">
+      <div class="log-empty">
+        <div class="empty-icon">◎</div>
+        <div data-i18n="common.emptyTitle">Chưa có yêu cầu</div>
+        <span data-i18n="common.emptyDescription">Hoạt động tạo nội dung sẽ hiển thị tại đây.</span>
+      </div>
+    </div>
+  </main>
+
+  <footer class="popup-footer">
+    <span class="status-dot neutral" id="grok-quota-dot"></span>
+    <span id="grok-quota-summary">Grok: đang kiểm tra hạn mức…</span>
+  </footer>
+
+  <script src="ui-i18n.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

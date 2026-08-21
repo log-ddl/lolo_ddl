@@ -1,0 +1,28 @@
+const generation = {
+  "stylePicker.placeholder": "Select style",
+  "stylePicker.myStyles": "My Styles",
+  "stylePicker.category.real": "Real",
+  "stylePicker.category.stopMotion": "Stop Motion",
+  "stylePicker.addStyle": "Add style",
+  "stylePicker.editStyle": "Edit style",
+  "stylePicker.styleName": "Style name",
+  "stylePicker.styleNamePlaceholder": "For example: Minimal hand-drawn",
+  "stylePicker.prompt": "Style prompt",
+  "stylePicker.promptPlaceholder": "Describe the visual style...",
+  "stylePicker.negativePrompt": "Negative prompt (optional)",
+  "stylePicker.negativePromptPlaceholder": "Elements to avoid...",
+  "stylePicker.save": "Save style",
+  "stylePicker.deleteTitle": "Delete style?",
+  "stylePicker.deleteDescription": "The style “{name}” will be permanently deleted. This action cannot be undone.",
+  "freedom.generating": "Generating...",
+  "voice.mode": "Voice Mode",
+  "voice.mode.off": "Off",
+  "voice.mode.selective": "Selective",
+  "voice.mode.ref": "Character Ref",
+  "voice.mode.full": "Full Voice",
+  "voice.narrator": "Narrator Voice",
+  "voice.selectNarrator": "Select narrator voice",
+  "voice.sceneUnassigned": "Voice: {mode} pending",
+} as const;
+
+export default generation;

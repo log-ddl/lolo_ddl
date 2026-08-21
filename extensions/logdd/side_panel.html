@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>logdd Bridge</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    .bridge-shell { min-height: 100vh; background: var(--background); color: var(--text); padding-bottom: 88px; overflow: auto; }
+    .bridge-header { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+    .bridge-title { font-size: 16px; font-weight: 750; }
+    .bridge-subtitle { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .bridge-version { margin-left: auto; color: var(--muted); font-size: 10px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; }
+    .bridge-content { padding: 14px; display: grid; gap: 12px; }
+    .provider-card { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 14px; display: grid; gap: 10px; }
+    .provider-head { display: flex; align-items: center; gap: 10px; }
+    .provider-icon { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(226, 62, 134, .12); color: #e23e86; font-weight: 800; }
+    .provider-name { font-weight: 700; font-size: 14px; }
+    .provider-detail { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .provider-state { margin-left: auto; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 700; background: rgba(148, 163, 184, .16); color: var(--muted); }
+    .provider-state.ready { background: rgba(34, 197, 94, .14); color: #22a45a; }
+    .provider-state.waiting { background: rgba(245, 158, 11, .14); color: #c47b08; }
+    .provider-state.blocked { background: rgba(220, 79, 100, .14); color: #dc4f64; }
+    .checks { display: grid; gap: 6px; border-top: 1px solid var(--border); padding-top: 10px; }
+    .check { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
+    .check span:first-child { color: var(--muted); }
+    .check-value.ok { color: #22a45a; }
+    .check-value.bad { color: #dc4f64; }
+    .provider-error { color: #dc4f64; background: rgba(220, 79, 100, .08); border-radius: 8px; padding: 8px; font-size: 10px; line-height: 1.45; }
+    .provider-actions { display: flex; gap: 8px; }
+    .provider-actions .button { flex: 1; min-height: 34px; }
+    .bridge-note { border: 1px solid var(--border); background: var(--panel); border-radius: 12px; padding: 11px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .activity { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); overflow: hidden; }
+    .activity-head { padding: 12px 14px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .activity-title { font-weight: 700; font-size: 13px; }
+    .activity-count { color: var(--muted); font-size: 11px; }
+    .activity-list { max-height: 520px; overflow: auto; }
+    .activity-empty { padding: 32px 16px; text-align: center; color: var(--muted); font-size: 11px; }
+    .activity-entry { border-bottom: 1px solid var(--border); }
+    .activity-row { width: 100%; padding: 10px 14px; border: 0; background: transparent; color: inherit; display: grid; grid-template-columns: 46px minmax(0, 1fr) auto 12px; gap: 8px; align-items: center; font: inherit; text-align: left; cursor: pointer; }
+    .activity-row:hover { background: rgba(255,255,255,.025); }
+    .activity-provider { font-weight: 700; text-transform: uppercase; }
+    .activity-thumbnail { width: 42px; height: 32px; border: 1px solid var(--border); border-radius: 7px; background: #18181b; object-fit: cover; }
+    .activity-main { min-width: 0; }
+    .activity-kind { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .activity-meta { color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .activity-status { border-radius: 999px; padding: 4px 7px; background: rgba(148, 163, 184, .14); }
+    .activity-status.done { color: #22a45a; background: rgba(34, 197, 94, .12); }
+    .activity-status.failed { color: #dc4f64; background: rgba(220, 79, 100, .10); }
+    .activity-expand { color: var(--muted); font-size: 18px; transition: transform .16s ease; }
+    .activity-entry.open .activity-expand { transform: rotate(90deg); }
+    .activity-details { display: none; padding: 0 14px 14px 68px; }
+    .activity-entry.open .activity-details { display: block; }
+    .activity-preview { display: block; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; background: #18181b; }
+    .activity-preview img { display: block; width: 100%; max-height: 220px; object-fit: contain; }
+    .activity-detail-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(148,163,184,.1); font-size: 10px; }
+    .activity-detail-label { color: var(--muted); }
+    .activity-detail-value { overflow-wrap: anywhere; white-space: pre-wrap; user-select: text; }
+    .activity-detail-value.done { color: #22a45a; }
+    .activity-detail-value.failed { color: #dc4f64; }
+    .activity-output { margin-top: 10px; padding: 9px; border: 1px solid rgba(226,62,134,.22); border-radius: 9px; background: rgba(226,62,134,.06); }
+    .activity-output a { color: #e23e86; font-size: 11px; font-weight: 700; text-decoration: none; }
+    .activity-output-url { margin-top: 6px; color: var(--muted); font-size: 9px; overflow-wrap: anywhere; user-select: text; }
+    .bridge-footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 14px; border-top: 1px solid var(--border); background: var(--panel); display: flex; gap: 8px; }
+    .bridge-footer .button { flex: 1; }
+  </style>
+</head>
+<body class="bridge-shell">
+  <header class="bridge-header">
+    <div class="brand-mark" aria-hidden="true">L</div>
+    <div>
+      <div class="bridge-title">logdd Bridge</div>
+      <div class="bridge-subtitle">Google Flow + Grok Video</div>
+    </div>
+    <div class="bridge-version" id="bridge-version">v—</div>
+  </header>
+
+  <main class="bridge-content">
+    <section class="provider-card">
+      <div class="provider-head">
+        <div class="provider-icon">F</div>
+        <div><div class="provider-name">Google Flow</div><div class="provider-detail" id="flow-summary">Đang kiểm tra…</div></div>
+        <div class="provider-state" id="flow-state">Đang kiểm tra</div>
+      </div>
+      <div class="checks">
+        <div class="check"><span>Ứng dụng desktop · cổng 9222</span><span class="check-value" id="flow-agent">—</span></div>
+        <div class="check"><span>Phiên Google Flow</span><span class="check-value" id="flow-token">—</span></div>
+      </div>
+      <div class="provider-actions"><button class="button button-primary" id="btn-flow">Mở Google Flow</button><button class="button button-secondary" id="btn-token">Làm mới phiên</button></div>
+    </section>
+
+    <section class="provider-card">
+      <div class="provider-head">
+        <div class="provider-icon">G</div>
+        <div><div class="provider-name">Grok Video</div><div class="provider-detail" id="grok-summary">Đang kiểm tra…</div></div>
+        <div class="provider-state" id="grok-state">Đang kiểm tra</div>
+      </div>
+      <div class="checks">
+        <div class="check"><span>Ứng dụng desktop · cổng 9223</span><span class="check-value" id="grok-agent">—</span></div>
+        <div class="check"><span>Tab Grok</span><span class="check-value" id="grok-tab">—</span></div>
+        <div class="check"><span>Bridge trên trang</span><span class="check-value" id="grok-bridge">—</span></div>
+        <div class="check"><span>Hạn mức video</span><span class="check-value" id="grok-video-quota">Chưa có dữ liệu</span></div>
+        <div class="check"><span>Hạn mức video 720p</span><span class="check-value" id="grok-720p-quota">Chưa có dữ liệu</span></div>
+      </div>
+      <div class="provider-error" id="grok-error" hidden></div>
+      <div class="provider-actions"><button class="button button-primary" id="btn-grok">Mở Grok</button><button class="button button-secondary" id="btn-reload-grok">Tải lại tab Grok</button></div>
+    </section>
+
+    <div class="bridge-note">Nếu vừa cập nhật extension hoặc ứng dụng, hãy bấm <b>Reload</b> tại chrome://extensions, tải lại tab Grok rồi khởi động lại ứng dụng desktop. Flow và Grok dùng hai cổng riêng nên trạng thái được kiểm tra độc lập.</div>
+
+    <section class="activity">
+      <div class="activity-head"><div class="activity-title">Nhật ký chung</div><div class="activity-count" id="activity-count">0 yêu cầu</div></div>
+      <div class="activity-list" id="activity-list"><div class="activity-empty">Chưa có yêu cầu tạo nội dung.</div></div>
+    </section>
+  </main>
+
+  <footer class="bridge-footer"><button class="button button-secondary" id="btn-refresh">Kiểm tra lại cả hai kết nối</button></footer>
+  <script src="side_panel.js"></script>
+</body>
+</html>
