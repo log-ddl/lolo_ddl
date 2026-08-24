@@ -111,11 +111,7 @@ export const googleFlowProvider: MediaGenerationProvider = {
         const imageUrl = result.localUrl || result.remoteUrl;
         if (imageUrl) {
           const cleaned = await cleanGeneratedWatermark(imageUrl);
-          // The cleaned file no longer matches the media Flow still holds under
-          // result.mediaId. Drop the id so nothing downstream (start frames,
-          // character/scene references) can silently reuse the watermarked
-          // original — every caller re-uploads the cleaned image instead.
-          if (cleaned) return { ...result, localUrl: cleaned, mediaId: undefined };
+          if (cleaned) return { ...result, localUrl: cleaned };
         }
         return result;
       },

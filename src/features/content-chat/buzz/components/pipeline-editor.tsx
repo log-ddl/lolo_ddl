@@ -600,9 +600,9 @@ function PipelineCanvas({ pipeline, run, busy, runningNodeId, resultPanelOpen, o
           </Panel>
           <Panel position="bottom-center" className="m-4">
             {busy ? (
-              <Button className="h-10 bg-primary px-5 text-primary-foreground shadow-lg hover:bg-primary/90" onClick={onStop}><Loader2 className="size-4 animate-spin" /> {vietnamese ? "Đang chạy…" : "Running…"}</Button>
+              <Button className="h-10 px-5 shadow-lg" onClick={onStop}><Loader2 className="size-4 animate-spin" /> {vietnamese ? "Đang chạy…" : "Running…"}</Button>
             ) : (
-              <Button className="h-10 bg-primary px-5 text-primary-foreground shadow-lg hover:bg-primary/90" onClick={onExecute} disabled={pipeline.steps.length === 0}><Play className="size-4 fill-current" /> {vietnamese ? "Chạy quy trình" : "Execute workflow"}</Button>
+              <Button className="h-10 px-5 shadow-lg" onClick={onExecute} disabled={pipeline.steps.length === 0}><Play className="size-4 fill-current" /> {vietnamese ? "Chạy quy trình" : "Execute workflow"}</Button>
             )}
           </Panel>
         </ReactFlow>

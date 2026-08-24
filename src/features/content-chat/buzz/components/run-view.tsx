@@ -88,10 +88,10 @@ export function RunView({
             <div className="mb-2 flex items-center gap-2 text-xs font-semibold"><Files className="size-4 text-primary" /> Đầu vào đã chuẩn hóa</div>
             <div className="space-y-1.5">
               {run.inputManifest!.map((input) => (
-                <div key={input.nodeId} className="flex items-center gap-2 rounded-lg bg-muted/45 px-3 py-2 text-[10px]">
+                <div key={input.nodeId} className="flex items-center gap-2 rounded-lg bg-muted/45 px-3 py-2 text-2xs">
                   <span className="min-w-0 flex-1 truncate font-medium" title={input.resolvedPath}>{input.name}</span>
                   <span className="text-muted-foreground">{input.fileCount} file · {formatBytes(input.totalBytes)}</span>
-                  {input.staged && <Badge variant="secondary" className="text-[9px] font-normal">đã đưa vào workspace</Badge>}
+                  {input.staged && <Badge variant="secondary" className="text-2xs font-normal">đã đưa vào workspace</Badge>}
                 </div>
               ))}
             </div>
@@ -101,11 +101,11 @@ export function RunView({
         {run.status === "done" && finalStep && (
           <div className="rounded-xl border border-primary/35 bg-primary/5 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div><p className="text-xs font-semibold">Đầu ra cuối cùng</p><p className="mt-0.5 text-[10px] text-muted-foreground">{finalStep.name}</p></div>
-              {finalOutputKind === "file" && finalStepConfig?.outputFile && <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onOpenFile(finalStepConfig.outputFile)}><ExternalLink className="size-3" /> Mở {finalStepConfig.outputFile}</Button>}
-              {finalOutputKind === "folder" && finalStepConfig?.outputFile && <span className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px]">{finalStepConfig.outputFile}</span>}
+              <div><p className="text-xs font-semibold">Đầu ra cuối cùng</p><p className="mt-0.5 text-2xs text-muted-foreground">{finalStep.name}</p></div>
+              {finalOutputKind === "file" && finalStepConfig?.outputFile && <Button size="sm" variant="outline" className="h-7 text-2xs" onClick={() => onOpenFile(finalStepConfig.outputFile)}><ExternalLink className="size-3" /> Mở {finalStepConfig.outputFile}</Button>}
+              {finalOutputKind === "folder" && finalStepConfig?.outputFile && <span className="rounded-lg border border-border bg-background px-2 py-1 font-mono text-2xs">{finalStepConfig.outputFile}</span>}
             </div>
-            {finalStep.output && <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-background/80 p-3 font-mono text-[11px] leading-5">{finalStep.output}</pre>}
+            {finalStep.output && <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-background/80 p-3 font-mono text-2xs leading-5">{finalStep.output}</pre>}
           </div>
         )}
 
@@ -173,31 +173,31 @@ export function RunView({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">{step.name}</span>
-                    <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">{step.agentName}</Badge>
+                    <Badge variant="secondary" className="shrink-0 text-2xs font-normal">{step.agentName}</Badge>
                     {step.attempt > 1 && (
-                      <Badge variant="outline" className="shrink-0 text-[10px] font-normal">lần {step.attempt}</Badge>
+                      <Badge variant="outline" className="shrink-0 text-2xs font-normal">lần {step.attempt}</Badge>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted-foreground">{meta.label}</span>
-                  {step.artifact && step.status === "passed" && <span className="mt-0.5 block text-[9px] text-emerald-500">Đầu ra đã xác minh · {step.artifact.fileCount || 1} {step.artifact.kind === "folder" ? "file" : step.artifact.kind === "file" ? "tệp" : "phản hồi"} · {formatBytes(step.artifact.totalBytes)}</span>}
+                  <span className="text-2xs text-muted-foreground">{meta.label}</span>
+                  {step.artifact && step.status === "passed" && <span className="mt-0.5 block text-2xs text-emerald-500">Đầu ra đã xác minh · {step.artifact.fileCount || 1} {step.artifact.kind === "folder" ? "file" : step.artifact.kind === "file" ? "tệp" : "phản hồi"} · {formatBytes(step.artifact.totalBytes)}</span>}
                 </div>
                 {outputFile && outputKind === "file" && (step.status === "passed" || step.status === "failed") && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 shrink-0 px-2 text-[11px] font-normal text-muted-foreground"
+                    className="h-7 shrink-0 px-2 text-2xs font-normal text-muted-foreground"
                     onClick={() => onOpenFile(outputFile)}
                   >
                     <ExternalLink className="size-3.5" />
                     {outputFile}
                   </Button>
                 )}
-                {outputFile && outputKind === "folder" && (step.status === "passed" || step.status === "failed") && <span className="shrink-0 rounded-md bg-muted px-2 py-1 font-mono text-[10px] text-muted-foreground">{outputFile}</span>}
+                {outputFile && outputKind === "folder" && (step.status === "passed" || step.status === "failed") && <span className="shrink-0 rounded-lg bg-muted px-2 py-1 font-mono text-2xs text-muted-foreground">{outputFile}</span>}
                 {(body || step.error) && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 shrink-0 px-2 text-[11px] font-normal text-muted-foreground"
+                    className="h-7 shrink-0 px-2 text-2xs font-normal text-muted-foreground"
                     onClick={() => setExpandedStepId(expanded ? "" : step.stepId)}
                   >
                     {expanded ? "Ẩn log" : "Xem log"}
@@ -222,7 +222,7 @@ export function RunView({
               )}
 
               {(isLive || expanded) && body && (
-                <pre className="mx-4 mb-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/60 p-3 font-mono text-[11px] leading-5">
+                <pre className="mx-4 mb-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/60 p-3 font-mono text-2xs leading-5">
                   {body}
                   {isLive && <span className="ml-0.5 inline-block h-3 w-0.5 animate-pulse bg-primary align-middle" />}
                 </pre>
@@ -257,5 +257,5 @@ function RunStatusBadge({ run }: { run: BuzzRun }) {
     failed: { label: "Thất bại", className: "bg-destructive/15 text-destructive" },
   };
   const meta = map[run.status];
-  return <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", meta.className)}>{meta.label}</span>;
+  return <span className={cn("rounded px-1.5 py-0.5 text-2xs font-medium", meta.className)}>{meta.label}</span>;
 }

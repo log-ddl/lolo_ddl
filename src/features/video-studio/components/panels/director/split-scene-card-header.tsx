@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/lib/utils";
+import { Button } from "@/shared/components/ui/button";
 import type { Translate } from "@/shared/i18n";
 import type { SplitScene } from "@/features/video-studio/stores/director-store";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -75,7 +76,7 @@ export function SplitSceneCardHeader({
                   <span
                     key={voiceId}
                     className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded border",
+                      "text-2xs px-1.5 py-0.5 rounded border",
                       active
                         ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
                         : "bg-muted text-muted-foreground border-border"
@@ -86,7 +87,7 @@ export function SplitSceneCardHeader({
                 ))}
               </span>
             ) : (
-              <span className="text-[10px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground border-border">
+              <span className="text-2xs px-1.5 py-0.5 rounded border bg-muted text-muted-foreground border-border">
                 {t("voice.sceneUnassigned", { mode: t(`voice.mode.${voiceMode}`) })}
               </span>
             )
@@ -116,9 +117,9 @@ export function SplitSceneCardHeader({
         {onDelete && !isGeneratingAny && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <button className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button variant="ghost" size="icon-sm" className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                 <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>

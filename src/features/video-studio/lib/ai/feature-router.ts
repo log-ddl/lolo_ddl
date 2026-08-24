@@ -14,7 +14,7 @@
  */
 
 import { useAPIConfigStore, type AIFeature, type IProvider, AI_FEATURES } from '@/features/video-studio/stores/api-config-store';
-import { parseApiKeys, getProviderKeyManager, ApiKeyManager } from '@/features/video-studio/lib/api-key-manager';
+import { parseApiKeys, getProviderKeyManager, ApiKeyManager, getRuntimeProviderModels } from '@/features/video-studio/lib/api-key-manager';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { getCliProviderPlatform, isCliFeatureEnabled, isCliProvider, runCliTextCompletion } from '@/features/video-studio/lib/cli-runtime';
 
@@ -185,7 +185,10 @@ export function getFeatureConfig(feature: AIFeature): FeatureConfig | null {
       const model = binding.slice(separator + 1);
       const provider = store.providers.find((item) => item.id === providerIdOrPlatform)
         || store.providers.find((item) => item.platform === providerIdOrPlatform);
-      if (!provider || !isBrowserRuntimePlatform(provider.platform) || !provider.model.includes(model)) continue;
+      if (!provider || !isBrowserRuntimePlatform(provider.platform)) continue;
+      // Model list comes from code for these platforms; a persisted provider can be stale.
+      const knownModels = getRuntimeProviderModels(provider.platform) || provider.model;
+      if (!knownModels.includes(model)) continue;
       const featureInfo = AI_FEATURES.find((item) => item.key === feature);
       return {
         feature,

@@ -1,0 +1,154 @@
+{
+  "hash": "60ab4647",
+  "configHash": "de438db9",
+  "lockfileHash": "7e7143fc",
+  "browserHash": "589ae5e7",
+  "optimized": {
+    "react": {
+      "src": "../../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "bdb4b60d",
+      "needsInterop": true
+    },
+    "react-dom": {
+      "src": "../../../node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "78e82a9b",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "1292c5b3",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../../node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "2e00498a",
+      "needsInterop": true
+    },
+    "@supabase/supabase-js": {
+      "src": "../../../node_modules/@supabase/supabase-js/dist/index.mjs",
+      "file": "@supabase_supabase-js.js",
+      "fileHash": "8c779f6b",
+      "needsInterop": false
+    },
+    "@xyflow/react": {
+      "src": "../../../node_modules/@xyflow/react/dist/esm/index.js",
+      "file": "@xyflow_react.js",
+      "fileHash": "efea08d7",
+      "needsInterop": false
+    },
+    "class-variance-authority": {
+      "src": "../../../node_modules/class-variance-authority/dist/index.mjs",
+      "file": "class-variance-authority.js",
+      "fileHash": "00f23afc",
+      "needsInterop": false
+    },
+    "clsx": {
+      "src": "../../../node_modules/clsx/dist/clsx.mjs",
+      "file": "clsx.js",
+      "fileHash": "554d25f3",
+      "needsInterop": false
+    },
+    "lucide-react": {
+      "src": "../../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "d6089c0c",
+      "needsInterop": false
+    },
+    "nanoid": {
+      "src": "../../../node_modules/nanoid/index.browser.js",
+      "file": "nanoid.js",
+      "fileHash": "d6cba352",
+      "needsInterop": false
+    },
+    "papaparse": {
+      "src": "../../../node_modules/papaparse/papaparse.min.js",
+      "file": "papaparse.js",
+      "fileHash": "70d42c0a",
+      "needsInterop": true
+    },
+    "radix-ui": {
+      "src": "../../../node_modules/radix-ui/dist/index.mjs",
+      "file": "radix-ui.js",
+      "fileHash": "3067d7fe",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "0806b729",
+      "needsInterop": true
+    },
+    "react-markdown": {
+      "src": "../../../node_modules/react-markdown/index.js",
+      "file": "react-markdown.js",
+      "fileHash": "d59f304f",
+      "needsInterop": false
+    },
+    "react-resizable-panels": {
+      "src": "../../../node_modules/react-resizable-panels/dist/react-resizable-panels.browser.development.esm.js",
+      "file": "react-resizable-panels.js",
+      "fileHash": "a33af4f4",
+      "needsInterop": false
+    },
+    "remark-gfm": {
+      "src": "../../../node_modules/remark-gfm/index.js",
+      "file": "remark-gfm.js",
+      "fileHash": "c1967e10",
+      "needsInterop": false
+    },
+    "sonner": {
+      "src": "../../../node_modules/sonner/dist/index.mjs",
+      "file": "sonner.js",
+      "fileHash": "cea8ce89",
+      "needsInterop": false
+    },
+    "tailwind-merge": {
+      "src": "../../../node_modules/tailwind-merge/dist/bundle-mjs.mjs",
+      "file": "tailwind-merge.js",
+      "fileHash": "53423663",
+      "needsInterop": false
+    },
+    "zustand": {
+      "src": "../../../node_modules/zustand/esm/index.mjs",
+      "file": "zustand.js",
+      "fileHash": "ecd7c8a4",
+      "needsInterop": false
+    },
+    "zustand/middleware": {
+      "src": "../../../node_modules/zustand/esm/middleware.mjs",
+      "file": "zustand_middleware.js",
+      "fileHash": "004a74b4",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-XKP4HU7D": {
+      "file": "chunk-XKP4HU7D.js"
+    },
+    "chunk-MAXOR2ZY": {
+      "file": "chunk-MAXOR2ZY.js"
+    },
+    "chunk-5JNOIFFG": {
+      "file": "chunk-5JNOIFFG.js"
+    },
+    "chunk-46UH4XOL": {
+      "file": "chunk-46UH4XOL.js"
+    },
+    "chunk-FE7FDHKZ": {
+      "file": "chunk-FE7FDHKZ.js"
+    },
+    "chunk-7FV7BOYG": {
+      "file": "chunk-7FV7BOYG.js"
+    },
+    "chunk-NJ66JQBA": {
+      "file": "chunk-NJ66JQBA.js"
+    },
+    "chunk-DP4XHQAG": {
+      "file": "chunk-DP4XHQAG.js"
+    }
+  }
+}

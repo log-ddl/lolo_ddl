@@ -30,7 +30,7 @@ export function JobStageTimeline({ job }: { job: AutopilotJobListItem }) {
         const done = completed.has(step);
         const active = !done && (job.nextStep === step || job.stage === step || (step === "references" && (job.stage === "characters" || job.stage === "scenes")));
         return (
-          <div key={step} className={cn("flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-[10px]", done ? "border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400" : active ? "border-primary/50 bg-primary/5 text-primary" : "border-border text-muted-foreground")}>
+          <div key={step} className={cn("flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-2xs", done ? "border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400" : active ? "border-primary/50 bg-primary/5 text-primary" : "border-border text-muted-foreground")}>
             {done ? <CircleCheck className="h-3 w-3 shrink-0" /> : active && job.status === "running" ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <Circle className="h-3 w-3 shrink-0" />}
             <span className="truncate">{label}</span>
           </div>
@@ -45,7 +45,7 @@ export function LongFormChapterProgress({ job }: { job: AutopilotJobListItem }) 
   if (chapters.length === 0) return null;
   const done = chapters.filter((chapter) => chapter.status === "done").length;
   return (
-    <div className="rounded-md border border-border bg-muted/10 p-3 space-y-2">
+    <div className="rounded-lg border border-border bg-muted/10 p-3 space-y-2">
       <div className="flex items-center justify-between text-xs font-semibold">
         <span>Long-form chapters</span>
         <span className="text-muted-foreground">{done}/{chapters.length} checkpoint</span>
@@ -62,7 +62,7 @@ export function LongFormChapterProgress({ job }: { job: AutopilotJobListItem }) 
             : chapter.progress;
           return (
             <div key={chapter.id} className={cn(
-              "rounded-md border p-2 text-[10px] space-y-1.5",
+              "rounded-lg border p-2 text-2xs space-y-1.5",
               failed ? "border-red-500/50 bg-red-500/5" : active ? "border-primary/60 bg-primary/5" : "border-border bg-card",
             )}>
               <div className="flex items-center justify-between gap-2">
@@ -101,7 +101,7 @@ export function JobLog({ jobId }: { jobId: string }) {
   }, [jobId]);
   if (!job) return null;
   return (
-    <div ref={logRef} className="max-h-48 overflow-y-auto bg-muted/30 border border-border rounded-md p-2 font-mono text-[10px] space-y-1">
+    <div ref={logRef} className="max-h-48 overflow-y-auto bg-muted/30 border border-border rounded-lg p-2 font-mono text-2xs space-y-1">
       {job.log.map((entry, index) => (
         <div key={index} className="flex gap-2">
           <span className="text-muted-foreground shrink-0">

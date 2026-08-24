@@ -9,7 +9,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { X, Eye, Loader2, Check } from "lucide-react";
 import { LocalImage } from "@/shared/components/ui/local-image";
-import { removeWatermarkFromUrl } from "@/features/video-studio/lib/ai/watermark-remover";
+import { removeWatermarkWithDiagnostics } from "@/features/video-studio/lib/ai/watermark-remover";
 import { toast } from "sonner";
 
 interface ImagePreviewModalProps {
@@ -57,13 +57,13 @@ export function ImagePreviewModal({
     if (removing) return;
     setRemoving(true);
     try {
-      const result = await removeWatermarkFromUrl(cleanedUrl || imageUrl);
-      if (result) {
-        setCleanedUrl(result);
-        onImageCleaned?.(result);
+      const result = await removeWatermarkWithDiagnostics(cleanedUrl || imageUrl);
+      if (result.localPath) {
+        setCleanedUrl(result.localPath);
+        onImageCleaned?.(result.localPath);
         toast.success("Đã xoá watermark");
       } else {
-        toast.error("Không xoá được watermark — có thể ảnh không có watermark Gemini");
+        toast.error(result.error || "Không xoá được watermark — có thể ảnh không có watermark Gemini");
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Lỗi khi xoá watermark");

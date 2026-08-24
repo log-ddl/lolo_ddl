@@ -22,7 +22,10 @@ import { DEFAULT_FEATURE_BINDINGS, type AIFeature, type APIConfigState, type Fea
  * image-host defaults are no-ops here — the final normalization block rebuilds
  * those from `resolveImageHostProviders`.
  */
-export const API_CONFIG_STORE_VERSION = 21;
+// v22 has no dedicated step: the bump exists so the final normalization block
+// re-runs and refreshes the Google Flow model list on stores saved before
+// Gemini_Omni_Flash was added.
+export const API_CONFIG_STORE_VERSION = 22;
 
 type MigrationResult = Partial<APIConfigState> & { imageHostConfig?: LegacyImageHostConfig };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import { Check, Layers } from "lucide-react";
 import { Label } from "@/shared/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
@@ -85,9 +86,9 @@ export function SceneLibrarySelector({
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-medium">{t("director.selectSceneReference")}</p>
           {hasSelection && (
-            <button onClick={handleClear} className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground hover:bg-muted/80">
+            <Button variant="secondary" size="xs" onClick={handleClear} className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground hover:bg-muted/80">
               {t("director.clearSelection")}
-            </button>
+            </Button>
           )}
         </div>
 

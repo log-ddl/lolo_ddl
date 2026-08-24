@@ -137,9 +137,6 @@ export function SplitSceneCardActions(props: SplitSceneCardActionsProps) {
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                   <Play className="h-4 w-4 text-white" />
                 </div>
-                {canDragVideo && (
-                  <span className="absolute bottom-0.5 right-0.5 text-[8px] bg-green-600 text-white px-1 rounded">{t("director.card.dragTimeline")}</span>
-                )}
               </div>
             </div>
           )}

@@ -288,7 +288,7 @@ export function StoryboardPreview({ onBack, onSplitComplete }: StoryboardPreview
 
       {/* Split error message */}
       {splitError && (
-        <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+        <div className="flex items-start gap-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
           <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
           <div className="text-xs text-destructive">
             <p className="font-medium">{t("director.splitFailedTitle")}</p>
@@ -347,7 +347,7 @@ export function StoryboardPreview({ onBack, onSplitComplete }: StoryboardPreview
       </div>
 
       {/* Tips */}
-      <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2">
+      <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">
         <p>💡 {storyboardConfig.sceneCount === 1 
           ? 'Click "Next" to go straight into scene editing, where you can edit prompts and generate videos.'
           : `Click "Split Scenes" to divide the storyboard into ${storyboardConfig.sceneCount} evenly sized grid cells and automatically trim border separators. After that, you can edit each scene prompt.`

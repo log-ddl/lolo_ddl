@@ -75,7 +75,7 @@ export function PropertiesPanel() {
 
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <div className="flex h-9 shrink-0 items-center border-b border-border/60 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="flex h-9 shrink-0 items-center border-b border-border/60 px-3 text-xs font-semibold text-muted-foreground">
         {t("autoEdit.panels.properties")}
       </div>
 
@@ -151,11 +151,11 @@ function Inspector({ element, elementRef, execute, nextSibling }: InspectorProps
       <div className="border-b border-border/60 px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="truncate text-sm font-medium text-foreground">{element.name}</div>
-          <span className="shrink-0 rounded bg-sidebar-accent px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="shrink-0 rounded bg-sidebar-accent px-1.5 py-0.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
             {typeLabel(t, element.type)}
           </span>
         </div>
-        <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+        <div className="mt-1 flex items-center gap-3 text-2xs text-muted-foreground">
           <span>
             {t("autoEdit.duration")} · {formatTimecodeCompact(element.duration)}
           </span>
@@ -166,7 +166,7 @@ function Inspector({ element, elementRef, execute, nextSibling }: InspectorProps
       {/* Speed */}
       {retimable && (
         <div className="border-b border-border/60 px-3 py-2.5">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-muted-foreground">
             <Gauge className="size-3.5" />
             {t("autoEdit.speed")}
           </div>
@@ -183,7 +183,7 @@ function Inspector({ element, elementRef, execute, nextSibling }: InspectorProps
                 if (Number.isFinite(parsed)) execute(updateRetimeCommand(elementRef, parsed));
               }}
             />
-            <span className="text-[10px] text-muted-foreground">×</span>
+            <span className="text-2xs text-muted-foreground">×</span>
           </div>
         </div>
       )}
@@ -217,7 +217,7 @@ function Inspector({ element, elementRef, execute, nextSibling }: InspectorProps
           Scale and Rotation as five stacked rows wasted most of the panel. */}
       {groups.map((group) => (
         <div key={group.id} className="border-b border-border/60 px-3 py-2.5">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="mb-2 text-2xs font-semibold text-muted-foreground">
             {group.label}
           </div>
           <div className="space-y-2.5">
@@ -268,7 +268,7 @@ function MotionSection({
   const current: MotionEffectType = element.motionEffect ?? "none";
   return (
     <div className="border-b border-border/60 px-3 py-2.5">
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="mb-2 flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground">
         <Film className="size-3.5" />
         {t("autoEdit.motion")}
       </div>
@@ -292,7 +292,7 @@ function MotionSection({
           the panel used to show only the dropdown, which made a clip with motion
           look like it had nothing applied. */}
       {current !== "none" && (
-        <div className="mt-2 flex items-center justify-between rounded-md border border-border/50 px-2 py-1.5">
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-border/60 px-2 py-1.5">
           <span className="truncate text-xs font-medium text-foreground">
             {motionEffectLabel(current)}
           </span>
@@ -325,17 +325,17 @@ function EffectsSection({
     <div className="border-b border-border/60 px-3 py-2.5">
       {/* No "add" button here: effects come from the library panel, either dropped
           on a clip or dropped on empty timeline space to become a layer. */}
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="mb-2 text-2xs font-semibold text-muted-foreground">
         {t("autoEdit.effects")}
       </div>
 
       {effects.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground">{t("autoEdit.effects.empty")}</p>
+        <p className="text-2xs text-muted-foreground">{t("autoEdit.effects.empty")}</p>
       ) : (
         effects.map((effect) => {
           const def = getEffectDefinition(effect.type);
           return (
-            <div key={effect.id} className="mb-2 rounded-md border border-border/50 p-2">
+            <div key={effect.id} className="mb-2 rounded-lg border border-border/60 p-2">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-xs font-medium text-foreground">
                   {def?.name ?? effect.type}
@@ -380,7 +380,7 @@ function MasksSection({
   return (
     <div className="border-b border-border/60 px-3 py-2.5">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-2xs font-semibold text-muted-foreground">
           {t("autoEdit.masks")}
         </span>
         <div className="flex gap-1">
@@ -390,7 +390,7 @@ function MasksSection({
               type="button"
               title={m.name}
               onClick={() => execute(addMaskCommand(elementRef, m.type))}
-              className="flex size-6 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+              className="flex size-6 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
             >
               <MaskIcon type={m.type} />
             </button>
@@ -399,7 +399,7 @@ function MasksSection({
       </div>
 
       {masks.map((mask) => (
-        <div key={mask.id} className="mb-2 rounded-md border border-border/50 p-2">
+        <div key={mask.id} className="mb-2 rounded-lg border border-border/60 p-2">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-xs font-medium capitalize text-foreground">
               {maskName(mask.type)}
@@ -488,7 +488,7 @@ function TransitionSection({
 
   return (
     <div className="border-b border-border/60 px-3 py-2.5">
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="mb-2 flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground">
         <Wand2 className="size-3.5" />
         {t("autoEdit.transition")}
       </div>
@@ -511,7 +511,7 @@ function TransitionSection({
         </Select>
 
         {disabled && (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {t("autoEdit.transition.needsNext")}
           </p>
         )}

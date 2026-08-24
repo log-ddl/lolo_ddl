@@ -101,7 +101,7 @@ export function AgentManagerDialog({ open, onOpenChange }: { open: boolean; onOp
                   <Bot className="size-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{agent.name}</span>
-                    <span className="block truncate text-[10px] text-muted-foreground">
+                    <span className="block truncate text-2xs text-muted-foreground">
                       {ADAPTER_LABELS[agent.adapter]}
                     </span>
                   </span>
@@ -200,7 +200,7 @@ export function AgentManagerDialog({ open, onOpenChange }: { open: boolean; onOp
                       placeholder="Mô tả agent này là ai, làm gì, và không được làm gì."
                       className="min-h-56 resize-y font-mono text-xs leading-5"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       Đây là tính cách cố định của agent. Việc cụ thể từng bước thì viết ở prompt của step.
                     </p>
                   </div>

@@ -236,13 +236,13 @@ export function useAutopilotVoiceSettings() {
   };
 }
 
-const SELECT_CLASS = "w-full h-8 rounded-md border border-border bg-background px-2 text-xs";
+const SELECT_CLASS = "w-full h-8 rounded-lg border border-border bg-background px-2 text-xs";
 
 /** Engine picker. Rendered separately so it can sit above the engine-specific controls. */
 export function VoiceEnginePicker({ settings, t }: { settings: AutopilotVoiceSettings; t: Translate }) {
   return (
     <div>
-      <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.voice")}</Label>
+      <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voice")}</Label>
       <select value={settings.voiceEngine} onChange={(e) => settings.setVoiceEngine(e.target.value as VoiceEngine)} className={SELECT_CLASS}>
         <option value="capcut">CapCut</option>
         <option value="gemini">Gemini</option>
@@ -260,7 +260,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.language")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("autopilot.panel.language")}</Label>
             <select value={s.capcutLanguage} onChange={(e) => s.setCapcutLanguage(e.target.value)} className={SELECT_CLASS}>
               {CAPCUT_LANGUAGES.map((language) => (
                 <option key={language} value={language}>{language}</option>
@@ -268,7 +268,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
             </select>
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.voiceSelect")} ({s.capcutVoices.length})</Label>
+            <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voiceSelect")} ({s.capcutVoices.length})</Label>
             <select value={s.capcutVoiceType} onChange={(e) => s.setCapcutVoiceType(e.target.value)} className={SELECT_CLASS}>
               {s.capcutVoices.map((voice) => (
                 <option key={`${voice.voiceType}:${voice.resourceId}`} value={voice.voiceType}>{voice.displayName}</option>
@@ -286,7 +286,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">Model</Label>
+            <Label className="text-xs mb-1.5 block">Model</Label>
             <select value={s.geminiModelId} onChange={(e) => s.setGeminiModelId(e.target.value)} className={SELECT_CLASS}>
               {GEMINI_MODELS.map((model) => (
                 <option key={model.id} value={model.id}>{model.name}</option>
@@ -294,7 +294,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
             </select>
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.language")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("autopilot.panel.language")}</Label>
             <select value={s.geminiLanguage} onChange={(e) => s.setGeminiLanguage(e.target.value)} className={SELECT_CLASS}>
               {GEMINI_LANGUAGES.map(([code, name]) => (
                 <option key={code} value={code}>{name} ({code})</option>
@@ -303,7 +303,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
           </div>
         </div>
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.voiceSelect")}</Label>
+          <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voiceSelect")}</Label>
           <select value={s.geminiVoiceName} onChange={(e) => s.setGeminiVoiceName(e.target.value)} className={SELECT_CLASS}>
             {GEMINI_VOICES.map((voice) => (
               <option key={voice.name} value={voice.name}>{voice.name} — {voice.description} ({voice.gender === 'F' ? 'Nữ' : 'Nam'})</option>
@@ -311,7 +311,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
           </select>
         </div>
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("tts.gemini.style")}</Label>
+          <Label className="text-xs mb-1.5 block">{t("tts.gemini.style")}</Label>
           <Textarea value={s.geminiStyle} onChange={(e) => s.setGeminiStyle(e.target.value)} placeholder={t("tts.gemini.stylePlaceholder")} rows={2} className="text-xs" />
         </div>
       </div>
@@ -322,7 +322,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
     return (
       <div className="space-y-3">
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.voiceSelect")} ({s.filteredVbeeVoices.length}/{s.vbeeVoices.length})</Label>
+          <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voiceSelect")} ({s.filteredVbeeVoices.length}/{s.vbeeVoices.length})</Label>
           <div className="relative mb-2">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input value={s.vbeeVoiceSearch} onChange={(event) => s.setVbeeVoiceSearch(event.target.value)} placeholder="Tìm theo tên, mã hoặc ngôn ngữ…" className="h-8 pl-8 text-xs" />
@@ -337,7 +337,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
                 useTtsStore.getState().setVbeeVoiceCode(code);
                 if (voice) useTtsStore.getState().setVbeeVoiceName(voice.name);
               }}
-              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs"
+              className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-background px-2 text-xs"
             >
               {s.vbeeVoices.length === 0 && <option value={s.vbeeVoiceCode}>Đang tải giọng Vbee…</option>}
               {s.vbeeVoiceOptions.map((voice) => (
@@ -356,20 +356,20 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
               <Star className={`h-3.5 w-3.5 ${s.vbeeFavoriteVoiceCodes.includes(s.vbeeVoiceCode) ? "fill-amber-400 text-amber-500" : ""}`} />
             </Button>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-2xs text-muted-foreground">
             Sẽ đọc bằng: <span className="text-foreground">{s.vbeeVoices.find((voice) => voice.code === s.vbeeVoiceCode)?.name || s.vbeeVoiceCode}</span> ({s.vbeeVoiceCode})
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("tts.vbee.audioType")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("tts.vbee.audioType")}</Label>
             <select value={s.vbeeAudioType} onChange={(e) => s.setVbeeAudioType(e.target.value as "mp3" | "wav")} className={SELECT_CLASS}>
               <option value="mp3">MP3</option>
               <option value="wav">WAV</option>
             </select>
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("tts.vbee.bitrate")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("tts.vbee.bitrate")}</Label>
             <select value={String(s.vbeeBitrate)} onChange={(e) => s.setVbeeBitrate(Number(e.target.value))} disabled={s.vbeeAudioType === "wav"} className={`${SELECT_CLASS} disabled:opacity-50`}>
               {[8, 16, 32, 64, 128].map((value) => <option key={value} value={value}>{value} kbps</option>)}
             </select>
@@ -385,14 +385,14 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("tts.settings.voiceMode")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("tts.settings.voiceMode")}</Label>
             <select value={s.vieneuMode} onChange={(e) => s.setVieneuMode(e.target.value as "preset" | "clone")} className={SELECT_CLASS}>
               <option value="preset">{t("tts.mode.preset")}</option>
               <option value="clone">{t("tts.mode.clone")}</option>
             </select>
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("tts.vieneu.style")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("tts.vieneu.style")}</Label>
             <select value={s.vieneuStyle} onChange={(e) => s.setVieneuStyle(e.target.value as typeof s.vieneuStyle)} className={SELECT_CLASS}>
               <option value="tu_nhien">{t("tts.vieneu.styleNatural")}</option>
               <option value="tin_tuc">{t("tts.vieneu.styleNews")}</option>
@@ -402,22 +402,22 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
         </div>
         {s.vieneuMode === "preset" ? (
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.voiceSelect")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voiceSelect")}</Label>
             <select value={s.vieneuVoice} onChange={(e) => s.setVieneuVoice(e.target.value)} className={SELECT_CLASS}>
               {s.vieneuVoices.map((voice) => <option key={voice.id} value={voice.id}>{voice.label}</option>)}
             </select>
           </div>
         ) : (
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.voiceProfile")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voiceProfile")}</Label>
             <select value={s.vieneuProfileId} onChange={(e) => s.setVieneuProfileId(e.target.value)} className={SELECT_CLASS}>
               <option value="">{t("autopilot.panel.omniNoProfile")}</option>
               {s.vieneuProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
             </select>
-            {s.vieneuProfiles.length === 0 && <p className="mt-1 text-[10px] text-muted-foreground">{t("autopilot.panel.noVoiceProfiles")}</p>}
+            {s.vieneuProfiles.length === 0 && <p className="mt-1 text-2xs text-muted-foreground">{t("autopilot.panel.noVoiceProfiles")}</p>}
           </div>
         )}
-        <p className="text-[10px] text-muted-foreground">{t("tts.vieneu.cloneHint")}</p>
+        <p className="text-2xs text-muted-foreground">{t("tts.vieneu.cloneHint")}</p>
       </div>
     );
   }
@@ -426,7 +426,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("tts.settings.voiceMode")}</Label>
+          <Label className="text-xs mb-1.5 block">{t("tts.settings.voiceMode")}</Label>
           <select value={s.omniMode} onChange={(e) => s.setOmniMode(e.target.value as "clone" | "design" | "auto")} className={SELECT_CLASS}>
             <option value="clone">{t("tts.mode.clone")}</option>
             <option value="design">{t("tts.mode.design")}</option>
@@ -434,7 +434,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
           </select>
         </div>
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.language")}</Label>
+          <Label className="text-xs mb-1.5 block">{t("autopilot.panel.language")}</Label>
           <select value={s.omniLanguage} onChange={(e) => s.setOmniLanguage(e.target.value)} className={SELECT_CLASS}>
             {OMNIVOICE_LANGUAGES.map((language) => (
               <option key={language.code} value={language.code}>{language.name} ({language.code})</option>
@@ -445,7 +445,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
 
       {s.omniMode === "clone" && (
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autopilot.panel.voiceProfile")}</Label>
+          <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voiceProfile")}</Label>
           <select value={s.omniProfileId} onChange={(e) => s.setOmniProfileId(e.target.value)} className={SELECT_CLASS}>
             <option value="">{t("autopilot.panel.omniNoProfile")}</option>
             {s.omniProfiles.map((profile) => (
@@ -453,21 +453,21 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
             ))}
           </select>
           {s.omniProfiles.length === 0 && (
-            <p className="mt-1 text-[10px] text-muted-foreground">{t("autopilot.panel.noVoiceProfiles")}</p>
+            <p className="mt-1 text-2xs text-muted-foreground">{t("autopilot.panel.noVoiceProfiles")}</p>
           )}
         </div>
       )}
 
       {s.omniMode === "design" && (
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("tts.settings.designPrompt")}</Label>
+          <Label className="text-xs mb-1.5 block">{t("tts.settings.designPrompt")}</Label>
           <Textarea value={s.omniInstruction} onChange={(e) => s.setOmniInstruction(e.target.value)} placeholder={t("tts.settings.designPlaceholder")} rows={2} className="text-xs" />
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("tts.settings.quality")}</Label>
+          <Label className="text-xs mb-1.5 block">{t("tts.settings.quality")}</Label>
           <select value={String(s.omniNumStep)} onChange={(e) => s.setOmniNumStep(Number(e.target.value))} className={SELECT_CLASS}>
             <option value="16">{t("tts.quality.fast")}</option>
             <option value="24">{t("tts.quality.balanced")}</option>

@@ -54,7 +54,7 @@ export function JobCard({
         <Icon className={cn("w-4 h-4 shrink-0", STATUS_STYLES[job.status], job.status === "running" && "animate-spin")} />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate">{job.title}</div>
-          <div className="text-[10px] text-muted-foreground truncate">{job.id}</div>
+          <div className="text-2xs text-muted-foreground truncate">{job.id}</div>
         </div>
         <span className="text-xs text-muted-foreground">{job.stage}</span>
         <div className="flex items-center gap-1">
@@ -88,7 +88,7 @@ export function JobCard({
       <div className="flex items-center gap-3">
         <Progress value={job.progress} className="flex-1" />
         {job.status === "running" && (
-          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+          <span className="shrink-0 text-2xs tabular-nums text-muted-foreground">
             {Math.max(0, Math.floor((now - job.createdAt) / 1000))}s
           </span>
         )}
@@ -99,7 +99,7 @@ export function JobCard({
         <div className="text-xs text-red-500 bg-red-500/10 border border-red-500/30 rounded p-2">{job.error}</div>
       )}
       {job.outputVideoPath && (
-        <div className="rounded-md border border-green-500/30 bg-green-500/5 p-2 space-y-2">
+        <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-2 space-y-2">
           <div className="flex items-center gap-2 text-xs">
             <span className="text-muted-foreground truncate flex-1">{job.outputVideoPath}</span>
             <Button variant="ghost" size="sm" title={t("autopilot.panel.copyPath")} onClick={() => onCopyPath(job.outputVideoPath!)}>
@@ -113,12 +113,12 @@ export function JobCard({
               {t("autopilot.panel.saveMp4")}
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground">{t("autopilot.panel.savedInLibrary")}</p>
+          <p className="text-2xs text-muted-foreground">{t("autopilot.panel.savedInLibrary")}</p>
         </div>
       )}
       {expanded && <LongFormChapterProgress job={job} />}
       {expanded && job.input?.script && (
-        <details className="rounded-md border border-border bg-muted/10">
+        <details className="rounded-lg border border-border bg-muted/10">
           <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">Kịch bản</summary>
           <div className="border-t border-border p-3">
             <pre className="whitespace-pre-wrap text-xs text-foreground/80 max-h-60 overflow-y-auto">{job.input.script}</pre>
@@ -127,7 +127,7 @@ export function JobCard({
       )}
       {expanded && <JobMediaGallery job={job} />}
       {expanded && (
-        <details className="rounded-md border border-border bg-muted/10">
+        <details className="rounded-lg border border-border bg-muted/10">
           <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">Nhật ký kỹ thuật</summary>
           <div className="border-t border-border p-2"><JobLog jobId={job.id} /></div>
         </details>

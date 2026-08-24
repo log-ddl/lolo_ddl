@@ -28,6 +28,7 @@ export interface IProvider {
 
 export const GOOGLE_FLOW_IMAGE_MODELS = ['GEM_PIX_2', 'NARWHAL'];
 export const GOOGLE_FLOW_VIDEO_MODELS = [
+  'Gemini_Omni_Flash',
   'Veo_3.1-Fast',
   'Veo_3.1-Lite',
   'Veo_3.1-Lite_Lower_Priority',
@@ -35,9 +36,24 @@ export const GOOGLE_FLOW_VIDEO_MODELS = [
 export const GOOGLE_FLOW_MODELS = [...GOOGLE_FLOW_IMAGE_MODELS, ...GOOGLE_FLOW_VIDEO_MODELS];
 export const GROK_VIDEO_MODELS = ['Grok Imagine Video'];
 
+/**
+ * Canonical model list for the browser-runtime platforms.
+ *
+ * These lists live in code, not in a synced /v1/models response, so the copy
+ * persisted on the provider can lag behind after a new model is added. Callers
+ * validating a saved binding must use this instead of `provider.model`.
+ * Returns null for platforms whose models really do come from a sync.
+ */
+export function getRuntimeProviderModels(platform: string): string[] | null {
+  if (platform === 'googleflow') return GOOGLE_FLOW_MODELS;
+  if (platform === 'grok') return GROK_VIDEO_MODELS;
+  return null;
+}
+
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   GEM_PIX_2: 'Google Nano Banana Pro',
   NARWHAL: 'Nano Banana 2',
+  Gemini_Omni_Flash: 'Gemini Omni Flash',
   'Veo_3.1-Fast': 'Veo 3.1 Fast',
   'Veo_3.1-Lite': 'Veo 3.1 Lite',
   'Veo_3.1-Lite_Lower_Priority': 'Veo 3.1 Lite – Lower Priority',

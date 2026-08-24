@@ -30,9 +30,9 @@ export function motionEffectLabel(type: MotionEffectType | undefined): string {
 
 /** The fixed zoom level for pan-only effects (matches ffmpeg's `z=1.12`). */
 const PAN_ZOOM = 1.12;
-/** Zoom-pan effect's zoom range. Start at 1.08 instead of 1.04 so the pan's
- * per-frame x displacement never drops below one pixel — sub-pixel steps made
- * the start of zoom_pan_* jitter in the zoompan render. */
+/** Zoom-pan effect's zoom range. The render quantizes the move to whole
+ * supersampled pixels, so it lands close to — but not exactly on — this range;
+ * see `electron/features/video-studio/render/motion.ts`. */
 const ZOOM_PAN_START = 1.08;
 const ZOOM_PAN_END = 1.14;
 

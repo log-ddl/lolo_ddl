@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { Button } from "@/shared/components/ui/button";
 import { Bot, Check, Copy, Loader2, UserRound } from "lucide-react";
 import { useI18n } from "@/shared/i18n";
 import { cn } from "@/shared/lib/utils";
@@ -31,7 +32,7 @@ export const MessageBubble = memo(function MessageBubble({
       <div className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg", isUser ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
         {isUser ? <UserRound className="size-4" /> : <Bot className="size-4" />}
       </div>
-      <div className={cn("group relative max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-6", isUser ? "bg-primary text-primary-foreground" : "border border-border/70 bg-card")}>
+      <div className={cn("group relative max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-6", isUser ? "bg-primary text-primary-foreground" : "border border-border/60 bg-card")}>
         {isUser
           ? <div className="whitespace-pre-wrap break-words">{message.content}</div>
           : <>
@@ -44,14 +45,14 @@ export const MessageBubble = memo(function MessageBubble({
             />
           </>}
         {!isUser && (
-          <button
+          <Button variant="ghost" size="icon-sm"
             type="button"
             onClick={() => onCopy(message)}
             title={t("contentChat.copy")}
-            className="absolute -bottom-7 left-1 rounded p-1 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100 focus:opacity-100"
+            className="absolute -bottom-8 left-1 opacity-0 transition group-hover:opacity-100 focus:opacity-100"
           >
             {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -64,7 +65,7 @@ export function StreamingBubble({ text }: { text: string }) {
       <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
         <Bot className="size-4" />
       </div>
-      <div className="max-w-[82%] rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm leading-6">
+      <div className="max-w-[82%] rounded-2xl border border-border/60 bg-card px-4 py-3 text-sm leading-6">
         {text ? <MarkdownContent content={text} /> : <Loader2 className="size-4 animate-spin text-muted-foreground" />}
         {text && <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-primary align-middle" />}
       </div>

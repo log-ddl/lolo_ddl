@@ -195,7 +195,7 @@ export function BuzzView({ onOpenFile }: { onOpenFile: (workspacePath: string | 
   return (
     <>
       <aside className={cn(
-        "shrink-0 overflow-hidden border-r border-border/70 bg-sidebar/60 transition-[width,border-color] duration-200 ease-out",
+        "shrink-0 overflow-hidden border-r border-border/60 bg-sidebar/60 transition-[width,border-color] duration-200 ease-out",
         sidebarCollapsed ? "w-0 border-transparent" : "w-64",
       )}>
         <div className="flex h-full w-64 flex-col">
@@ -235,27 +235,27 @@ export function BuzzView({ onOpenFile }: { onOpenFile: (workspacePath: string | 
                 className="min-w-0 flex-1 px-2 py-1.5 text-left"
               >
                 <span className="block truncate text-sm font-medium">{item.name}</span>
-                <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                <span className="mt-0.5 block text-2xs text-muted-foreground">
                   {item.steps.length} bước
                 </span>
               </button>
-              <button
+              <Button variant="ghost" size="icon-sm"
                 type="button"
                 title="Nhân bản"
                 onClick={() => duplicatePipeline(item.id)}
-                className="rounded-md p-1.5 text-muted-foreground opacity-0 transition hover:bg-sidebar-accent hover:text-foreground group-hover:opacity-100"
+                className="opacity-0 transition group-hover:opacity-100"
               >
                 <Copy className="size-3.5" />
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost" size="icon-sm"
                 type="button"
                 title="Xoá"
                 disabled={busy}
                 onClick={() => deletePipeline(item.id)}
-                className="rounded-md p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                className="opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
               >
                 <Trash2 className="size-3.5" />
-              </button>
+              </Button>
             </div>
           ))}
         </ScrollArea>
@@ -273,30 +273,30 @@ export function BuzzView({ onOpenFile }: { onOpenFile: (workspacePath: string | 
           {historyOpen && (
             <div className="mt-1 max-h-52 overflow-y-auto">
               {pipelineRuns.length === 0 ? (
-                <p className="px-2 py-3 text-center text-[11px] text-muted-foreground">Chưa có lần chạy nào.</p>
+                <p className="px-2 py-3 text-center text-2xs text-muted-foreground">Chưa có lần chạy nào.</p>
               ) : pipelineRuns.map((item) => (
                 <div key={item.id} className="group flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => { selectRun(item.id); setRunPanelOpen(true); }}
                     className={cn(
-                      "min-w-0 flex-1 rounded-md px-2 py-1.5 text-left text-[11px] transition-colors",
+                      "min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left text-2xs transition-colors",
                       item.id === activeRunId ? "bg-background shadow-xs" : "hover:bg-sidebar-accent/60",
                     )}
                   >
                     <span className="block truncate">{item.pipelineName}</span>
-                    <span className="block text-[9px] text-muted-foreground">
+                    <span className="block text-2xs text-muted-foreground">
                       {new Date(item.startedAt).toLocaleString()}
                     </span>
                   </button>
-                  <button
+                  <Button variant="ghost" size="icon-sm"
                     type="button"
                     disabled={busy && item.id === activeRunId}
                     onClick={() => deleteRun(item.id)}
-                    className="rounded p-1 text-muted-foreground opacity-0 transition hover:text-destructive group-hover:opacity-100"
+                    className="opacity-0 transition hover:text-destructive group-hover:opacity-100"
                   >
                     <Trash2 className="size-3" />
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -306,7 +306,7 @@ export function BuzzView({ onOpenFile }: { onOpenFile: (workspacePath: string | 
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border/70 px-5">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border/60 px-5">
           {sidebarCollapsed && (
             <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={() => setSidebarCollapsed(false)} title="Mở sidebar" aria-label="Mở sidebar">
               <PanelLeftOpen className="size-4" />
@@ -315,7 +315,7 @@ export function BuzzView({ onOpenFile }: { onOpenFile: (workspacePath: string | 
           <FeatureHeaderIcon icon={Radar} />
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-semibold">{pipeline?.name ?? "Buzz"}</h1>
-            <p className="truncate text-[11px] text-muted-foreground">
+            <p className="truncate text-2xs text-muted-foreground">
               {pipeline?.description || "Workflow kết nối Input, Function và Agent trên canvas."}
             </p>
           </div>
@@ -345,7 +345,7 @@ export function BuzzView({ onOpenFile }: { onOpenFile: (workspacePath: string | 
         </header>
 
         {missingAdapters.length > 0 && (
-          <div className="shrink-0 border-b border-border/70 px-5 py-2 text-[11px] text-destructive">
+          <div className="shrink-0 border-b border-border/60 px-5 py-2 text-2xs text-destructive">
             CLI chưa sẵn sàng: {missingAdapters.join(", ")}
           </div>
         )}

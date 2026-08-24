@@ -343,7 +343,7 @@ export function CharacterGallery({ onCharacterSelect, selectedCharacterId, onImp
               />
             </div>
             {hasEpisodeScope && (
-              <div className="flex border rounded-md">
+              <div className="flex border rounded-lg">
                 <Button
                   variant={episodeViewScope === 'episode' ? 'secondary' : 'ghost'}
                   size="sm"
@@ -362,7 +362,7 @@ export function CharacterGallery({ onCharacterSelect, selectedCharacterId, onImp
                 </Button>
               </div>
             )}
-            <div className="flex border rounded-md">
+            <div className="flex border rounded-lg">
               <Button
                 variant={viewMode === "grid" ? "secondary" : "ghost"}
                 size="sm"
@@ -511,7 +511,7 @@ export function CharacterGallery({ onCharacterSelect, selectedCharacterId, onImp
                 >
                   <div
                     className={cn(
-                      "flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors",
+                      "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors",
                       "hover:bg-accent",
                       viewMode === "grid" && "flex-col text-center"
                     )}

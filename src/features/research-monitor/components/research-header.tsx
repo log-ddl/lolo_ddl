@@ -24,10 +24,10 @@ export function ResearchHeader({ activeView }: { activeView: ResearchView }) {
   void quotaUsage;
   const current = titleKeys[activeView];
   return (
-    <header className="flex min-h-[62px] shrink-0 items-center border-b border-border/50 bg-panel/70 px-4 backdrop-blur-xl lg:px-6">
+    <header className="flex min-h-[62px] shrink-0 items-center border-b border-border/60 bg-panel/70 px-4 backdrop-blur-xl lg:px-6">
       <FeatureHeaderIcon className="mr-3" icon={Telescope} />
-      <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{t(current.title)}</h1><p className="mt-0.5 truncate text-[11px] text-muted-foreground">{t(current.subtitle)}</p></div>
-      <div title={t("research.header.quotaTip")} className={`ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium ${keys.length ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}><KeyRound className="h-3 w-3" />{keys.length ? t("research.header.quota", { count: keys.length, read: coreUsed.toLocaleString(locale), search: searchUsed.toLocaleString(locale) }) : t("research.common.noApi")}</div>
+      <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{t(current.title)}</h1><p className="mt-0.5 truncate text-2xs text-muted-foreground">{t(current.subtitle)}</p></div>
+      <div title={t("research.header.quotaTip")} className={`ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-medium ${keys.length ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}><KeyRound className="h-3 w-3" />{keys.length ? t("research.header.quota", { count: keys.length, read: coreUsed.toLocaleString(locale), search: searchUsed.toLocaleString(locale) }) : t("research.common.noApi")}</div>
     </header>
   );
 }

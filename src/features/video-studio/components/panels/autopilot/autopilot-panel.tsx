@@ -291,7 +291,7 @@ export function AutopilotPanel() {
           {/* === Create job === */}
           <div className="rounded-lg border border-border bg-card p-3 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-bold uppercase tracking-wider">{t("autopilot.panel.newJob")}</h3>
+              <h3 className="text-sm font-bold">{t("autopilot.panel.newJob")}</h3>
               <Button type="button" variant="ghost" size="sm" onClick={() => setAdvancedExpanded((value) => !value)}>
                 <Settings2 className="mr-1.5 h-4 w-4" />
                 {advancedExpanded ? t("autopilot.panel.hideAdvanced") : t("autopilot.panel.advanced")}
@@ -325,15 +325,15 @@ export function AutopilotPanel() {
                   </Button>
                 </>
               ) : (
-                <span className="text-[10px] text-muted-foreground">Nạp JSON có shots[].voiceOver và shots[].imagePrompt.</span>
+                <span className="text-2xs text-muted-foreground">Nạp JSON có shots[].voiceOver và shots[].imagePrompt.</span>
               )}
             </div>
 
             <div className="grid gap-3 lg:grid-cols-3">
               <div>
-                <Label className="mb-1.5 block text-xs uppercase tracking-wider">{t("autopilot.panel.skill")}</Label>
+                <Label className="mb-1.5 block text-xs">{t("autopilot.panel.skill")}</Label>
                 <div className="flex gap-1">
-                  <select value={selectedSkillId || "none"} onChange={(e) => handleSelectSkill(e.target.value)} className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs">
+                  <select value={selectedSkillId || "none"} onChange={(e) => handleSelectSkill(e.target.value)} className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-2 text-xs">
                     <option value="none">{t("autopilot.panel.noSkill")}</option>
                     {savedSkills.map((skill) => <option key={skill.id} value={skill.id}>{skill.name}</option>)}
                   </select>
@@ -342,12 +342,12 @@ export function AutopilotPanel() {
                 </div>
               </div>
               <div>
-                <Label className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-wider"><Palette className="h-3.5 w-3.5" />{t("scriptInput.visualStyle")}</Label>
+                <Label className="mb-1.5 flex items-center gap-1.5 text-xs"><Palette className="h-3.5 w-3.5" />{t("scriptInput.visualStyle")}</Label>
                 <StylePicker value={visualStyleId} onChange={(styleId) => setProjectVisualStyleId(styleId)} />
               </div>
               <div>
-                <Label className="mb-1.5 block text-xs uppercase tracking-wider">{t("autopilot.panel.voiceSource")}</Label>
-                <select value={voiceSource} onChange={(e) => setVoiceSource(e.target.value as typeof voiceSource)} className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs">
+                <Label className="mb-1.5 block text-xs">{t("autopilot.panel.voiceSource")}</Label>
+                <select value={voiceSource} onChange={(e) => setVoiceSource(e.target.value as typeof voiceSource)} className="h-9 w-full rounded-lg border border-border bg-background px-2 text-xs">
                   <option value="tts">{t("autopilot.panel.createTts")}</option>
                   <option value="import">{t("autopilot.panel.importAudio")}</option>
                 </select>
@@ -358,7 +358,7 @@ export function AutopilotPanel() {
               <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3">
                 <div className="flex items-center justify-between"><span className="text-xs font-semibold">Chỉnh sửa skill</span><Button type="button" variant="ghost" size="sm" onClick={() => setSkillExpanded(false)}><ChevronDown className="h-4 w-4" /></Button></div>
                 <Input value={skillName} onChange={(event) => setSkillName(event.target.value)} placeholder={t("autopilot.panel.skillNamePlaceholder")} className="text-xs" />
-                <Textarea value={skillText} onChange={(e) => setSkillText(e.target.value)} placeholder={t("autopilot.panel.skillPlaceholder")} rows={7} className="max-h-64 resize-y font-mono text-[11px]" />
+                <Textarea value={skillText} onChange={(e) => setSkillText(e.target.value)} placeholder={t("autopilot.panel.skillPlaceholder")} rows={7} className="max-h-64 resize-y font-mono text-2xs" />
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={handleDeleteSkill} disabled={!selectedSkillId}><Trash2 className="mr-1 h-3.5 w-3.5" />{t("autopilot.panel.deleteSkill")}</Button>
                   <Button type="button" size="sm" onClick={handleSaveSkill} disabled={!skillText.trim()}><Save className="mr-1 h-3.5 w-3.5" />{selectedSkillId ? t("autopilot.panel.updateSkill") : t("autopilot.panel.saveSkill")}</Button>
@@ -368,7 +368,7 @@ export function AutopilotPanel() {
 
             {voiceSource === "import" && (
               <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
-                <Label className="text-xs uppercase tracking-wider">{t("autopilot.panel.importAudio")}</Label>
+                <Label className="text-xs">{t("autopilot.panel.importAudio")}</Label>
                 <div className="flex gap-2">
                   <Input value={importedAudioPath} readOnly placeholder={t("autopilot.panel.audioPlaceholder")} className="text-xs" />
                   <Button type="button" variant="outline" onClick={() => void handlePickNarrationAudio()}>
@@ -396,8 +396,8 @@ export function AutopilotPanel() {
                     }}
                   />
                 </div>
-                <p className="text-[10px] text-muted-foreground">{t("autopilot.panel.audioIsScriptHint")}</p>
-                <p className="text-[10px] text-muted-foreground">{t("autopilot.panel.srtHint")}</p>
+                <p className="text-2xs text-muted-foreground">{t("autopilot.panel.audioIsScriptHint")}</p>
+                <p className="text-2xs text-muted-foreground">{t("autopilot.panel.srtHint")}</p>
               </div>
             )}
 
@@ -407,23 +407,23 @@ export function AutopilotPanel() {
             {advancedExpanded && (
               <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <div><Label className="mb-1.5 block text-xs uppercase">{t("autopilot.panel.maxShots")}</Label><Input type="number" min={0} max={100} value={maxShots} onChange={(e) => setMaxShots(Math.max(0, parseInt(e.target.value, 10) || 0))} className="text-xs" /></div>
-                  <div><Label className="mb-1.5 block text-xs uppercase">{t("autopilot.panel.aspectRatio")}</Label><select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs">{["16:9", "9:16", "1:1", "4:3"].map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}</select></div>
-                  <div><Label className="mb-1.5 block text-xs uppercase">{t("autopilot.panel.longFormThreshold")}</Label><Input type="number" min={1} max={120} value={longFormThresholdMinutes} onChange={(event) => setAutopilotSettings({ longFormThresholdMinutes: normalizeAutopilotLongFormThresholdMinutes(event.target.value) })} className="text-xs" /></div>
-                  <div><Label className="mb-1.5 block text-xs uppercase">{t("autoVideo.render.bgm")}</Label><Input value={bgmPath} onChange={(e) => setBgmPath(e.target.value)} placeholder={t("autopilot.panel.bgmPlaceholder")} className="text-xs" /></div>
+                  <div><Label className="mb-1.5 block text-xs">{t("autopilot.panel.maxShots")}</Label><Input type="number" min={0} max={100} value={maxShots} onChange={(e) => setMaxShots(Math.max(0, parseInt(e.target.value, 10) || 0))} className="text-xs" /></div>
+                  <div><Label className="mb-1.5 block text-xs">{t("autopilot.panel.aspectRatio")}</Label><select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">{["16:9", "9:16", "1:1", "4:3"].map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}</select></div>
+                  <div><Label className="mb-1.5 block text-xs">{t("autopilot.panel.longFormThreshold")}</Label><Input type="number" min={1} max={120} value={longFormThresholdMinutes} onChange={(event) => setAutopilotSettings({ longFormThresholdMinutes: normalizeAutopilotLongFormThresholdMinutes(event.target.value) })} className="text-xs" /></div>
+                  <div><Label className="mb-1.5 block text-xs">{t("autoVideo.render.bgm")}</Label><Input value={bgmPath} onChange={(e) => setBgmPath(e.target.value)} placeholder={t("autopilot.panel.bgmPlaceholder")} className="text-xs" /></div>
                 </div>
                 <div className="grid gap-3 lg:grid-cols-[minmax(180px,1fr)_auto_auto] lg:items-end">
                   <div>
-                    <Label className="mb-1.5 block text-xs uppercase">Encoder</Label>
-                    <select value={codec} onChange={(e) => setCodec(e.target.value as RenderCodec)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs">{CODEC_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
+                    <Label className="mb-1.5 block text-xs">Encoder</Label>
+                    <select value={codec} onChange={(e) => setCodec(e.target.value as RenderCodec)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">{CODEC_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
                   </div>
                   <div className="flex h-8 items-center gap-2 whitespace-nowrap"><Switch checked={subtitles} onCheckedChange={setSubtitles} /><Label>{t("autopilot.panel.addSubtitles")}</Label></div>
                   <div className="flex h-8 items-center gap-2 whitespace-nowrap"><Switch checked={audioNormalize} onCheckedChange={setAudioNormalize} /><Label>Chuẩn hóa âm thanh (-14 LUFS YouTube)</Label></div>
                 </div>
                 <div>
-                  <Label className="mb-1.5 block text-xs uppercase">Âm thanh gốc video ({Math.round(videoAudioVolume * 100)}%)</Label>
+                  <Label className="mb-1.5 block text-xs">Âm thanh gốc video ({Math.round(videoAudioVolume * 100)}%)</Label>
                   <input type="range" min={0} max={0.5} step={0.05} value={videoAudioVolume} onChange={(e) => setVideoAudioVolume(parseFloat(e.target.value))} className="w-full accent-primary" />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{videoAudioVolume === 0 ? "Tắt (mặc định)" : `Giữ âm thanh gốc video ở ${Math.round(videoAudioVolume * 100)}% so với voice`}</p>
+                  <p className="text-2xs text-muted-foreground mt-0.5">{videoAudioVolume === 0 ? "Tắt (mặc định)" : `Giữ âm thanh gốc video ở ${Math.round(videoAudioVolume * 100)}% so với voice`}</p>
                 </div>
               </div>
             )}
@@ -432,7 +432,7 @@ export function AutopilotPanel() {
               <Switch checked={mergeAfterCreate} onCheckedChange={setMergeAfterCreate} />
               <div className="min-w-0">
                 <Label className="text-xs font-medium">Ghép thành video hoàn chỉnh</Label>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {mergeAfterCreate
                     ? "Tạo xong sẽ ghép (ffmpeg) ra 1 video hoàn chỉnh."
                     : "Chỉ tạo các video từng cảnh, KHÔNG ghép — bấm “Ghép lại” sau để xuất video cuối."}
@@ -451,7 +451,7 @@ export function AutopilotPanel() {
 
           {/* === Jobs === */}
           <div className="space-y-3 pb-8">
-            <h3 className="text-sm font-bold uppercase tracking-wider">
+            <h3 className="text-sm font-bold">
               {t("autopilot.panel.jobs")} ({jobs.length})
             </h3>
             {jobs.length === 0 && (

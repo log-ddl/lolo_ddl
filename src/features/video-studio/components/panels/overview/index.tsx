@@ -213,7 +213,7 @@ export function OverviewPanel() {
                 <div className="space-y-2">
                   {section.steps.map((step, idx) => (
                     <div key={`${section.id}-${idx}`} className="flex items-start gap-2">
-                      <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] text-muted-foreground">
+                      <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-2xs text-muted-foreground">
                         {idx + 1}
                       </span>
                       <p className="text-sm leading-5 text-foreground">{step}</p>
@@ -233,15 +233,14 @@ export function OverviewPanel() {
       {/* Header */}
       <div className="p-3 pb-2 bg-panel border-b flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4" />
-          <h2 className="font-semibold text-sm">{t("overview.projectTitle")}</h2>
+          {/* Project metadata only — the breadcrumb above already says "Overview". */}
           <span className="text-xs text-muted-foreground">
             《{meta.title}》
-            {meta.genre && <Badge variant="secondary" className="ml-1 text-[10px]">{meta.genre}</Badge>}
-            {meta.era && <Badge variant="outline" className="ml-1 text-[10px]">{meta.era}</Badge>}
+            {meta.genre && <Badge variant="secondary" className="ml-1 text-2xs">{meta.genre}</Badge>}
+            {meta.era && <Badge variant="outline" className="ml-1 text-2xs">{meta.era}</Badge>}
           </span>
         </div>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-2xs text-muted-foreground">
           {episodes.length} episodes · {meta.characters.length} characters
         </span>
       </div>
@@ -268,7 +267,7 @@ export function OverviewPanel() {
                 <FieldRow label={t("overview.themes")}>
                   <div className="flex flex-wrap gap-1">
                     {meta.themes?.map((t, i) => (
-                      <Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>
+                      <Badge key={i} variant="secondary" className="text-2xs">{t}</Badge>
                     ))}
                     {(!meta.themes || meta.themes.length === 0) && (
                       <span className="text-xs text-muted-foreground italic">{t("overview.noThemes")}</span>
@@ -316,9 +315,9 @@ export function OverviewPanel() {
                                 {ep.title.replace(/^(?:Episode\s+\d+[:]?\s*)/i, '')}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
+                            <div className="flex items-center gap-2 text-2xs text-muted-foreground shrink-0">
                               {epSceneCount > 0 && <span>{t("overview.sceneCount", { count: epSceneCount })}</span>}
-                              {ep.season && <Badge variant="outline" className="text-[9px] h-4 px-1">{ep.season}</Badge>}
+                              {ep.season && <Badge variant="outline" className="text-2xs h-4 px-1">{ep.season}</Badge>}
                                {/* Edit title */}
                               <Button
                                 size="icon"
@@ -337,7 +336,7 @@ export function OverviewPanel() {
                                {/* Delete */}
                               {isDeleting ? (
                                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                  <span className="text-red-400 text-[10px]">{t("overview.confirmDeleteEpisode")}</span>
+                                  <span className="text-red-400 text-2xs">{t("overview.confirmDeleteEpisode")}</span>
                                   <Button
                                     size="icon"
                                     variant="ghost"
@@ -408,7 +407,7 @@ export function OverviewPanel() {
                   </div>
                 )}
                 {meta.characters.length > 20 && (
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {t("overview.moreCharacters", { count: meta.characters.length - 20 })}
                   </p>
                 )}

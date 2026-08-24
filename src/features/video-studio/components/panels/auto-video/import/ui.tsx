@@ -29,7 +29,7 @@ export function Section({
   return (
     <div className="bg-card border border-border rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+        <h3 className="text-sm font-bold flex items-center gap-2">
           {icon}
           {title}
         </h3>
@@ -82,7 +82,7 @@ export function ModeChip({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "px-3 py-1.5 text-xs font-medium rounded-md border transition-colors",
+        "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
         active
           ? "bg-primary text-primary-foreground border-primary"
           : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground",
@@ -102,14 +102,14 @@ export function ProviderChip({
     <button
       onClick={onClick}
       className={cn(
-        "flex-1 px-3 py-2 rounded-md border text-left transition-colors",
+        "flex-1 px-3 py-2 rounded-lg border text-left transition-colors",
         active
           ? "bg-primary/10 border-primary"
           : "bg-muted/30 border-border hover:bg-muted/50",
       )}
     >
       <div className="text-sm font-medium">{cfg.label}</div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">
+      <div className="text-2xs text-muted-foreground mt-0.5">
         {cfg.defaultModel}
       </div>
     </button>

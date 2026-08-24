@@ -92,7 +92,7 @@ export function GlobalSettingsSection() {
               <p className="text-xs text-muted-foreground">
                 {t("settings.scriptImportChunkConcurrencyDesc")}
               </p>
-              <p className="text-[11px] text-muted-foreground/70">
+              <p className="text-2xs text-muted-foreground/70">
                 {t("settings.scriptImportChunkConcurrencyHint", {
                   min: MIN_LONG_SCRIPT_SKILL_CHUNK_CONCURRENCY,
                   max: MAX_LONG_SCRIPT_SKILL_CHUNK_CONCURRENCY,

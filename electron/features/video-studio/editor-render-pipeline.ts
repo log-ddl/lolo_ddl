@@ -4,6 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { runFFmpeg, cancelFFmpeg } from '../../ffmpeg-runtime'
+import { buildMotionPlan, NO_MOTION, type MotionPlan } from './render/motion'
+import type { RenderMediaEffect } from './render/types'
 import type { ExportOptions, MediaVisualLayer, RenderPlan, RenderProgressEvent, SceneEffect, VisualLayer } from '../../../src/features/auto-edit/render/types'
 
 /**
@@ -282,26 +284,34 @@ function sceneEffectFilter(effect: SceneEffect): string | null {
   return null
 }
 
-/** ffmpeg scale filter for a media fit mode (contain / cover / stretch). */
-function fitScale(fit: 'contain' | 'cover' | 'stretch', W: number, H: number): string {
+/** ffmpeg scale filter for a media fit mode (contain / cover / stretch).
+ * `pad` fills a contain fit out to the full canvas with transparency, so the
+ * frame size is exactly W x H — which a Ken Burns move relies on. */
+function fitScale(fit: 'contain' | 'cover' | 'stretch', W: number, H: number, pad = false): string {
   if (fit === 'cover') return `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`
   if (fit === 'stretch') return `scale=${W}:${H}`
-  return `scale=${W}:${H}:force_original_aspect_ratio=decrease`
+  const contain = `scale=${W}:${H}:force_original_aspect_ratio=decrease`
+  return pad ? `${contain},pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black@0` : contain
 }
 
 function buildLayerChain(layer: VisualLayer, inputIndex: number, W: number, H: number, fpsNum: number, label: string): string {
   const src = `[${inputIndex}:v]`
   let chain = src
+  const motion = layerMotion(layer, W, H, fpsNum)
+  // A move crops on whole pixels, so fit the layer to a supersampled canvas and
+  // let `zoompan` scale it back down to W x H.
+  const fitted = (fit: 'contain' | 'cover' | 'stretch') =>
+    motion.filter
+      ? `,format=${motion.pixelFormat},${fitScale(fit, W * motion.supersample, H * motion.supersample, true)}${motion.filter}`
+      : `,${fitScale(fit, W, H)}`
 
   if (layer.kind === 'video') {
     // Retime (PTS/rate) + shift so the clip starts at its timeline position.
     chain += `setpts=(PTS-STARTPTS)/${fmt(layer.rate)}+${fmt(layer.startSec)}/TB`
-    chain += `,${fitScale(layer.fit, W, H)}`
-    chain += buildMotionFilter(layer.motionEffect, W, H, fpsNum, layer.durSec)
+    chain += fitted(layer.fit)
   } else if (layer.kind === 'image') {
     chain += `setpts=PTS-STARTPTS+${fmt(layer.startSec)}/TB`
-    chain += `,${fitScale(layer.fit, W, H)}`
-    chain += buildMotionFilter(layer.motionEffect, W, H, fpsNum, layer.durSec)
+    chain += fitted(layer.fit)
   } else {
     // Text is rasterized at intrinsic size: no contain-fit, just scaleX/Y.
     chain += `setpts=PTS-STARTPTS+${fmt(layer.startSec)}/TB`
@@ -333,46 +343,27 @@ function mediaXfadeInput(
   label: string,
 ): string {
   const rate = layer.kind === 'video' ? layer.rate : 1
+  const motion = layerMotion(layer, W, H, fpsNum)
+  const fillW = W * motion.supersample
+  const fillH = H * motion.supersample
   let chain = `[${inputIndex}:v]setpts=(PTS-STARTPTS)/${fmt(rate)}`
-  chain += `,scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${fmt(fpsNum)},format=rgba`
-  chain += buildMotionFilter(layer.motionEffect, W, H, fpsNum, layer.durSec)
+  chain += `,scale=${fillW}:${fillH}:force_original_aspect_ratio=increase,crop=${fillW}:${fillH},setsar=1,fps=${fmt(fpsNum)}`
+  chain += `${motion.filter},format=rgba`
   if (layer.blurSigma > 0) chain += `,gblur=sigma=${fmt(layer.blurSigma)}`
   if (layer.opacity < 1) chain += `,colorchannelmixer=aa=${fmt(layer.opacity)}`
   return `${chain}[${label}]`
 }
 
 /**
- * Ken Burns–style motion effect → ffmpeg `zoompan` filter. Ported from
- * `video-studio/render-pipeline.ts` `buildMotionFilter`, but scoped to a single
- * layer (effect spans the whole clip).
+ * Ken Burns–style motion for one layer (the effect spans the whole clip).
+ * `zoompan` crops on whole input pixels, so the layer is fitted to a
+ * supersampled canvas first and the filter scales it back down — see
+ * `render/motion.ts`.
  */
-function buildMotionFilter(effect: string, width: number, height: number, fpsNum: number, durSec: number): string {
-  if (!effect || effect === 'none') return ''
-
-  const durationFrames = Math.max(1, Math.round(durSec * fpsNum))
-  const last = Math.max(1, durationFrames - 1)
-  const progress = durationFrames > 1 ? `max(0,min(1,(on-0)/${Math.max(1, last)}))` : '0'
-  const centerX = 'iw/2-(iw/zoom/2)'
-  const centerY = 'ih/2-(ih/zoom/2)'
-  const rightX = 'iw-iw/zoom'
-  const bottomY = 'ih-ih/zoom'
-
-  let z = '1.08'
-  let x = centerX
-  let y = centerY
-
-  switch (effect) {
-    case 'zoom_in': z = `1+0.12*${progress}`; break
-    case 'zoom_out': z = `1.12-0.12*${progress}`; break
-    case 'pan_left': z = '1.12'; x = `(${rightX})*(1-${progress})`; break
-    case 'pan_right': z = '1.12'; x = `(${rightX})*${progress}`; break
-    case 'pan_up': z = '1.12'; y = `(${bottomY})*(1-${progress})`; break
-    case 'pan_down': z = '1.12'; y = `(${bottomY})*${progress}`; break
-    case 'zoom_pan_left': z = `1.08+0.06*${progress}`; x = `(${rightX})*(1-${progress})`; break
-    case 'zoom_pan_right': z = `1.08+0.06*${progress}`; x = `(${rightX})*${progress}`; break
-  }
-
-  return `,zoompan=z='${z}':d=1:x='${x}':y='${y}':s=${width}x${height}:fps=${fmt(fpsNum)}`
+function layerMotion(layer: VisualLayer, W: number, H: number, fpsNum: number): MotionPlan {
+  if (layer.kind === 'text') return NO_MOTION
+  const durationFrames = Math.max(1, Math.round(layer.durSec * fpsNum))
+  return buildMotionPlan(layer.motionEffect as RenderMediaEffect, W, H, fpsNum, durationFrames, 0, Number.POSITIVE_INFINITY, { alpha: true })
 }
 
 /**

@@ -487,7 +487,7 @@ export function GenerationPanel({ selectedScene, onSceneCreated }: GenerationPan
                   <img
                     src={img}
                     alt={`Reference image ${i + 1}`}
-                    className="w-14 h-14 object-cover rounded-md border"
+                    className="w-14 h-14 object-cover rounded-lg border"
                   />
                   <button
                     type="button"
@@ -509,24 +509,24 @@ export function GenerationPanel({ selectedScene, onSceneCreated }: GenerationPan
                     onChange={handleRefImageChange}
                   />
                   <div
-                    className="w-14 h-14 border-2 border-dashed rounded-md flex flex-col items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors gap-1 cursor-pointer"
+                    className="w-14 h-14 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors gap-1 cursor-pointer"
                     onClick={() => document.getElementById('scene-gen-ref-image')?.click()}
                   >
                     <ImagePlus className="h-4 w-4" />
-                    <span className="text-[10px]">{t("director.card.upload")}</span>
+                    <span className="text-2xs">{t("director.card.upload")}</span>
                   </div>
                 </>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {t("scenes.aiUsesRefs")}
             </p>
           </div>
 
           {finalImagePromptPreview && (
-            <div className="space-y-2 rounded-md border bg-muted/30 p-2">
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-2">
               <Label className="text-xs">{t("scenes.finalImagePrompt")}</Label>
-              <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
+              <p className="text-2xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
                 {finalImagePromptPreview}
               </p>
             </div>

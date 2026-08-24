@@ -87,8 +87,8 @@ export function AppHome({ blockedFeatureId }: AppHomeProps) {
                   }}
                   className={`group flex min-h-56 flex-col items-stretch justify-start text-left rounded-xl border bg-card/80 p-6 shadow-xs transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     canUseFeature
-                      ? "border-border/70 hover:border-primary/40"
-                      : "border-border/50 opacity-70 hover:border-amber-500/35"
+                      ? "border-border/60 hover:border-primary/40"
+                      : "border-border/60 opacity-70 hover:border-amber-500/35"
                   }`}
                 >
                   <div className="flex items-start justify-between mb-10">

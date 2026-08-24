@@ -135,10 +135,11 @@ export function GlobalSettingsDialog() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-semibold">{name}</h3>
-                      <p className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">CLI</p>
+                      {/* ui-ok: acronym */}
+                      <p className="mt-0.5 text-2xs uppercase tracking-wider text-muted-foreground">CLI</p>
                     </div>
                     <span className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium",
+                      "inline-flex items-center gap-1 rounded-full px-2 py-1 text-2xs font-medium",
                       available ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500",
                     )}>
                       {available ? <CheckCircle2 className="size-3" /> : <CircleAlert className="size-3" />}
@@ -148,7 +149,7 @@ export function GlobalSettingsDialog() {
 
                   <div className="mt-4 min-h-20 space-y-2 text-xs text-muted-foreground">
                     <p className="break-words font-mono">{info?.version || info?.error || t("cliSettings.notDetected")}</p>
-                    {info?.path && <p className="break-all text-[10px] opacity-70">{info.path}</p>}
+                    {info?.path && <p className="break-all text-2xs opacity-70">{info.path}</p>}
                     {testResult && (
                       <p className={cn("flex items-start gap-1.5", testResult.ok ? "text-emerald-500" : "text-destructive")}>
                         {testResult.ok ? <CheckCircle2 className="mt-0.5 size-3.5 shrink-0" /> : <CircleAlert className="mt-0.5 size-3.5 shrink-0" />}
@@ -179,7 +180,7 @@ export function GlobalSettingsDialog() {
             })}
           </div>
 
-          <div className="mt-5 flex items-center justify-between gap-4 rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+          <div className="mt-5 flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{t("cliSettings.refreshHint")}</p>
               {installMessage && <p className="mt-1 break-words text-xs font-medium text-foreground">{installMessage}</p>}

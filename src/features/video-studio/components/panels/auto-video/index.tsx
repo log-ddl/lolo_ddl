@@ -1,6 +1,5 @@
 "use client";
 
-import { WandSparkles } from "lucide-react";
 import { useI18n } from "@/shared/i18n";
 import { useAutoVideoStore } from "@/features/video-studio/stores/auto-video-store";
 import { StageImport } from "./stage-import";
@@ -23,14 +22,9 @@ export function AutoVideoView() {
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/50 bg-panel/70 px-5">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <WandSparkles className="size-4 text-primary" />
-          {t("autoVideo.title")}
-          <span className="rounded-lg bg-muted px-2 py-0.5 font-mono text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
-            {t("autoVideo.subtitle")}
-          </span>
-        </h2>
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-panel/70 px-5">
+        {/* No title here: the project breadcrumb above already names the
+            panel. This row is the stage stepper. */}
         <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
           {stages.map((s, i) => (
             <button
@@ -38,7 +32,7 @@ export function AutoVideoView() {
               disabled={s.disabled}
               onClick={() => !s.disabled && setStage(s.id)}
               className={cn(
-                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                "px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
                 stage === s.id
                   ? "bg-primary text-primary-foreground"
                   : s.disabled

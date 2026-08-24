@@ -1,0 +1,11 @@
+{
+  "rawButtons": {
+    "shared": 8,
+    "auto-edit": 18,
+    "content-chat": 20,
+    "media-toolkit": 5,
+    "research-monitor": 25,
+    "tts-voice": 7,
+    "video-studio": 70
+  }
+}

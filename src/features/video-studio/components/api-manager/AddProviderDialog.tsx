@@ -244,7 +244,7 @@ export function AddProviderDialog({
                     <span className="flex items-center gap-2">
                       {preset.name}
                       {preset.recommended && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded font-medium">
+                        <span className="text-2xs px-1.5 py-0.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded font-medium">
                           {t("settings.recommended")}
                         </span>
                       )}

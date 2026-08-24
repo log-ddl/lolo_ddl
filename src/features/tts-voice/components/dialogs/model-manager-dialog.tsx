@@ -106,7 +106,7 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
                   <Badge variant={selected ? 'default' : 'outline'}>{online ? t('tts.engine.online') : t('tts.engine.local')}</Badge>
                 </div>
                 <p className="mt-3 text-sm font-semibold">{engine.name}</p>
-                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{t(engine.descriptionKey)}</p>
+                <p className="mt-1 text-2xs leading-4 text-muted-foreground">{t(engine.descriptionKey)}</p>
               </button>
             );
           })}
@@ -128,6 +128,7 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
             <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
               <div className="rounded-xl bg-muted/35 p-3">
                 <p className="text-muted-foreground">{t('tts.manager.accelerator')}</p>
+                {/* ui-ok: hardware name (CUDA/CPU) reads as a token, not prose */}
                 <p className="mt-1 font-medium uppercase">{selectedStatus?.accelerator || '—'}</p>
               </div>
               <div className="rounded-xl bg-muted/35 p-3">
@@ -150,14 +151,14 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
                 </div>
                 <Progress value={progress.percent ?? 2} className="mt-3" />
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-[11px] text-muted-foreground">{t('tts.manager.installKeepOpen')}</p>
+                  <p className="text-2xs text-muted-foreground">{t('tts.manager.installKeepOpen')}</p>
                   <Button variant="outline" size="sm" onClick={cancelJob}><Square /> {t('tts.action.cancel')}</Button>
                 </div>
               </div>
             ) : (
               <div className="mt-5 flex gap-2">
                 {!ready
-                  ? <Button variant="primary" disabled={busy} onClick={() => installModel(selectedModel)} className="flex-1"><Download /> {t('tts.manager.download')}</Button>
+                  ? <Button disabled={busy} onClick={() => installModel(selectedModel)} className="flex-1"><Download /> {t('tts.manager.download')}</Button>
                   : <Button variant="destructive" disabled={busy} onClick={() => removeModel(selectedModel)} className="flex-1"><Trash2 /> {t('tts.manager.remove')}</Button>}
               </div>
             )}
@@ -186,20 +187,20 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">{t('tts.vbee.managerDescription')}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="text-[11px] font-medium text-muted-foreground">App ID</label>
+                    <label className="text-2xs font-medium text-muted-foreground">App ID</label>
                     <Input value={vbeeAppId} onChange={(event) => setVbeeAppId(event.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellCheck={false} className="mt-1 h-9 bg-background font-mono text-xs" />
                   </div>
                   <div>
-                    <label className="text-[11px] font-medium text-muted-foreground">Token</label>
+                    <label className="text-2xs font-medium text-muted-foreground">Token</label>
                     <Input type="password" value={vbeeToken} onChange={(event) => setVbeeToken(event.target.value)} placeholder="eyJ..." spellCheck={false} className="mt-1 h-9 bg-background font-mono text-xs" />
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">{vbeeMessage}</p>
-                    {vbeeExpiresAt && <p className={`mt-1 text-[10px] ${vbeeExpiresAt <= Date.now() ? 'text-destructive' : 'text-muted-foreground'}`}>{t('tts.vbee.tokenExpires', { date: new Date(vbeeExpiresAt).toLocaleString() })}</p>}
+                    <p className="text-2xs text-muted-foreground">{vbeeMessage}</p>
+                    {vbeeExpiresAt && <p className={`mt-1 text-2xs ${vbeeExpiresAt <= Date.now() ? 'text-destructive' : 'text-muted-foreground'}`}>{t('tts.vbee.tokenExpires', { date: new Date(vbeeExpiresAt).toLocaleString() })}</p>}
                   </div>
-                  <Button type="button" variant="primary" size="sm" disabled={savingVbee} onClick={saveVbeeCredentials}>
+                  <Button type="button" size="sm" disabled={savingVbee} onClick={saveVbeeCredentials}>
                     {savingVbee ? <Loader2 className="animate-spin" /> : <Save />}{t('tts.vbee.saveCredentials')}
                   </Button>
                 </div>
@@ -221,7 +222,7 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
                 <div className="mt-3 space-y-2">
                   {geminiKeys.map((key, index) => (
                     <div key={index} className="flex items-center gap-2">
-                      <span className="w-12 shrink-0 text-[10px] font-medium text-muted-foreground">API {index + 1}</span>
+                      <span className="w-12 shrink-0 text-2xs font-medium text-muted-foreground">API {index + 1}</span>
                       <Input
                         type="password"
                         value={key}
@@ -248,8 +249,8 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
                   </Button>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-3">
-                  <p className="text-[11px] text-muted-foreground">{keyMessage}</p>
-                  <Button type="button" variant="primary" size="sm" disabled={savingKeys} onClick={saveGeminiKeys}>
+                  <p className="text-2xs text-muted-foreground">{keyMessage}</p>
+                  <Button type="button" size="sm" disabled={savingKeys} onClick={saveGeminiKeys}>
                     {savingKeys ? <Loader2 className="animate-spin" /> : <Save />}{t('tts.gemini.saveKeys')}
                   </Button>
                 </div>

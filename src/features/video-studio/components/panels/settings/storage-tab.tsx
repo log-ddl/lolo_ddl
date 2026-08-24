@@ -491,7 +491,7 @@ export function StorageTab({ appVersion, onUpdateAvailable }: StorageTabProps) {
             <div>
               <p className="text-sm font-medium">License plan</p>
               <div className="mt-1">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-widest font-medium border ${LICENSE_BADGE_CLASS[licensePlan] || LICENSE_BADGE_CLASS.free}`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-2xs uppercase tracking-widest font-medium border ${LICENSE_BADGE_CLASS[licensePlan] || LICENSE_BADGE_CLASS.free}`}>
                   {LICENSE_BADGE_CLASS[licensePlan] ? licensePlan : "—"}
                 </span>
               </div>

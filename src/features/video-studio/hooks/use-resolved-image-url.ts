@@ -17,32 +17,22 @@ import { readBlobFromBrowserStorage, isIdbImagePath } from '@/features/video-stu
  * Synchronous for all formats except `idb-image://` which resolves async from IndexedDB.
  */
 export function useResolvedImageUrl(rawUrl: string | null | undefined): string | null {
-  const [resolvedUrl, setResolvedUrl] = useState<string | null>(() => {
-    if (!rawUrl || isIdbImagePath(rawUrl)) return null;
-    return rawUrl;
-  });
+  // Only `idb-image://` needs async work, and its blob URL is stored together
+  // with the raw URL it belongs to so a stale blob is never handed back.
+  const [blob, setBlob] = useState<{ rawUrl: string; url: string | null } | null>(null);
 
   useEffect(() => {
-    if (!rawUrl) {
-      setResolvedUrl(null);
-      return;
-    }
-
-    // Non-idb formats resolve synchronously
-    if (!isIdbImagePath(rawUrl)) {
-      setResolvedUrl(rawUrl);
-      return;
-    }
+    if (!rawUrl || !isIdbImagePath(rawUrl)) return;
 
     // idb-image://: resolve from IndexedDB → temporary blob URL
     let blobUrl: string | null = null;
     let cancelled = false;
 
-    readBlobFromBrowserStorage(rawUrl).then((blob) => {
+    readBlobFromBrowserStorage(rawUrl).then((storedBlob) => {
       if (cancelled) return;
-      if (!blob) { setResolvedUrl(null); return; }
-      blobUrl = URL.createObjectURL(blob);
-      setResolvedUrl(blobUrl);
+      if (!storedBlob) { setBlob({ rawUrl, url: null }); return; }
+      blobUrl = URL.createObjectURL(storedBlob);
+      setBlob({ rawUrl, url: blobUrl });
     });
 
     return () => {
@@ -51,5 +41,10 @@ export function useResolvedImageUrl(rawUrl: string | null | undefined): string |
     };
   }, [rawUrl]);
 
-  return resolvedUrl;
+  if (!rawUrl) return null;
+  // Resolved during render, not in an effect: returning null for one commit
+  // makes consumers render an <img src="">, which fails to load and can leave
+  // the image stuck in an error state.
+  if (!isIdbImagePath(rawUrl)) return rawUrl;
+  return blob?.rawUrl === rawUrl ? blob.url : null;
 }

@@ -47,7 +47,7 @@ function NumberSetting({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="rounded-lg border border-border/50 bg-background/55 p-2.5">
+    <div className="rounded-lg border border-border/60 bg-background/55 p-2.5">
       <div className="flex items-center justify-between gap-3">
         <Label className={`text-xs ${disabled ? 'text-muted-foreground' : ''}`}>{label}</Label>
         <Input
@@ -64,7 +64,7 @@ function NumberSetting({
           className="h-7 w-16 bg-background px-2 text-right text-xs"
         />
       </div>
-      <p className="mt-1 text-[10px] leading-3.5 text-muted-foreground">{description}</p>
+      <p className="mt-1 text-2xs leading-3.5 text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -83,10 +83,10 @@ function BooleanSetting({
   onCheckedChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-border/50 bg-background/55 p-2.5">
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-background/55 p-2.5">
       <div>
         <Label className={`text-xs ${disabled ? 'text-muted-foreground' : ''}`}>{label}</Label>
-        <p className="mt-1 text-[10px] leading-3.5 text-muted-foreground">{description}</p>
+        <p className="mt-1 text-2xs leading-3.5 text-muted-foreground">{description}</p>
       </div>
       <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
     </div>
@@ -156,7 +156,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
           </div>
         </section>
 
-        <section className="space-y-3 border-t border-border/50 pt-5">
+        <section className="space-y-3 border-t border-border/60 pt-5">
           <div>
             <Label>{t('tts.splitMode.title')}</Label>
             <Select value={splitMode} onValueChange={(value) => setSplitMode(value as TtsSplitMode)}>
@@ -169,11 +169,11 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
                 <SelectItem value="sentence">{t('tts.splitMode.sentence')}</SelectItem>
               </SelectContent>
             </Select>
-            <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">{t('tts.splitMode.hint')}</p>
+            <p className="mt-1.5 text-2xs leading-4 text-muted-foreground">{t('tts.splitMode.hint')}</p>
           </div>
         </section>
 
-        <section className="border-t border-border/50 pt-5">
+        <section className="border-t border-border/60 pt-5">
           {mode === 'clone' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-2">
@@ -201,7 +201,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
                 </button>
               )}
               {selectedProfile && (
-                <div className="rounded-xl border border-border/50 bg-card/60 p-3 text-xs">
+                <div className="rounded-xl border border-border/60 bg-card/60 p-3 text-xs">
                   <p className="font-medium">{selectedProfile.name}</p>
                   <p className="mt-1 truncate text-muted-foreground">{selectedProfile.referenceAudioPath}</p>
                   <p className="mt-2 line-clamp-3 text-muted-foreground">{selectedProfile.referenceText}</p>
@@ -222,7 +222,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
                 placeholder={t('tts.settings.designPlaceholder')}
                 className="mt-2 min-h-28 bg-background"
               />
-              {language === 'vi' && <p className="mt-2 text-[11px] text-warning">{t('tts.settings.designVietnameseWarning')}</p>}
+              {language === 'vi' && <p className="mt-2 text-2xs text-warning">{t('tts.settings.designVietnameseWarning')}</p>}
             </div>
           )}
 
@@ -234,7 +234,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
           )}
         </section>
 
-        <section className="space-y-4 border-t border-border/50 pt-5">
+        <section className="space-y-4 border-t border-border/60 pt-5">
           <div>
             <Label>{t('tts.settings.language')}</Label>
             <Select value={language} onValueChange={setLanguage}>
@@ -253,12 +253,12 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
               </SelectContent>
             </Select>
             <div className="mt-2 flex items-center justify-between gap-2">
-              <p className="text-[10px] leading-4 text-muted-foreground">{t('tts.language.supportedCount')}</p>
+              <p className="text-2xs leading-4 text-muted-foreground">{t('tts.language.supportedCount')}</p>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-[11px]"
+                className="h-7 px-2 text-2xs"
                 onClick={() => setLanguagePickerOpen(true)}
               >
                 <Languages className="h-3.5 w-3.5" />
@@ -298,7 +298,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
           </div>
         </section>
 
-        <section className="border-t border-border/50 pt-5">
+        <section className="border-t border-border/60 pt-5">
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="rounded-xl border border-border/60 bg-card/55">
             <div className="flex items-center justify-between gap-3 p-3.5">
               <div>
@@ -306,7 +306,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
                   <SlidersHorizontal className="h-4 w-4 text-primary" />
                   {t('tts.advanced.title')}
                 </Label>
-                <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+                <p className="mt-0.5 text-2xs leading-4 text-muted-foreground">
                   {advancedEnabled ? t('tts.advanced.enabledHint') : t('tts.advanced.disabledHint')}
                 </p>
               </div>
@@ -335,7 +335,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
             </div>
 
             <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2">
-            <div className="space-y-3 border-t border-border/50 p-3">
+            <div className="space-y-3 border-t border-border/60 p-3">
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold">{t('tts.advanced.performance')}</p>
@@ -345,7 +345,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
                     size="sm"
                     disabled={!advancedEnabled}
                     onClick={resetAdvancedSettings}
-                    className="h-7 px-2 text-[11px]"
+                    className="h-7 px-2 text-2xs"
                   >
                     <RotateCcw className="h-3 w-3" />
                     {t('tts.advanced.reset')}
@@ -373,7 +373,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
                     onChange={(value) => setAdvancedSetting('audioChunkThreshold', value)}
                   />
                 </div>
-                <p className="mt-1.5 rounded-lg bg-warning/10 px-2.5 py-1.5 text-[10px] leading-4 text-warning">{t('tts.advanced.lowVramHint')}</p>
+                <p className="mt-1.5 rounded-lg bg-warning/10 px-2.5 py-1.5 text-2xs leading-4 text-warning">{t('tts.advanced.lowVramHint')}</p>
               </div>
 
               <div>

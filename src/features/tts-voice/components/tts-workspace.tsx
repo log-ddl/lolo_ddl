@@ -24,7 +24,7 @@ export function TtsWorkspace() {
         <TtsHeader provider={controller.isVieneu ? 'vieneu' : controller.isVbee ? 'vbee' : controller.isGemini ? 'gemini' : controller.isCapCut ? 'capcut' : 'omnivoice'} />
 
         <main className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(420px,1.25fr)_minmax(340px,0.75fr)] overflow-hidden">
-          <section className="min-h-0 overflow-y-auto border-r border-border/40 p-4">
+          <section className="min-h-0 overflow-y-auto border-r border-border/60 p-4">
             <div className="w-full space-y-4">
               <TextEditorCard value={controller.text} onChange={controller.setText} splitMode={controller.splitMode} />
 
@@ -34,7 +34,6 @@ export function TtsWorkspace() {
 
               <div className="flex justify-end">
                 <Button
-                  variant="primary"
                   size="lg"
                   disabled={controller.busy}
                   onClick={controller.generate}

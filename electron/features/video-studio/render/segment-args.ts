@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { crfArgs } from './codec-args'
+import { buildMotionPlan } from './motion'
 import type { RenderCodec, RenderFps, RenderMediaEffect, RenderOverlayPlacement } from './types'
 
 /**
@@ -31,70 +32,20 @@ export interface SegmentArgsInput {
   keepVideoAudio: boolean
 }
 
-/** Ken Burns style motion as a zoompan filter fragment, or '' for no motion. */
-export function buildMotionFilter(effect: RenderMediaEffect, width: number, height: number, fps: RenderFps, durationFrames: number, effectStartMs = 0, effectEndMs = Number.POSITIVE_INFINITY): string {
-  if (effect === 'none') return ''
-
-  const last = Math.max(1, durationFrames - 1)
-  const startFrame = Math.max(0, Math.min(last, Math.round((effectStartMs / 1000) * fps)))
-  const endFrame = Math.max(startFrame + 1, Math.min(last, Math.round((effectEndMs / 1000) * fps)))
-  const progress = durationFrames > 1 ? `max(0,min(1,(on-${startFrame})/${Math.max(1, endFrame - startFrame)}))` : '0'
-  const centerX = 'iw/2-(iw/zoom/2)'
-  const centerY = 'ih/2-(ih/zoom/2)'
-  const rightX = 'iw-iw/zoom'
-  const bottomY = 'ih-ih/zoom'
-
-  let z = '1.08'
-  let x = centerX
-  let y = centerY
-
-  switch (effect) {
-    case 'zoom_in':
-      z = `1+0.12*${progress}`
-      break
-    case 'zoom_out':
-      z = `1.12-0.12*${progress}`
-      break
-    case 'pan_left':
-      z = '1.12'
-      x = `(${rightX})*(1-${progress})`
-      break
-    case 'pan_right':
-      z = '1.12'
-      x = `(${rightX})*${progress}`
-      break
-    case 'pan_up':
-      z = '1.12'
-      y = `(${bottomY})*(1-${progress})`
-      break
-    case 'pan_down':
-      z = '1.12'
-      y = `(${bottomY})*${progress}`
-      break
-    case 'zoom_pan_left':
-      // Start zoom raised from 1.04 so the pan never moves sub-pixel per frame
-      // (which caused visible jitter at the start of the effect).
-      z = `1.08+0.06*${progress}`
-      x = `(${rightX})*(1-${progress})`
-      break
-    case 'zoom_pan_right':
-      z = `1.08+0.06*${progress}`
-      x = `(${rightX})*${progress}`
-      break
-  }
-
-  return `,zoompan=z='${z}':d=1:x='${x}':y='${y}':s=${width}x${height}:fps=${fps}`
-}
-
 export function buildSegmentArgs(input: SegmentArgsInput): string[] {
   const { mediaType, imagePath, videoPath, sourceStartSec, overlayImagePath, overlayPlacement, sourceDurationSec, durationSec, durationFrames, width, height, fps, codec, crf, mediaEffect, effectStartMs, effectEndMs, outputPath, keepVideoAudio } = input
-  const baseScale = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black`
-  const zoom = buildMotionFilter(mediaEffect, width, height, fps, durationFrames, effectStartMs, effectEndMs)
+  // A Ken Burns move crops on whole input pixels, so it is built from a
+  // supersampled frame and scaled back down to the segment size by `zoompan`
+  // itself. Without motion the frame is scaled straight to its final size.
+  const motion = buildMotionPlan(mediaEffect, width, height, fps, durationFrames, effectStartMs, effectEndMs)
+  const scaleW = width * motion.supersample
+  const scaleH = height * motion.supersample
+  const baseScale = `scale=${scaleW}:${scaleH}:force_original_aspect_ratio=decrease,pad=${scaleW}:${scaleH}:(ow-iw)/2:(oh-ih)/2:color=black`
   // setsar=1 normalizes every segment to square pixels (SAR 1:1) so the final
   // concat/xfade filter sees identical stream params. Without it, a video clip
   // with an anamorphic SAR (e.g. 2881:2880) mixed with image-fallback segments
   // (SAR 1:1) makes ffmpeg's concat fail: "Failed to configure output pad".
-  const vf = `${baseScale}${zoom},fps=${fps},format=yuv420p,setsar=1`
+  const vf = `${baseScale}${motion.filter},fps=${fps},format=yuv420p,setsar=1`
   const hasOverlay = !!overlayImagePath && fs.existsSync(overlayImagePath)
   const buildOverlayFilter = (basePrefix = '') => {
     const centered = overlayPlacement === 'center'

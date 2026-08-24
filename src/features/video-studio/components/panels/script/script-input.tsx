@@ -186,7 +186,7 @@ export function ScriptInput({
           className="min-h-[200px] max-h-[40vh] resize-none text-sm overflow-y-auto"
           disabled={parseStatus === "parsing" || isImporting}
         />
-        <div className="flex justify-end text-[10px] text-muted-foreground">
+        <div className="flex justify-end text-2xs text-muted-foreground">
           Ký tự: {rawScriptStats.characterCount.toLocaleString()} · Từ: {rawScriptStats.wordCount.toLocaleString()}
         </div>
         <div className="rounded-xl border bg-card/50 p-3 space-y-3">
@@ -195,7 +195,7 @@ export function ScriptInput({
               <Wand2 className="h-3 w-3" />
               {t("scriptInput.scriptSkill")}
             </Label>
-            <span className="text-[10px] text-muted-foreground">{t("scriptInput.skillOptionalWorkflow")}</span>
+            <span className="text-2xs text-muted-foreground">{t("scriptInput.skillOptionalWorkflow")}</span>
           </div>
 
           <Select value={selectedSkillId || "none"} onValueChange={handleSelectSkill}>
@@ -226,7 +226,7 @@ export function ScriptInput({
           />
 
           {skillText.trim() && (
-            <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
+            <div className="flex flex-wrap gap-1.5 text-2xs text-muted-foreground">
               <span className="rounded-full border px-2 py-0.5">{t("scriptInput.skillOutputs")}: {skillMeta.outputs.join(", ")}</span>
               <span className="rounded-full border px-2 py-0.5">{t("scriptInput.skillMerge")}: {skillMeta.mergeMode || "replace-missing"}</span>
             </div>
@@ -250,7 +250,7 @@ export function ScriptInput({
                 disabled={parseStatus === "parsing" || isImporting}
               />
             </div>
-            <p className="text-[10px] leading-4 text-muted-foreground">
+            <p className="text-2xs leading-4 text-muted-foreground">
               {t("scriptInput.chunkThresholdHelp", { count: longScriptSkillWordThreshold })}
             </p>
           </div>
@@ -339,14 +339,14 @@ export function ScriptInput({
             onChange={(id) => onStyleChange(id)}
             disabled={parseStatus === "parsing" || isImporting}
           />
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {t("scriptInput.visualStyleHelp")}
           </p>
         </div>
 
         {/* API warning */}
         {!chatConfigured && (
-          <div className="flex items-start gap-2 p-2 rounded-md bg-yellow-500/10 border border-yellow-500/20">
+          <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
             <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
             <div className="text-xs text-yellow-600 dark:text-yellow-400">
               <p className="font-medium">{t("scriptInput.apiNotConfigured")}</p>
@@ -356,12 +356,12 @@ export function ScriptInput({
         )}
 
         {!!cliStreamTitle && parseStatus === "parsing" && (
-          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
             <div className="flex items-center gap-2 text-xs font-medium text-primary">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               <span>{cliStreamTitle}</span>
             </div>
-            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words text-[11px] text-foreground/90 font-mono">
+            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words text-2xs text-foreground/90 font-mono">
               {cliStreamOutput || t("scriptInput.cliStreamingWaiting")}
             </pre>
           </div>
@@ -374,7 +374,6 @@ export function ScriptInput({
               onClick={handleImportWithSkill}
               disabled={!normalizedRawScript.trim() || !skillText.trim() || isImporting}
               className="w-full"
-              variant="secondary"
             >
               {isImporting ? (
                 <>
@@ -405,7 +404,7 @@ export function ScriptInput({
 
         {/* Parse error */}
         {parseStatus === "error" && parseError && (
-          <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+          <div className="flex items-start gap-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
             <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
             <p className="text-xs text-destructive">{parseError}</p>
           </div>

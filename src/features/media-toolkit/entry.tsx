@@ -409,11 +409,11 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
     <div className="flex h-full bg-background text-foreground">
       {!embedded && <FeatureRail />}
       <div className="flex min-w-0 flex-1 flex-col">
-      <header className="h-16 shrink-0 border-b border-border/50 bg-panel/80 backdrop-blur-xl px-5 flex items-center gap-3">
+      <header className="h-16 shrink-0 border-b border-border/60 bg-panel/80 backdrop-blur-xl px-5 flex items-center gap-3">
         <FeatureHeaderIcon icon={Download} />
         <div>
           <h1 className="text-sm font-semibold">{t("mediaToolkit.title")}</h1>
-          <p className="text-[10px] text-muted-foreground">{t("mediaToolkit.subtitle")}</p>
+          <p className="text-2xs text-muted-foreground">{t("mediaToolkit.subtitle")}</p>
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-1.5">
@@ -450,7 +450,7 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
                 aria-label={t("mediaToolkit.browserAddress")}
                 title={browserState.error || undefined}
                 containerClassName="min-w-0 flex-1 mx-1"
-                className={`h-8 rounded-full border-white/10 bg-black/25 px-4 text-[11px] focus-visible:ring-1 focus-visible:ring-white/30 ${browserState.error ? "text-red-400" : "text-white/70"}`}
+                className={`h-8 rounded-full border-white/10 bg-black/25 px-4 text-2xs focus-visible:ring-1 focus-visible:ring-white/30 ${browserState.error ? "text-red-400" : "text-white/70"}`}
               />
               <Button size="sm" className="rounded-full" disabled={!/youtube\.com\/(?:watch|shorts)|youtu\.be\//i.test(browserState.url)} onClick={() => {
                 setUrl(browserState.url);
@@ -464,7 +464,7 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
             <section className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><Search className="h-3.5 w-3.5" /></div>
-                <div><h2 className="text-xs font-semibold">{t("mediaToolkit.currentMedia")}</h2><p className="text-[10px] text-muted-foreground">{t("mediaToolkit.currentMediaHint")}</p></div>
+                <div><h2 className="text-xs font-semibold">{t("mediaToolkit.currentMedia")}</h2><p className="text-2xs text-muted-foreground">{t("mediaToolkit.currentMediaHint")}</p></div>
               </div>
               <div className="flex gap-2">
                 <Input className="h-9 text-xs" value={url} onChange={(event) => setUrl(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void analyze()} placeholder={t("mediaToolkit.urlPlaceholder")} />
@@ -475,16 +475,16 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
                   <ListVideo className="h-4 w-4" />{t("mediaToolkit.loadPlaylist")}
                 </Button>
               )}
-              {progress && busy && <div className="mt-3 space-y-1.5"><div className="flex justify-between text-[10px] text-muted-foreground"><span className="truncate mr-2">{progress.message || t(`mediaToolkit.stage.${progress.stage}`)}</span><span>{Math.round(progress.percent || 0)}%</span></div><Progress value={progress.percent || 0} /></div>}
+              {progress && busy && <div className="mt-3 space-y-1.5"><div className="flex justify-between text-2xs text-muted-foreground"><span className="truncate mr-2">{progress.message || t(`mediaToolkit.stage.${progress.stage}`)}</span><span>{Math.round(progress.percent || 0)}%</span></div><Progress value={progress.percent || 0} /></div>}
             </section>
 
             <section className="rounded-xl border border-primary/20 bg-card p-4 shadow-sm space-y-3">
                 <div className="flex items-center gap-2">
                   <ListVideo className="h-4 w-4 text-primary" />
                   <h3 className="text-sm font-semibold flex-1">{t("mediaToolkit.queueTitle")}</h3>
-                  {queueEntries.length > 0 && <span className="text-[10px] text-muted-foreground">{selectedQueueIds.length}/{queueEntries.length}</span>}
+                  {queueEntries.length > 0 && <span className="text-2xs text-muted-foreground">{selectedQueueIds.length}/{queueEntries.length}</span>}
                 </div>
-                <p className="text-[11px] leading-4 text-muted-foreground">{t("mediaToolkit.batchHint")}</p>
+                <p className="text-2xs leading-4 text-muted-foreground">{t("mediaToolkit.batchHint")}</p>
                 <div className="rounded-xl border border-primary/20 bg-primary/[0.035] p-3 space-y-2">
                   <Input
                     className="h-9 text-xs"
@@ -502,7 +502,7 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
                     </Button>
                   </div>
                   <input ref={batchFileRef} type="file" accept=".txt,text/plain" className="hidden" onChange={(event) => void importBatchFile(event.target.files?.[0])} />
-                  <p className="text-[9px] text-muted-foreground">{t("mediaToolkit.batchFetchHint")}</p>
+                  <p className="text-2xs text-muted-foreground">{t("mediaToolkit.batchFetchHint")}</p>
                 </div>
                 {queueEntries.length > 0 ? (
                   <>
@@ -532,8 +532,8 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
                             ? <img src={entry.thumbnail} alt="" className="h-9 w-16 rounded object-cover bg-muted shrink-0" />
                             : <span className="h-9 w-16 rounded bg-muted flex items-center justify-center shrink-0">{fetching ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Film className="h-4 w-4 text-muted-foreground" />}</span>}
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[11px] font-medium">{entry.title}</span>
-                            <span className="block truncate text-[9px] text-muted-foreground">
+                            <span className="block truncate text-2xs font-medium">{entry.title}</span>
+                            <span className="block truncate text-2xs text-muted-foreground">
                               {fetching ? t("mediaToolkit.batchFetching") : failed ? t("mediaToolkit.batchFailed") : entry.duration ? durationLabel(entry.duration) : t("mediaToolkit.batchWaiting")}
                               {config.kinds.length ? ` · ${configDownloadTasks(config).length} ${t("mediaToolkit.tasks")}` : ""}
                             </span>
@@ -562,7 +562,7 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
                 </Button>
                   </>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-border/70 py-4 text-center text-[10px] text-muted-foreground">
+                  <div className="rounded-xl border border-dashed border-border/60 py-4 text-center text-2xs text-muted-foreground">
                     {t("mediaToolkit.batchEmpty")}
                   </div>
                 )}
@@ -579,7 +579,7 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
                 <section className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
                   <div className="flex gap-3">
                     {activeMedia.thumbnail && <img src={activeMedia.thumbnail} alt="" className="w-24 h-14 rounded-lg object-cover bg-muted shrink-0" />}
-                    <div className="min-w-0 flex-1"><h2 className="text-xs font-semibold leading-5 line-clamp-2">{activeMedia.title}</h2><div className="mt-1 flex gap-2 text-[10px] text-muted-foreground">{activeMedia.uploader && <span className="truncate">{activeMedia.uploader}</span>}{activeMedia.duration && <span className="shrink-0">{durationLabel(activeMedia.duration)}</span>}</div></div>
+                    <div className="min-w-0 flex-1"><h2 className="text-xs font-semibold leading-5 line-clamp-2">{activeMedia.title}</h2><div className="mt-1 flex gap-2 text-2xs text-muted-foreground">{activeMedia.uploader && <span className="truncate">{activeMedia.uploader}</span>}{activeMedia.duration && <span className="shrink-0">{durationLabel(activeMedia.duration)}</span>}</div></div>
                     {activeQueueEntry
                       ? <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setEditingQueueId("")} title={t("mediaToolkit.backToCurrent")}><X className="h-4 w-4" /></Button>
                       : <Button variant="ghost" size="icon" className="shrink-0" onClick={addCurrentToQueue} title={t("mediaToolkit.addQueue")}><Plus className="h-4 w-4" /></Button>}
@@ -591,7 +591,7 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
                     <Download className="h-4 w-4 text-primary" />
                     <div className="min-w-0">
                       <h3 className="text-sm font-semibold">{activeQueueEntry ? t("mediaToolkit.queueSettings") : t("mediaToolkit.downloadTitle")}</h3>
-                      {activeQueueEntry && <p className="truncate text-[10px] text-muted-foreground">{activeQueueEntry.title}</p>}
+                      {activeQueueEntry && <p className="truncate text-2xs text-muted-foreground">{activeQueueEntry.title}</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
@@ -655,7 +655,7 @@ export default function MediaToolkitFeature({ embedded = false }: { embedded?: b
 
                 <section className="rounded-xl border border-border/60 bg-card p-4 shadow-sm space-y-3">
                   <div className="flex items-center gap-2"><Captions className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">{t("mediaToolkit.subtitleEditor")}</h3></div>
-                  <Textarea className="min-h-52 font-mono text-[11px] leading-5 resize-y" value={srt} onChange={(event) => setSrt(event.target.value)} placeholder={t("mediaToolkit.srtPlaceholder")} />
+                  <Textarea className="min-h-52 font-mono text-2xs leading-5 resize-y" value={srt} onChange={(event) => setSrt(event.target.value)} placeholder={t("mediaToolkit.srtPlaceholder")} />
                   <div className="grid grid-cols-2 gap-2">
                     <Button variant="outline" disabled={!srt.trim() || busy} onClick={() => window.mediaToolkit?.saveSubtitle({ srt, defaultName: `${activeMedia.title.replace(/[\\/:*?"<>|]+/g, "_")}.srt` })}><Download className="h-4 w-4" />{t("mediaToolkit.saveSrt")}</Button>
                     <Button variant="ghost" disabled={!lastPath} onClick={() => lastPath && window.mediaToolkit?.reveal(lastPath)}><FolderOpen className="h-4 w-4" />{t("mediaToolkit.showFile")}</Button>

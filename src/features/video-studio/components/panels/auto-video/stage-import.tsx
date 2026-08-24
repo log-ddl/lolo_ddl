@@ -477,7 +477,7 @@ export function StageImport() {
           icon={<Mic className="w-4 h-4" />}
           right={
             audioFilePath ? (
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-2xs text-muted-foreground">
                 {t("autoVideo.ttsGen.audioReady")}
               </span>
             ) : null
@@ -487,7 +487,7 @@ export function StageImport() {
             <p className="text-xs text-muted-foreground">{t("autoVideo.ttsGen.help")}</p>
 
             <div>
-              <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+              <Label className="text-xs mb-1.5 block">
                 {t("autoVideo.ttsGen.engine")}
               </Label>
               <div className="flex gap-2">
@@ -504,13 +504,13 @@ export function StageImport() {
 
             {ttsEngine === "capcut" && (
               <div>
-                <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+                <Label className="text-xs mb-1.5 block">
                   {t("autoVideo.ttsGen.voice")}
                 </Label>
                 <select
                   value={ttsCapcutVoiceType}
                   onChange={(e) => setTtsCapcutVoiceType(e.target.value)}
-                  className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
+                  className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs"
                 >
                   {CAPCUT_VI_VOICES.map((voice) => (
                     <option key={voice.voiceType} value={voice.voiceType}>
@@ -524,13 +524,13 @@ export function StageImport() {
             {ttsEngine === "gemini" && (
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+                  <Label className="text-xs mb-1.5 block">
                     {t("autoVideo.ttsGen.voice")}
                   </Label>
                   <select
                     value={ttsGeminiVoice}
                     onChange={(e) => setTtsGeminiVoice(e.target.value)}
-                    className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
+                    className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs"
                   >
                     {GEMINI_VOICES.map((voice) => (
                       <option key={voice.name} value={voice.name}>
@@ -540,13 +540,13 @@ export function StageImport() {
                   </select>
                 </div>
                 <div className="flex-1">
-                  <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+                  <Label className="text-xs mb-1.5 block">
                     {t("autoVideo.ttsGen.language")}
                   </Label>
                   <select
                     value={ttsGeminiLang}
                     onChange={(e) => setTtsGeminiLang(e.target.value)}
-                    className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
+                    className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs"
                   >
                     {GEMINI_LANGUAGES.map(([code, name]) => (
                       <option key={code} value={code}>
@@ -559,13 +559,13 @@ export function StageImport() {
             )}
 
             {ttsEngine === "omnivoice" && (
-              <div className="text-xs text-muted-foreground bg-muted/30 border border-border rounded-md p-2">
+              <div className="text-xs text-muted-foreground bg-muted/30 border border-border rounded-lg p-2">
                 {t("autoVideo.ttsGen.omnivoiceNote")}
               </div>
             )}
 
             <div>
-              <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+              <Label className="text-xs mb-1.5 block">
                 {t("autoVideo.ttsGen.source")}
               </Label>
               <div className="flex gap-2">
@@ -642,7 +642,7 @@ export function StageImport() {
           {srtSourceMode === "api" ? (
             <div className="space-y-3">
               <div>
-                <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+                <Label className="text-xs mb-1.5 block">
                   {t("autoVideo.import.provider")}
                 </Label>
                 <div className="flex gap-2">
@@ -658,7 +658,7 @@ export function StageImport() {
               </div>
 
               <div>
-                <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+                <Label className="text-xs mb-1.5 block">
                   {t("autoVideo.import.apiKey")}
                 </Label>
                 <Input
@@ -672,7 +672,7 @@ export function StageImport() {
                   href={providerCfg.apiKeyDocsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground mt-1"
+                  className="inline-flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground mt-1"
                 >
                   <ExternalLink className="w-3 h-3" />
                   {t("autoVideo.import.apiKeyHint", { url: providerCfg.apiKeyDocsUrl })}
@@ -680,7 +680,7 @@ export function StageImport() {
               </div>
 
               <div>
-                <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+                <Label className="text-xs mb-1.5 block">
                   {t("autoVideo.import.language")}
                 </Label>
                 <Input
@@ -820,7 +820,7 @@ export function StageImport() {
                 </div>
               )}
 
-              <div className="rounded-md border border-border max-h-[320px] overflow-y-auto overflow-x-hidden">
+              <div className="rounded-lg border border-border max-h-[320px] overflow-y-auto overflow-x-hidden">
                 <table className="w-full text-xs table-fixed">
                   <colgroup>
                     <col style={{ width: '7%' }} />

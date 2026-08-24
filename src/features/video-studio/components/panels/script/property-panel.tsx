@@ -133,14 +133,12 @@ export function PropertyPanel({
   });
 
   if (!selectedItemId || !selectedItemType) {
+    // whitespace-pre-line, not split()+<br/>: this is a flex row, so the split
+    // spans sat side by side and the <br/> pushed the second line down inside
+    // its own span instead of breaking the sentence.
     return (
-      <div className="h-full flex items-center justify-center text-muted-foreground text-sm p-4 text-center">
-        {t("property.empty").split("\n").map((line, index) => (
-          <span key={index}>
-            {index > 0 && <br />}
-            {line}
-          </span>
-        ))}
+      <div className="h-full flex items-center justify-center whitespace-pre-line text-muted-foreground text-sm p-4 text-center">
+        {t("property.empty")}
       </div>
     );
   }
@@ -298,7 +296,7 @@ export function PropertyPanel({
               </Button>
             )}
             {((character.referenceImages && character.referenceImages.length > 0) || character.thumbnailUrl) && (
-              <div className="space-y-2 rounded-md border p-2">
+              <div className="space-y-2 rounded-lg border p-2">
                 <div className="text-xs text-muted-foreground">{t("characters.referenceImages")}</div>
                 <div className="flex gap-2 flex-wrap">
                   {Array.from(new Set([...(character.referenceImages || []), ...(character.thumbnailUrl ? [character.thumbnailUrl] : [])])).map((img, index) => (
@@ -447,11 +445,11 @@ export function PropertyPanel({
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold text-primary">Prompt cảnh</div>
                   {scene.scenePrompt ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-2xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                       <CheckCircle2 className="h-3 w-3" /> Đã gen
                     </span>
                   ) : (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700 dark:bg-amber-950 dark:text-amber-300">Chưa có</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs text-amber-700 dark:bg-amber-950 dark:text-amber-300">Chưa có</span>
                   )}
                 </div>
                 {scene.scenePrompt ? (
@@ -632,11 +630,11 @@ export function PropertyPanel({
           </div>
           {linkedScene && (
             <div className="space-y-1">
-              <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <div className="text-2xs text-muted-foreground flex items-center gap-1">
                 <MapPin className="h-3 w-3 text-blue-500" />
                 Scene Reference
               </div>
-              <div className="text-[11px] leading-relaxed bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded p-2 text-blue-800 dark:text-blue-200 break-words">
+              <div className="text-2xs leading-relaxed bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded p-2 text-blue-800 dark:text-blue-200 break-words">
                 <div className="font-medium">{linkedScene.name || t("scenes.untitled")}</div>
                 {linkedScene.scenePrompt && (
                   <div className="mt-1 text-emerald-700 dark:text-emerald-300">
@@ -656,33 +654,33 @@ export function PropertyPanel({
               <div className="text-xs font-medium text-muted-foreground">Director Prompts</div>
               {shot.imagePrompt && (
                 <div className="space-y-1">
-                  <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <div className="text-2xs text-muted-foreground flex items-center gap-1">
                     <span className="inline-block w-2 h-2 rounded-full bg-violet-400" />
                     Image Prompt
                   </div>
-                  <div className="text-[11px] leading-relaxed bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded p-2 text-violet-800 dark:text-violet-200 break-words">
+                  <div className="text-2xs leading-relaxed bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded p-2 text-violet-800 dark:text-violet-200 break-words">
                     {shot.imagePrompt}
                   </div>
                 </div>
               )}
               {shot.videoPrompt && (
                 <div className="space-y-1">
-                  <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <div className="text-2xs text-muted-foreground flex items-center gap-1">
                     <span className="inline-block w-2 h-2 rounded-full bg-blue-400" />
                     Video Prompt
                   </div>
-                  <div className="text-[11px] leading-relaxed bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded p-2 text-blue-800 dark:text-blue-200 break-words">
+                  <div className="text-2xs leading-relaxed bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded p-2 text-blue-800 dark:text-blue-200 break-words">
                     {shot.videoPrompt}
                   </div>
                 </div>
               )}
               {shot.voiceOver && (
                 <div className="space-y-1">
-                  <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <div className="text-2xs text-muted-foreground flex items-center gap-1">
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
                     Voice Over
                   </div>
-                  <div className="text-[11px] leading-relaxed bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded p-2 text-emerald-800 dark:text-emerald-200 break-words">
+                  <div className="text-2xs leading-relaxed bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded p-2 text-emerald-800 dark:text-emerald-200 break-words">
                     {shot.voiceOver}
                   </div>
                 </div>

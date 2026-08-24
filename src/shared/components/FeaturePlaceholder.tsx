@@ -39,7 +39,7 @@ export function FeaturePlaceholder({ icon: Icon, titleKey, descriptionKey, requi
             <h1 className="text-3xl font-semibold tracking-tight mb-3">{t(titleKey)}</h1>
             <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">{t(descriptionKey)}</p>
             <div className={canUseFeature
-              ? "mt-8 rounded-2xl border border-border/50 bg-muted/30 px-5 py-4"
+              ? "mt-8 rounded-2xl border border-border/60 bg-muted/30 px-5 py-4"
               : "mt-8 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-5 py-4"
             }>
               <p className="flex items-center justify-center gap-2 text-sm font-medium">

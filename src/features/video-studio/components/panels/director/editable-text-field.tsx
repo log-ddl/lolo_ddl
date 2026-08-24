@@ -78,7 +78,7 @@ export function EditableTextField({
   if (isEditing) {
     return (
       <div className={className}>
-        <Label className="text-[10px] text-muted-foreground">{label}</Label>
+        <Label className="text-2xs text-muted-foreground">{label}</Label>
         {multiline ? (
           <Textarea
             ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -111,7 +111,7 @@ export function EditableTextField({
       onDoubleClick={startEditing}
       title={t("director.doubleClickEdit")}
     >
-      <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+      <Label className="text-2xs text-muted-foreground flex items-center gap-1">
         {label}
         {!disabled && <Edit3 className="h-2.5 w-2.5 opacity-0 group-hover/field:opacity-50" />}
       </Label>

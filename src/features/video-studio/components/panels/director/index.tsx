@@ -428,7 +428,7 @@ export function DirectorView() {
                   : 'text-muted-foreground/50'
               }`}
             >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-2xs ${
                 idx === currentStepIndex
                   ? 'bg-primary text-primary-foreground'
                   : idx < currentStepIndex

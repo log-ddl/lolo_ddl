@@ -168,8 +168,8 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-wider">Ghép lại video</div>
-        <p className="text-[10px] text-muted-foreground">Chỉ trộn lại bản cuối từ media đã có — không tạo lại ảnh/video, không tốn credit.</p>
+        <div className="text-xs font-semibold">Ghép lại video</div>
+        <p className="text-2xs text-muted-foreground">Chỉ trộn lại bản cuối từ media đã có — không tạo lại ảnh/video, không tốn credit.</p>
 
         <div className="flex items-center justify-between gap-2">
           <Label className="text-xs">Phụ đề</Label>
@@ -180,12 +180,12 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
           <Label className="text-xs">Nhạc nền (BGM)</Label>
           <Input value={bgmPath} onChange={(e) => setBgmPath(e.target.value)} placeholder="Đường dẫn file nhạc (tuỳ chọn)" className="text-xs" />
           <div className="flex items-center gap-2">
-            <Label className="w-16 text-[10px] text-muted-foreground">Âm lượng</Label>
+            <Label className="w-16 text-2xs text-muted-foreground">Âm lượng</Label>
             <input type="range" min={0} max={1} step={0.05} value={bgmVolume} onChange={(e) => setBgmVolume(Number(e.target.value))} className="flex-1" />
-            <span className="w-8 text-right text-[10px] tabular-nums">{Math.round(bgmVolume * 100)}%</span>
+            <span className="w-8 text-right text-2xs tabular-nums">{Math.round(bgmVolume * 100)}%</span>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-[10px] text-muted-foreground">Giảm nhạc khi có giọng</Label>
+            <Label className="text-2xs text-muted-foreground">Giảm nhạc khi có giọng</Label>
             <Switch checked={bgmDuckVoice} onCheckedChange={setBgmDuckVoice} />
           </div>
         </div>
@@ -193,7 +193,7 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
             <Label className="text-xs">Độ phân giải</Label>
-            <select value={resolution} onChange={(e) => setResolution(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs">
+            <select value={resolution} onChange={(e) => setResolution(e.target.value)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">
               <option value="1280x720">1280×720</option>
               <option value="1920x1080">1920×1080</option>
               <option value="3840x2160">3840×2160</option>
@@ -201,7 +201,7 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">FPS</Label>
-            <select value={fps} onChange={(e) => setFps(Number(e.target.value) as 24 | 30 | 60)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs">
+            <select value={fps} onChange={(e) => setFps(Number(e.target.value) as 24 | 30 | 60)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">
               {[24, 30, 60].map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
           </div>
@@ -209,7 +209,7 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
 
         <div className="space-y-1.5">
           <Label className="text-xs">Encoder</Label>
-          <select value={codec} onChange={(e) => setCodec(e.target.value as RenderCodec)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs">
+          <select value={codec} onChange={(e) => setCodec(e.target.value as RenderCodec)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">
             {CODEC_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </div>
@@ -222,7 +222,7 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <Label className="text-xs">Âm lượng video gốc</Label>
-            <span className="text-[10px] tabular-nums text-muted-foreground">{videoAudioVolume === 0 ? "Tắt" : `${Math.round(videoAudioVolume * 100)}%`}</span>
+            <span className="text-2xs tabular-nums text-muted-foreground">{videoAudioVolume === 0 ? "Tắt" : `${Math.round(videoAudioVolume * 100)}%`}</span>
           </div>
           <input type="range" min={0} max={0.5} step={0.05} value={videoAudioVolume} onChange={(e) => setVideoAudioVolume(Number(e.target.value))} className="w-full accent-primary" />
         </div>

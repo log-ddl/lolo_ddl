@@ -64,7 +64,7 @@ export function CharacterCard({
   return (
     <div
     className={cn(
-      "rounded-md border cursor-pointer transition-all",
+      "rounded-lg border cursor-pointer transition-all",
       "hover:border-foreground/30",
       isSelected && "border-primary ring-1 ring-primary",
       viewMode === "grid" ? "p-2" : "p-2 flex items-center gap-3"
@@ -109,7 +109,7 @@ export function CharacterCard({
               title={t("taskInfo.image")}
               className="h-6 w-6 bg-black/50 text-white hover:bg-black/70 hover:text-white"
             />
-            <label className="inline-flex h-6 px-1.5 items-center justify-center rounded-md bg-black/50 text-white hover:bg-black/70 cursor-pointer">
+            <label className="inline-flex h-6 px-1.5 items-center justify-center rounded-lg bg-black/50 text-white hover:bg-black/70 cursor-pointer">
               <input
                 type="file"
                 accept="image/*"
@@ -127,11 +127,11 @@ export function CharacterCard({
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium truncate">{char.name}</p>
-              <span className={cn("px-2 py-0.5 rounded text-[10px]", hasImage ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600")}>{hasImage ? t("characters.imageReady") : t("characters.noImageYet")}</span>
+              <span className={cn("px-2 py-0.5 rounded text-2xs", hasImage ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600")}>{hasImage ? t("characters.imageReady") : t("characters.noImageYet")}</span>
             </div>
             {flowSyncProgress && flowSyncProgress.total > 0 && (
               <span className={cn(
-                "inline-flex px-2 py-0.5 rounded text-[10px]",
+                "inline-flex px-2 py-0.5 rounded text-2xs",
                 flowSyncProgress.missing === 0
                   ? "bg-blue-500/10 text-blue-600"
                   : "bg-orange-500/10 text-orange-600",
@@ -140,12 +140,12 @@ export function CharacterCard({
               </span>
             )}
             {flowSyncOffline && (char.thumbnailUrl || (char.referenceImages || []).length > 0) && (
-              <span className="inline-flex px-2 py-0.5 rounded text-[10px] bg-muted text-muted-foreground">
+              <span className="inline-flex px-2 py-0.5 rounded text-2xs bg-muted text-muted-foreground">
                 {t("characters.syncFlowOffline")}
               </span>
             )}
           {char.voiceId && (
-            <div className="flex items-center gap-1 text-[10px] text-blue-500">
+            <div className="flex items-center gap-1 text-2xs text-blue-500">
               <Volume2 className="h-3 w-3" />
               <span className="truncate">{char.voiceId}</span>
             </div>
@@ -198,10 +198,10 @@ export function CharacterCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium truncate">{char.name}</p>
-            <span className={cn("px-2 py-0.5 rounded text-[10px]", hasImage ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600")}>{hasImage ? t("characters.imageReady") : t("characters.noImageYet")}</span>
+            <span className={cn("px-2 py-0.5 rounded text-2xs", hasImage ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600")}>{hasImage ? t("characters.imageReady") : t("characters.noImageYet")}</span>
             {flowSyncProgress && flowSyncProgress.total > 0 && (
               <span className={cn(
-                "px-2 py-0.5 rounded text-[10px] shrink-0",
+                "px-2 py-0.5 rounded text-2xs shrink-0",
                 flowSyncProgress.missing === 0
                   ? "bg-blue-500/10 text-blue-600"
                   : "bg-orange-500/10 text-orange-600",
@@ -210,12 +210,12 @@ export function CharacterCard({
               </span>
             )}
             {flowSyncOffline && (char.thumbnailUrl || (char.referenceImages || []).length > 0) && (
-              <span className="px-2 py-0.5 rounded text-[10px] shrink-0 bg-muted text-muted-foreground">
+              <span className="px-2 py-0.5 rounded text-2xs shrink-0 bg-muted text-muted-foreground">
                 {t("characters.syncFlowOffline")}
               </span>
             )}
             {char.voiceId && (
-              <span className="flex items-center gap-0.5 text-[10px] text-blue-500">
+              <span className="flex items-center gap-0.5 text-2xs text-blue-500">
                 <Volume2 className="h-3 w-3" />
                 {char.voiceId}
               </span>

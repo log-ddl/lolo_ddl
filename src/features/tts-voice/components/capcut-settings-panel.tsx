@@ -51,7 +51,7 @@ export function CapCutSettingsPanel({ controller }: { controller: TtsController 
           </div>
         </section>
 
-        <section className="space-y-4 border-t border-border/50 pt-5">
+        <section className="space-y-4 border-t border-border/60 pt-5">
           <div>
             <Label>{t('tts.settings.language')}</Label>
             <Select
@@ -73,7 +73,7 @@ export function CapCutSettingsPanel({ controller }: { controller: TtsController 
           <div>
             <div className="flex items-center justify-between gap-2">
               <Label>{t('tts.capcut.voice')}</Label>
-              <span className="text-[10px] text-muted-foreground">{capcutVoices.length} {t('tts.capcut.voices')}</span>
+              <span className="text-2xs text-muted-foreground">{capcutVoices.length} {t('tts.capcut.voices')}</span>
             </div>
             <div className="relative mt-2">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -94,7 +94,7 @@ export function CapCutSettingsPanel({ controller }: { controller: TtsController 
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{selectedCapCutVoice.displayName}</p>
-                  <p className="mt-1 truncate text-[10px] text-muted-foreground">{selectedCapCutVoice.voiceType}</p>
+                  <p className="mt-1 truncate text-2xs text-muted-foreground">{selectedCapCutVoice.voiceType}</p>
                 </div>
                 <Button type="button" variant="outline" size="sm" disabled={busy} onClick={previewCapCutVoice}>
                   <Volume2 className="h-3.5 w-3.5" />{t('tts.capcut.preview')}
@@ -120,7 +120,7 @@ export function CapCutSettingsPanel({ controller }: { controller: TtsController 
           </div>
         </section>
 
-        <section className="rounded-xl border border-border/50 bg-muted/20 p-3 text-[11px] leading-5 text-muted-foreground">
+        <section className="rounded-xl border border-border/60 bg-muted/20 p-3 text-2xs leading-5 text-muted-foreground">
           {t('tts.capcut.longTextHint')}
         </section>
       </div>

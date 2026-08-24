@@ -19,7 +19,6 @@ import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName, skillAllowsRea
 import { downloadRealImage } from '../real-media-search';
 import type { AutopilotJob } from '../types';
 import {
-  MAX_IMAGE_REFERENCES,
   runGenerationWithRetries,
   runGoogleFlowQueueOrdered,
   type CharacterReference,
@@ -75,7 +74,6 @@ export async function runMediaStage(
       imageMediaId: existing?.imageMediaId,
       videoMediaId: existing?.videoMediaId,
       realImageMediaId: existing?.realImageMediaId,
-      imageFlow: imagePath ? existing?.imageFlow : undefined,
       realImageSearchCompleted: !allowRealImageResearch || existing?.realImageSearchCompleted === true,
       researchStatus: !allowRealImageResearch || !shot.realImageQuery
         ? 'skipped'
@@ -119,7 +117,6 @@ export async function runMediaStage(
         imageMediaId: item.imageMediaId,
         videoMediaId: item.videoMediaId,
         realImageMediaId: item.realImageMediaId,
-        imageFlow: item.imageFlow,
         realImagePath: item.realImage?.localPath,
         realImageSourceUrl: item.realImage?.sourceUrl,
         realImageTitle: item.realImage?.title,
@@ -196,7 +193,7 @@ export async function runMediaStage(
     const characterRefs = (item.shot.characterNames || [])
       .map((name) => characterByName.get(name.toLocaleLowerCase()))
       .filter((character): character is CharacterReference => !!character?.imagePath)
-      .slice(0, Math.max(0, MAX_IMAGE_REFERENCES - reservedReferenceSlots));
+      .slice(0, Math.max(0, 4 - reservedReferenceSlots));
     const references: Array<{ source: string; provider: 'googleflow' }> = [];
     if (sceneRef?.imagePath) references.push({ source: sceneRef.imagePath, provider: 'googleflow' });
     references.push(...characterRefs.map((character) => ({ source: character.imagePath, provider: 'googleflow' as const })));
@@ -238,14 +235,6 @@ export async function runMediaStage(
       if (!source) throw new Error('Google Flow không trả về ảnh');
       item.imagePath = await saveImageToLocal(source, 'shots', `${safeFileName(job.title)}_shot_${item.shot.index}_${Date.now()}.png`);
       item.imageStatus = 'completed';
-      // Remember which Flow account/project already holds this frame so the
-      // video pass can reference it instead of uploading the PNG again.
-      item.imageFlow = {
-        mediaId: imageResult.mediaId,
-        ownerScopeId: imageResult.ownerScopeId,
-        flowProjectId: imageResult.flowProjectId,
-        credentialId: imageResult.credentialId,
-      };
       const mediaStore = useMediaStore.getState();
       item.imageMediaId = mediaStore.addMediaFromUrl({
         url: item.imagePath,
@@ -303,17 +292,7 @@ export async function runMediaStage(
             model: videoModel,
             aspectRatio,
             duration: item.shot.videoLength,
-            startImage: {
-              source: item.imagePath,
-              provider: 'googleflow',
-              flowProjectId: item.imageFlow?.flowProjectId || flowProjectId,
-              ownerScopeId: item.imageFlow?.ownerScopeId,
-              mediaId: item.imageFlow?.mediaId,
-            },
-            // Prefer the account that generated the frame: only that account can
-            // reuse its media id. selectLane falls back to any ready account if
-            // this one is gone, and the frame is then uploaded as before.
-            preferredCredentialId: item.imageFlow?.credentialId,
+            startImage: { source: item.imagePath, provider: 'googleflow', flowProjectId },
             taskId: `ap-vid-${job.id}-${item.shot.index - 1}-try-${attempt}`,
             onSubmitted: () => {
               item.videoStatus = 'generating';

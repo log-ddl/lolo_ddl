@@ -220,7 +220,7 @@ export function SceneCard({ scene, progress, isPreview, showImage, onRetryImage,
                   <Badge 
                     variant="secondary" 
                     className={cn(
-                      "text-[10px] px-1.5 py-0 h-5 cursor-pointer hover:opacity-80",
+                      "text-2xs px-1.5 py-0 h-5 cursor-pointer hover:opacity-80",
                       getMoodColor(scene.mood),
                       "text-white"
                     )}
@@ -231,7 +231,7 @@ export function SceneCard({ scene, progress, isPreview, showImage, onRetryImage,
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 px-1.5 text-[10px] text-muted-foreground"
+                    className="h-5 px-1.5 text-2xs text-muted-foreground"
                   >
                     <Plus className="h-3 w-3 mr-0.5" />
                     {t("director.moodLabel")}
@@ -247,7 +247,7 @@ export function SceneCard({ scene, progress, isPreview, showImage, onRetryImage,
                         key={preset.id}
                         variant="secondary"
                         className={cn(
-                          "cursor-pointer text-[10px] px-1.5 py-0 h-5",
+                          "cursor-pointer text-2xs px-1.5 py-0 h-5",
                           preset.color,
                           "text-white hover:opacity-80",
                           scene.mood === preset.label && "ring-2 ring-offset-1 ring-primary"
@@ -289,7 +289,7 @@ export function SceneCard({ scene, progress, isPreview, showImage, onRetryImage,
             <Badge 
               variant="secondary" 
               className={cn(
-                "text-[10px] px-1.5 py-0 h-5",
+                "text-2xs px-1.5 py-0 h-5",
                 getMoodColor(scene.mood),
                 "text-white"
               )}

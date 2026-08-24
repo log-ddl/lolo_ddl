@@ -115,12 +115,12 @@ export function GrokRuntimePanel({ alwaysVisible = false }: { alwaysVisible?: bo
             {ready ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <AlertCircle className="h-3.5 w-3.5 text-amber-600" />}
             Kết nối Grok Video
           </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
+          <div className="mt-1 text-2xs text-muted-foreground">
             Runtime: {status?.running ? 'đang chạy' : 'chưa chạy'} · Cổng {status?.port || 9223} · {status?.readyCredentialCount || 0} extension · {status?.videoLaneCount || 0} lane video
           </div>
         </div>
         <div className="flex gap-1">
-          <Button type="button" variant="outline" size="sm" className="h-7 text-[11px]" disabled={addingAccount} onClick={() => void addInAppAccount()}>
+          <Button type="button" variant="outline" size="sm" className="h-7 text-2xs" disabled={addingAccount} onClick={() => void addInAppAccount()}>
             {addingAccount ? 'Đang mở…' : '+ Thêm tài khoản'}
           </Button>
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Kiểm tra lại" onClick={() => { void refresh(); void refreshInAppAccounts(); }}>
@@ -129,7 +129,7 @@ export function GrokRuntimePanel({ alwaysVisible = false }: { alwaysVisible?: bo
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+      <label className="flex items-center gap-2 text-2xs text-muted-foreground">
         <input
           type="checkbox"
           className="h-3.5 w-3.5"
@@ -141,21 +141,21 @@ export function GrokRuntimePanel({ alwaysVisible = false }: { alwaysVisible?: bo
       {inAppAccounts.length > 0 && (
         <div className="space-y-1">
           {inAppAccounts.map((account) => (
-            <div key={account.accountSlotId} className="flex items-center justify-between gap-2 rounded border bg-background/70 px-2 py-1.5 text-[11px]">
+            <div key={account.accountSlotId} className="flex items-center justify-between gap-2 rounded border bg-background/70 px-2 py-1.5 text-2xs">
               <span>Tài khoản trong app · {account.accountSlotId.slice(0, 8)}</span>
               <div className="flex gap-1">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-[10px]"
+                  className="h-6 text-2xs"
                   onClick={() => void window.grokVideoRuntime?.showInAppAccount(account.accountSlotId)}
                 >Hiện</Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-[10px] text-red-600 hover:text-red-600"
+                  className="h-6 text-2xs text-red-600 hover:text-red-600"
                   disabled={removingAccount === account.accountSlotId}
                   onClick={() => void removeInAppAccount(account.accountSlotId)}
                 >{removingAccount === account.accountSlotId ? 'Đang gỡ…' : 'Gỡ tài khoản'}</Button>
@@ -166,13 +166,13 @@ export function GrokRuntimePanel({ alwaysVisible = false }: { alwaysVisible?: bo
       )}
 
       {diagnostic && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-2xs leading-relaxed text-amber-800 dark:text-amber-300">
           {diagnostic}
         </div>
       )}
 
       {status?.credentials.map((credential) => (
-        <div key={credential.credentialId} className="flex items-center justify-between rounded border bg-background/70 px-2 py-1.5 text-[11px]">
+        <div key={credential.credentialId} className="flex items-center justify-between rounded border bg-background/70 px-2 py-1.5 text-2xs">
           <span>Extension {credential.extensionInstanceId.slice(0, 8)}</span>
           <span className={credential.state === 'ready' ? 'text-green-600' : credential.state === 'exhausted' ? 'text-red-600' : 'text-amber-600'}>
             {credentialQuotaLabel(credential)}
@@ -181,17 +181,17 @@ export function GrokRuntimePanel({ alwaysVisible = false }: { alwaysVisible?: bo
       ))}
 
       {taskList.slice(0, 8).map((task) => (
-        <div key={task.taskId} className="rounded border bg-background/70 px-2 py-1.5 text-[11px]">
+        <div key={task.taskId} className="rounded border bg-background/70 px-2 py-1.5 text-2xs">
           <div className="flex items-center justify-between gap-2">
             <span>Video · {typeof task.progress === 'number' ? `${task.progress}%` : '—'}</span>
             <Badge variant="secondary">{statusLabel[task.status] || task.status}</Badge>
           </div>
-          {task.message && <div className="mt-1 line-clamp-2 text-[10px] text-red-600">{task.message}</div>}
+          {task.message && <div className="mt-1 line-clamp-2 text-2xs text-red-600">{task.message}</div>}
         </div>
       ))}
 
       {taskList.length > 0 && (
-        <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" onClick={clearFinished}>
+        <Button type="button" variant="ghost" size="sm" className="h-7 text-2xs" onClick={clearFinished}>
           Xóa tác vụ đã xong
         </Button>
       )}

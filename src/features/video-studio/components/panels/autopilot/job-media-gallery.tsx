@@ -71,27 +71,27 @@ function ReferenceCard({
     }
   };
   return (
-    <div className={cn("overflow-hidden rounded-md border bg-card", active ? "border-primary/60" : failed ? "border-red-500/50" : "border-border")}>
+    <div className={cn("overflow-hidden rounded-lg border bg-card", active ? "border-primary/60" : failed ? "border-red-500/50" : "border-border")}>
       <button type="button" disabled={!output?.imagePath} onClick={() => output?.imagePath && onPreview(output.imagePath)} className={cn("relative block w-full bg-muted/30", kind === "character" ? "aspect-square" : "aspect-video")}>
         {output?.imagePath ? <LocalImage src={output.imagePath} alt={name} className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center">{active ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <ImageIcon className="h-5 w-5 text-muted-foreground/50" />}</span>}
-        <span className={cn("absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[8px]", output?.imagePath ? "bg-green-600 text-white" : failed ? "bg-red-600 text-white" : active ? "bg-primary text-primary-foreground" : "bg-black/60 text-white")}>{output?.imagePath ? "Đã có" : failed ? "Lỗi" : (output?.status === "generating" || output?.status === "uploading") ? `${elapsed}s` : output?.status === "queued" ? "Chờ gửi đi" : "Chờ"}</span>
+        <span className={cn("absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-2xs", output?.imagePath ? "bg-green-600 text-white" : failed ? "bg-red-600 text-white" : active ? "bg-primary text-primary-foreground" : "bg-black/60 text-white")}>{output?.imagePath ? "Đã có" : failed ? "Lỗi" : (output?.status === "generating" || output?.status === "uploading") ? `${elapsed}s` : output?.status === "queued" ? "Chờ gửi đi" : "Chờ"}</span>
       </button>
       <div className="space-y-1 p-1.5">
-        <div className="truncate text-[10px] font-medium">{name}</div>
+        <div className="truncate text-2xs font-medium">{name}</div>
         <textarea
           value={localPrompt}
           onChange={(e) => handlePromptChange(e.target.value)}
           disabled={busy}
           rows={2}
-          className="w-full resize-none rounded border border-border bg-background px-1.5 py-1 text-[9px] text-foreground leading-tight focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50"
+          className="w-full resize-none rounded border border-border bg-background px-1.5 py-1 text-2xs text-foreground leading-tight focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50"
           placeholder="Mô tả nhân vật / cảnh..."
         />
         <div className="flex gap-1">
-          <label className={cn("flex h-5 flex-1 cursor-pointer items-center justify-center rounded border border-border text-[8px] hover:bg-muted", busy && "pointer-events-none opacity-50")}>
+          <label className={cn("flex h-5 flex-1 cursor-pointer items-center justify-center rounded border border-border text-2xs hover:bg-muted", busy && "pointer-events-none opacity-50")}>
             <FileUp className="mr-0.5 h-2.5 w-2.5" />{output?.imagePath ? "Thay" : "Import"}
             <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (file) void handleImport(file); }} />
           </label>
-          <button type="button" disabled={busy} onClick={handleRegenerate} className={cn("flex h-5 flex-1 items-center justify-center rounded border border-border text-[8px] hover:bg-muted", busy && "pointer-events-none opacity-50")}>
+          <button type="button" disabled={busy} onClick={handleRegenerate} className={cn("flex h-5 flex-1 items-center justify-center rounded border border-border text-2xs hover:bg-muted", busy && "pointer-events-none opacity-50")}>
             <Loader2 className="mr-0.5 h-2.5 w-2.5" />Tạo lại
           </button>
         </div>
@@ -144,16 +144,16 @@ export function JobMediaGallery({ job }: { job: AutopilotJobListItem }) {
           </summary>
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
             {researchedImages.map((shot) => (
-              <div key={`real-${shot.index}`} className="overflow-hidden rounded-md border border-border bg-card">
+              <div key={`real-${shot.index}`} className="overflow-hidden rounded-lg border border-border bg-card">
                 <button type="button" onClick={() => setPreview({ type: "image", path: shot.realImagePath! })} className="relative block w-full">
                   <LocalImage src={shot.realImagePath!} alt={shot.realImageTitle || `Real image ${shot.index}`} className="aspect-video w-full object-cover" />
-                  <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-white">Shot {shot.index}</span>
+                  <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-2xs text-white">Shot {shot.index}</span>
                 </button>
-                <div className="space-y-1 p-1.5 text-[10px]">
+                <div className="space-y-1 p-1.5 text-2xs">
                   <div className="truncate" title={shot.realImageTitle}>{shot.realImageTitle || shot.realImageQuery}</div>
                   <div className="flex items-center justify-end gap-2 text-muted-foreground">
                     {shot.realImageSourceUrl && (
-                      <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-[10px]" onClick={() => void window.authBridge?.openExternal(shot.realImageSourceUrl!)}>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-2xs" onClick={() => void window.authBridge?.openExternal(shot.realImageSourceUrl!)}>
                         <ExternalLink className="mr-1 h-3 w-3" />{t("autopilot.panel.openSource")}
                       </Button>
                     )}

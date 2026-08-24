@@ -64,7 +64,7 @@ function PromptStatusPill({ label, status }: { label: string; status: PromptTarg
     : status === 'missing'
       ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
       : 'border-muted bg-muted/50 text-muted-foreground';
-  return <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px]', className)}>{label}: {t(`promptStatus.${status === 'not-required' ? 'notRequired' : status}`)}</span>;
+  return <span className={cn('rounded-full border px-1.5 py-0.5 text-2xs', className)}>{label}: {t(`promptStatus.${status === 'not-required' ? 'notRequired' : status}`)}</span>;
 }
 
 // Compute the completion-status icon.
@@ -401,12 +401,12 @@ export function EpisodeTree({
                                 {String(shot.index).padStart(2, "0")}
                               </span>
                               {scene && (
-                                <span className="inline-flex max-w-[120px] items-center gap-1 rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] text-blue-600 dark:text-blue-300">
+                                <span className="inline-flex max-w-[120px] items-center gap-1 rounded-full bg-blue-500/10 px-1.5 py-0.5 text-2xs text-blue-600 dark:text-blue-300">
                                   <MapPin className="h-2.5 w-2.5 shrink-0" />
                                   <span className="truncate">{scene.name || t("scenes.untitled")}</span>
                                 </span>
                               )}
-                              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary">
                                 <Clock className="h-2.5 w-2.5" />
                                 {shotDuration}s
                               </span>
@@ -420,28 +420,28 @@ export function EpisodeTree({
                                   {scene?.scenePrompt && <PromptStatusPill label="Scene" status="ready" />}
                                 </div>
                                 {scene?.scenePrompt && (
-                                  <div className="text-[10px] leading-relaxed text-emerald-700 dark:text-emerald-300 line-clamp-2">
+                                  <div className="text-2xs leading-relaxed text-emerald-700 dark:text-emerald-300 line-clamp-2">
                                     <span className="font-medium">Scene Prompt:</span> {scene.scenePrompt}
                                   </div>
                                 )}
                                 {shot.imagePrompt && (
-                                  <div className="text-[10px] leading-relaxed text-violet-700 dark:text-violet-300 line-clamp-2">
+                                  <div className="text-2xs leading-relaxed text-violet-700 dark:text-violet-300 line-clamp-2">
                                     <span className="font-medium">Image Prompt:</span> {shot.imagePrompt}
                                   </div>
                                 )}
                                 {shot.videoPrompt && (
-                                  <div className="text-[10px] leading-relaxed text-blue-700 dark:text-blue-300 line-clamp-2">
+                                  <div className="text-2xs leading-relaxed text-blue-700 dark:text-blue-300 line-clamp-2">
                                     <span className="font-medium">Video Prompt:</span> {shot.videoPrompt}
                                   </div>
                                 )}
                                 {shot.voiceOver && (
-                                  <div className="text-[10px] leading-relaxed text-emerald-700 dark:text-emerald-300 line-clamp-2">
+                                  <div className="text-2xs leading-relaxed text-emerald-700 dark:text-emerald-300 line-clamp-2">
                                     <span className="font-medium">Voice Over:</span> {shot.voiceOver}
                                   </div>
                                 )}
                               </div>
                             ) : (
-                              <div className="mt-1 pl-7 text-[10px] text-amber-600 dark:text-amber-300">
+                              <div className="mt-1 pl-7 text-2xs text-amber-600 dark:text-amber-300">
                                 Structure ready. Prompts not generated yet.
                               </div>
                             )}

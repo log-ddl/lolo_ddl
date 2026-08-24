@@ -124,7 +124,6 @@ export function ExportButton() {
 
         <Button
           type="button"
-          variant="primary"
           className="h-8 w-full"
           onClick={run}
           disabled={rendering}

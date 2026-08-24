@@ -28,7 +28,7 @@ export function PromptStatusBadge({ label, status }: { label: string; status: Pr
     : status === 'missing'
       ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
       : 'border-muted bg-muted/50 text-muted-foreground';
-  return <span className={`rounded-full border px-2 py-0.5 text-[10px] ${className}`}>{label}: {t(`promptStatus.${status === 'not-required' ? 'notRequired' : status}`)}</span>;
+  return <span className={`rounded-full border px-2 py-0.5 text-2xs ${className}`}>{label}: {t(`promptStatus.${status === 'not-required' ? 'notRequired' : status}`)}</span>;
 }
 
 // Episode details

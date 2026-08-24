@@ -652,7 +652,7 @@ export function MediaView() {
                       >
                         <div className="w-[100px] h-[100px] rounded overflow-hidden bg-primary/5 flex flex-col items-center justify-center border border-primary/20 hover:border-primary/50 gap-1">
                           <IconComp className="h-8 w-8 text-primary/70" />
-                          <span className="text-[10px] text-muted-foreground">{count} items</span>
+                          <span className="text-2xs text-muted-foreground">{count} items</span>
                         </div>
                         <p className="text-xs mt-1 truncate text-center font-medium">{getFolderLabel(t, folder)}</p>
                       </div>
@@ -688,7 +688,7 @@ export function MediaView() {
                         >
                           <div className="w-[100px] h-[100px] rounded overflow-hidden bg-muted/50 flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 gap-1">
                             <Folder className="h-8 w-8 text-primary/70" />
-                            <span className="text-[10px] text-muted-foreground">{count} items</span>
+                            <span className="text-2xs text-muted-foreground">{count} items</span>
                           </div>
                           <p className="text-xs mt-1 truncate text-center">{getFolderLabel(t, folder)}</p>
                         </div>

@@ -80,8 +80,8 @@ export function SpeedSlider({ value, onChange, min, max, step, t }: {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <Label className="text-xs uppercase tracking-wider">{t("tts.settings.speed")}</Label>
-        <span className="text-[10px] tabular-nums font-medium text-primary">{value.toFixed(2)}×</span>
+        <Label className="text-xs">{t("tts.settings.speed")}</Label>
+        <span className="text-2xs tabular-nums font-medium text-primary">{value.toFixed(2)}×</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="mt-1.5 w-full accent-primary" />
     </div>

@@ -119,6 +119,13 @@ async function getImageSize(
   }
 }
 
+export interface WatermarkRemovalOutcome {
+  /** Cleaned `local-image://` path, or null when removal did not happen. */
+  localPath: string | null;
+  /** Why removal did not happen — for UI feedback instead of a silent no-op. */
+  error?: string;
+}
+
 /**
  * Remove the Gemini watermark from a generated image and return the cleaned
  * image URL (a `local-image://` path) — or `null` when the image cannot be
@@ -128,6 +135,18 @@ export async function removeWatermarkFromUrl(
   imageUrl: string,
   options: RemoveWatermarkOptions = {},
 ): Promise<string | null> {
+  return (await removeWatermarkWithDiagnostics(imageUrl, options)).localPath;
+}
+
+/**
+ * Same as `removeWatermarkFromUrl`, but reports why removal failed so callers
+ * that are user-driven can show the actual reason (missing Python runtime,
+ * unreadable image, script error).
+ */
+export async function removeWatermarkWithDiagnostics(
+  imageUrl: string,
+  options: RemoveWatermarkOptions = {},
+): Promise<WatermarkRemovalOutcome> {
   try {
     let localPath: string | null = null;
     if (isLocalImageUrl(imageUrl)) {
@@ -140,7 +159,7 @@ export async function removeWatermarkFromUrl(
       // so download through the main process (no CORS) first.
       localPath = await saveRawImage(imageUrl);
     }
-    if (!localPath) return null;
+    if (!localPath) return { localPath: null, error: "Không đọc được ảnh nguồn để xoá watermark" };
 
     // Fixed, hand-measured placement — pass the exact box so the Python
     // script does not have to search for the watermark.
@@ -154,13 +173,16 @@ export async function removeWatermarkFromUrl(
       if (x >= 0 && y >= 0) box = `${x},${y},${config.logoSize},${config.logoSize}`;
     }
 
-    const result = await window.watermarkRemoval?.remove(localPath, box ?? undefined);
-    if (result?.success && result.localPath) return result.localPath;
+    if (!window.watermarkRemoval) {
+      return { localPath: null, error: "Xoá watermark chỉ chạy trong ứng dụng LONGDD trên máy tính" };
+    }
+    const result = await window.watermarkRemoval.remove(localPath, box ?? undefined);
+    if (result?.success && result.localPath) return { localPath: result.localPath };
     if (result?.output) console.warn("[WatermarkRemover] Python output:", result.output);
     if (result?.error) console.warn("[WatermarkRemover] Error:", result.error);
-    return null;
+    return { localPath: null, error: result?.error || "Xoá watermark thất bại" };
   } catch (error) {
     console.warn("[WatermarkRemover] Skipping removal:", error);
-    return null;
+    return { localPath: null, error: error instanceof Error ? error.message : String(error) };
   }
 }

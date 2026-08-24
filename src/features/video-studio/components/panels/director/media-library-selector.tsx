@@ -163,13 +163,13 @@ export function MediaLibrarySelector({
                         </div>
                         {/* File name */}
                         <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
-                          <span className="text-[9px] text-white truncate block">
+                          <span className="text-2xs text-white truncate block">
                             {img.name}
                           </span>
                         </div>
                         {/* AI badge */}
                         {img.source === 'ai-image' && (
-                          <span className="absolute top-1 left-1 text-[8px] bg-primary text-white px-1 rounded">
+                          <span className="absolute top-1 left-1 text-2xs bg-primary text-white px-1 rounded">
                             AI
                           </span>
                         )}

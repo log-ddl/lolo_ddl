@@ -6,7 +6,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { useProjectStore } from "@/features/video-studio/stores/project-store";
 import { useScriptStore } from "@/features/video-studio/stores/script-store";
 import { useMediaPanelStore } from "@/features/video-studio/stores/media-panel-store";
-import type { ScriptData, Shot } from "@/features/video-studio/types/script";
+import type { ScriptData, Shot, VideoLength } from "@/features/video-studio/types/script";
 import { normalizeRefImageIndexes, normalizeVideoLength } from "@/features/video-studio/types/script";
 import { cleanVoiceOverText, splitVideoPromptVoiceOver } from "@/features/video-studio/lib/script/voice-over";
 import { useI18n } from "@/shared/i18n";
@@ -20,7 +20,7 @@ type PromptRow = {
   imagePrompt: string;
   videoPrompt: string;
   voiceOver?: string;
-  videoLength: 4 | 6 | 8;
+  videoLength: VideoLength;
   ref_image?: number[];
 };
 // Config Beta  TAB Import Prompt
@@ -277,7 +277,7 @@ export function PromptImportView() {
           <Button onClick={() => handleSync(true)} disabled={isPromptImportBeta || rows.length === 0}>{t("promptImport.openDirector")}</Button>
         </div>
       </div>
-      <div className="flex-1 overflow-auto rounded-md border">
+      <div className="flex-1 overflow-auto rounded-lg border">
         <table className="w-full min-w-[1180px] text-xs">
           <thead className="sticky top-0 bg-muted">
             <tr>

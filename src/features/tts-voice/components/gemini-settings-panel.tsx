@@ -47,7 +47,7 @@ export function GeminiSettingsPanel({ controller }: { controller: TtsController 
           </div>
         </section>
 
-        <section className="space-y-4 border-t border-border/50 pt-5">
+        <section className="space-y-4 border-t border-border/60 pt-5">
           <div>
             <Label>{t('tts.settings.model')}</Label>
             <Select value={selectedModelId} onValueChange={setSelectedModelId}>
@@ -65,7 +65,7 @@ export function GeminiSettingsPanel({ controller }: { controller: TtsController 
           </div>
 
           <div>
-            <div className="flex items-center justify-between"><Label>{t('tts.gemini.voice')}</Label><span className="text-[10px] text-muted-foreground">30 {t('tts.gemini.voices')}</span></div>
+            <div className="flex items-center justify-between"><Label>{t('tts.gemini.voice')}</Label><span className="text-2xs text-muted-foreground">30 {t('tts.gemini.voices')}</span></div>
             <Select value={geminiVoiceName} onValueChange={setGeminiVoiceName}>
               <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
               <SelectContent>{geminiVoices.map((voice) => <SelectItem key={voice.name} value={voice.name}>{voice.name} · {voice.description}</SelectItem>)}</SelectContent>
@@ -74,7 +74,7 @@ export function GeminiSettingsPanel({ controller }: { controller: TtsController 
 
           {selectedGeminiVoice && (
             <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/65 p-3">
-              <div><p className="text-sm font-medium">{selectedGeminiVoice.name}</p><p className="mt-1 text-[10px] text-muted-foreground">{selectedGeminiVoice.description} · {selectedGeminiVoice.gender === 'F' ? t('tts.gemini.female') : t('tts.gemini.male')}</p></div>
+              <div><p className="text-sm font-medium">{selectedGeminiVoice.name}</p><p className="mt-1 text-2xs text-muted-foreground">{selectedGeminiVoice.description} · {selectedGeminiVoice.gender === 'F' ? t('tts.gemini.female') : t('tts.gemini.male')}</p></div>
               <Button type="button" variant="outline" size="sm" disabled={busy} onClick={previewGeminiVoice}><Volume2 className="h-3.5 w-3.5" />{t('tts.gemini.preview')}</Button>
             </div>
           )}
@@ -87,16 +87,16 @@ export function GeminiSettingsPanel({ controller }: { controller: TtsController 
           <div>
             <div className="flex items-center justify-between gap-3"><Label>{t('tts.gemini.temperature')}</Label><span className="text-xs font-medium text-primary">{geminiTemperature.toFixed(1)}</span></div>
             <input type="range" min="0" max="2" step="0.1" value={geminiTemperature} onChange={(event) => setGeminiTemperature(Number(event.target.value))} className="mt-3 h-1.5 w-full cursor-pointer accent-primary" />
-            <p className="mt-1.5 text-[10px] text-muted-foreground">{t('tts.gemini.temperatureHint')}</p>
+            <p className="mt-1.5 text-2xs text-muted-foreground">{t('tts.gemini.temperatureHint')}</p>
           </div>
 
           <div>
             <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setShowTags((value) => !value)}>{showTags ? t('tts.gemini.hideTags') : t('tts.gemini.showTags')}</Button>
-            {showTags && <div className="mt-2 flex flex-wrap gap-1.5">{GEMINI_AUDIO_TAGS.map(([tag, label]) => <button key={tag} type="button" onClick={() => insertTag(tag)} className="rounded-lg border border-border/60 bg-background px-2 py-1 text-[10px] hover:border-primary/50 hover:text-primary" title={tag}>{label}</button>)}</div>}
+            {showTags && <div className="mt-2 flex flex-wrap gap-1.5">{GEMINI_AUDIO_TAGS.map(([tag, label]) => <button key={tag} type="button" onClick={() => insertTag(tag)} className="rounded-lg border border-border/60 bg-background px-2 py-1 text-2xs hover:border-primary/50 hover:text-primary" title={tag}>{label}</button>)}</div>}
           </div>
         </section>
 
-        <section className="rounded-xl border border-border/50 bg-muted/20 p-3 text-[11px] leading-5 text-muted-foreground">{t('tts.gemini.longTextHint')}</section>
+        <section className="rounded-xl border border-border/60 bg-muted/20 p-3 text-2xs leading-5 text-muted-foreground">{t('tts.gemini.longTextHint')}</section>
       </div>
     </aside>
   );

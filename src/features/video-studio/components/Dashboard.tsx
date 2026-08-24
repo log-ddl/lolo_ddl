@@ -299,7 +299,7 @@ export function Dashboard() {
           )}
           <Button
             onClick={() => setShowNewProject(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
+            className="font-medium"
           >
             <Plus className="w-4 h-4 mr-2" />
             {t("dashboard.newProject")}
@@ -343,7 +343,7 @@ export function Dashboard() {
 
           {/* New Project Input */}
           {showNewProject && (
-            <div className="mb-6 p-4 bg-card/80 border border-border/50 rounded-xl shadow-sm">
+            <div className="mb-6 p-4 bg-card/80 border border-border/60 rounded-xl shadow-sm">
               <div className="flex items-center gap-3">
                 <Input
                   placeholder={t("dashboard.projectNamePlaceholder")}
@@ -388,8 +388,8 @@ export function Dashboard() {
                     selectionMode
                       ? isSelected
                         ? "border-primary ring-2 ring-primary/20 shadow-sm cursor-pointer"
-                        : "border-border/50 cursor-pointer hover:border-border"
-                      : "border-border/50 shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer",
+                        : "border-border/60 cursor-pointer hover:border-border"
+                      : "border-border/60 shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer",
                   )}
                   onClick={() => {
                     if (selectionMode) {
@@ -431,11 +431,11 @@ export function Dashboard() {
                     <div className="px-3.5 pt-2">
                       <div className="flex items-center gap-2">
                         <Progress value={batchStatus.progress} className="h-1.5 flex-1" />
-                        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                        <span className="shrink-0 text-2xs tabular-nums text-muted-foreground">
                           {Math.round(batchStatus.progress)}%
                         </span>
                       </div>
-                      <div className="mt-1 truncate text-[10px] text-muted-foreground">
+                      <div className="mt-1 truncate text-2xs text-muted-foreground">
                         {batchStatus.message || batchStatusLabel(batchStatus.status)}
                       </div>
                     </div>
@@ -443,7 +443,7 @@ export function Dashboard() {
 
                   {/* Scheduled-start hint for a queued project */}
                   {batchStatus?.status === "pending" && batchStatus.scheduledAt && (
-                    <div className="flex items-center gap-1 px-3.5 pt-2 text-[10px] text-primary">
+                    <div className="flex items-center gap-1 px-3.5 pt-2 text-2xs text-primary">
                       <CalendarClock className="h-3 w-3" />
                       Hẹn {formatBatchSchedule(batchStatus.scheduledAt)}
                     </div>
@@ -527,7 +527,7 @@ export function Dashboard() {
                 <p className="text-sm text-muted-foreground mb-8 max-w-xs">
                   {t("dashboard.emptyDescription")}
                 </p>
-                <Button variant="primary" onClick={() => setShowNewProject(true)}>
+                <Button onClick={() => setShowNewProject(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   {t("dashboard.newProject")}
                 </Button>
@@ -606,7 +606,7 @@ function BatchStatusBadge({ status, label }: { status: BatchCardStatus; label: s
   };
   const { className, Icon } = meta[status];
   return (
-    <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium shadow-sm", className)}>
+    <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-medium shadow-sm", className)}>
       <Icon className={cn("h-3 w-3", status === "running" && "animate-spin")} />
       {label}
     </span>

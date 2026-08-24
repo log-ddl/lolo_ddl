@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import {
   CheckCircle2,
   ExternalLink,
@@ -104,7 +105,7 @@ export function ResearchSettings() {
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between">
               <label className="text-xs font-semibold">{t("research.settings.keyList")}</label>
-              <button type="button" onClick={() => setShowKeys((show) => !show)} className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground">
+              <button type="button" onClick={() => setShowKeys((show) => !show)} className="flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-foreground">
                 {showKeys ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 {t(showKeys ? "research.settings.hideKeys" : "research.settings.showKeys")}
               </button>
@@ -121,7 +122,7 @@ export function ResearchSettings() {
                         <KeyRound className="h-4 w-4" />
                       </span>
                       <label className="min-w-0 flex-1">
-                        <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                        <span className="mb-1 block text-2xs font-medium text-muted-foreground">
                           {t("research.settings.keyLabel", { count: index + 1 })}
                         </span>
                         <input
@@ -131,7 +132,7 @@ export function ResearchSettings() {
                           placeholder="AIza..."
                           autoComplete="off"
                           spellCheck={false}
-                          className="h-7 w-full bg-transparent font-mono text-[10px] outline-none"
+                          className="h-7 w-full bg-transparent font-mono text-2xs outline-none"
                         />
                       </label>
                       {result === "valid" && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}
@@ -144,38 +145,38 @@ export function ResearchSettings() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    {result && result !== "valid" && <p className="mt-2 pl-11 text-[10px] text-destructive">{result}</p>}
+                    {result && result !== "valid" && <p className="mt-2 pl-11 text-2xs text-destructive">{result}</p>}
                   </div>
                 );
               })}
             </div>
 
-            <button type="button" onClick={addKeyInput} className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border/70 text-[11px] font-medium text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary">
+            <Button type="button" variant="outline" className="mt-2 w-full border-dashed text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary" onClick={addKeyInput}>
               <Plus className="h-3.5 w-3.5" />
               {t("research.settings.addKey")}
-            </button>
+            </Button>
 
             <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
                 {t("research.settings.localOnly", { count: parsedKeys.length })}
               </p>
-              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-primary">
+              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="flex shrink-0 items-center gap-1 text-2xs font-medium text-primary">
                 {t("research.settings.createKey")} <ExternalLink className="h-3 w-3" />
               </a>
             </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => void testAll()} disabled={testing} className="flex h-9 items-center gap-2 rounded-xl border border-border/60 bg-background px-3 text-xs font-medium disabled:opacity-50">
+            <Button type="button" variant="outline" onClick={() => void testAll()} disabled={testing}>
               {testing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {t("research.settings.testAll")}
-            </button>
-            <button type="button" onClick={save} className="flex h-9 items-center gap-2 rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground">
+            </Button>
+            <Button type="button" onClick={save}>
               <Save className="h-3.5 w-3.5" />
               {t("research.settings.save")}
-            </button>
-            {message && <p className="text-[11px] text-emerald-500">{message}</p>}
+            </Button>
+            {message && <p className="text-2xs text-emerald-500">{message}</p>}
           </div>
         </section>
 
@@ -184,9 +185,9 @@ export function ResearchSettings() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold">{t("research.settings.quotaTitle")}</h2>
-                <p className="mt-1 text-[11px] text-muted-foreground">{t("research.settings.quotaHint")}</p>
+                <p className="mt-1 text-2xs text-muted-foreground">{t("research.settings.quotaHint")}</p>
               </div>
-              <button type="button" onClick={resetQuotaEstimates} className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground">
+              <button type="button" onClick={resetQuotaEstimates} className="flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-foreground">
                 <RotateCcw className="h-3.5 w-3.5" />
                 {t("research.settings.resetQuota")}
               </button>
@@ -197,19 +198,19 @@ export function ResearchSettings() {
                 const result = results[key];
                 const disabled = disabledApiKeys.includes(key);
                 return (
-                  <div key={key} className="rounded-xl border border-border/50 bg-background/60 p-3">
+                  <div key={key} className="rounded-xl border border-border/60 bg-background/60 p-3">
                     <div className="flex items-center gap-2">
                       <span className={`h-2 w-2 rounded-full ${disabled || (result && result !== "valid") ? "bg-destructive" : index === activeIndex ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
                       <span className="font-mono text-xs font-medium">{maskYouTubeKey(key)}</span>
-                      {index === activeIndex && !disabled && <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-500">{t("research.settings.active")}</span>}
+                      {index === activeIndex && !disabled && <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-2xs font-medium text-emerald-500">{t("research.settings.active")}</span>}
                       {result === "valid" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
-                      <span className="ml-auto text-[10px] text-muted-foreground">{t("research.settings.keyPosition", { current: index + 1, total: storedKeys.length })}</span>
+                      <span className="ml-auto text-2xs text-muted-foreground">{t("research.settings.keyPosition", { current: index + 1, total: storedKeys.length })}</span>
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2">
-                      <div className="rounded-lg bg-muted/30 px-2.5 py-2"><p className="text-[10px] text-muted-foreground">{t("research.settings.readRemaining")}</p><p className="mt-0.5 text-[10px] font-semibold">{quota.coreUsed.toLocaleString(locale)}</p></div>
-                      <div className="rounded-lg bg-muted/30 px-2.5 py-2"><p className="text-[10px] text-muted-foreground">{t("research.settings.searchRemaining")}</p><p className="mt-0.5 text-[10px] font-semibold">{quota.searchUsed.toLocaleString(locale)}</p></div>
+                      <div className="rounded-lg bg-muted/30 px-2.5 py-2"><p className="text-2xs text-muted-foreground">{t("research.settings.readRemaining")}</p><p className="mt-0.5 text-2xs font-semibold">{quota.coreUsed.toLocaleString(locale)}</p></div>
+                      <div className="rounded-lg bg-muted/30 px-2.5 py-2"><p className="text-2xs text-muted-foreground">{t("research.settings.searchRemaining")}</p><p className="mt-0.5 text-2xs font-semibold">{quota.searchUsed.toLocaleString(locale)}</p></div>
                     </div>
-                    {result && result !== "valid" && <p className="mt-2 text-[10px] text-destructive">{result}</p>}
+                    {result && result !== "valid" && <p className="mt-2 text-2xs text-destructive">{result}</p>}
                   </div>
                 );
               })}

@@ -328,7 +328,7 @@ export function SceneGallery({ onSceneSelect, selectedSceneId, onImportCsv, onEx
               className="h-8 pl-7 text-sm"
             />
           </div>
-          <div className="flex border rounded-md">
+          <div className="flex border rounded-lg">
             <Button
               variant={viewMode === "grid" ? "secondary" : "ghost"}
               size="sm"
@@ -474,7 +474,7 @@ export function SceneGallery({ onSceneSelect, selectedSceneId, onImportCsv, onEx
                 >
                   <div
                     className={cn(
-                      "flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors",
+                      "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors",
                       "hover:bg-accent",
                       viewMode === "grid" && "flex-col text-center"
                     )}

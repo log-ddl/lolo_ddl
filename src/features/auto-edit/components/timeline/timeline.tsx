@@ -647,14 +647,14 @@ function TimelineCanvas({ project }: { project: TProject }) {
     const source = getTrack(scene.tracks, drag.ref.trackId);
     return (
       <div
-        className="pointer-events-none absolute top-1 bottom-1 z-30 flex items-center overflow-hidden rounded-md px-2.5 ring-2 ring-primary"
+        className="pointer-events-none absolute top-1 bottom-1 z-30 flex items-center overflow-hidden rounded-lg px-2.5 ring-2 ring-primary"
         style={{
           left: msToPx(drag.newStart, zoomLevel),
           width: Math.max(2, msToPx(element.duration, zoomLevel)),
           background: trackColor(source?.type ?? "video", 0.35),
         }}
       >
-        <span className="truncate text-[11px] font-medium text-foreground">{element.name}</span>
+        <span className="truncate text-2xs font-medium text-foreground">{element.name}</span>
       </div>
     );
   };
@@ -800,7 +800,7 @@ function TimelineCanvas({ project }: { project: TProject }) {
                 else trackRowRefs.current.delete(track.id);
               }}
               className={cn(
-                "flex rounded-sm",
+                "flex rounded-lg",
                 drag?.mode === "move" &&
                   drag.targetTrackId === track.id &&
                   drag.ref.trackId !== track.id &&
@@ -896,7 +896,7 @@ function TimelineCanvas({ project }: { project: TProject }) {
       {/* Marquee box-select overlay (viewport coords → fixed). */}
       {drag?.mode === "marquee" && (
         <div
-          className="pointer-events-none fixed z-50 rounded-sm border border-primary bg-primary/10"
+          className="pointer-events-none fixed z-50 rounded-lg border border-primary bg-primary/10"
           style={{
             left: Math.min(drag.startClientX, drag.currentClientX),
             top: Math.min(drag.startClientY, drag.currentClientY),

@@ -235,12 +235,12 @@ export function ProviderList({
                           <h4 className="font-medium text-foreground flex items-center gap-2">
                             {getProviderDisplayName(provider)}
                             {configured && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-normal">
+                              <span className="text-2xs px-1.5 py-0.5 bg-primary/10 text-primary rounded font-normal">
                                 {isBrowserRuntimePlatform(provider.platform) ? 'Sẵn sàng' : t("settings.badgeConfigured")}
                               </span>
                             )}
                             {isBrowserRuntimePlatform(provider.platform) && !configured && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded font-normal">
+                              <span className="text-2xs px-1.5 py-0.5 bg-muted text-muted-foreground rounded font-normal">
                                 Chưa kết nối
                               </span>
                             )}
@@ -380,7 +380,7 @@ export function ProviderList({
 
                   {/* Expandable Content */}
                   <CollapsibleContent>
-                    <div className="px-4 pb-4 space-y-3 border-t border-border/50 pt-3">
+                    <div className="px-4 pb-4 space-y-3 border-t border-border/60 pt-3">
                       {/* Base URL */}
                       {provider.baseUrl && !isBrowserRuntimePlatform(provider.platform) && (
                         <div className="text-xs">

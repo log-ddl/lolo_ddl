@@ -7,6 +7,7 @@
 
 import { useState, useMemo } from "react";
 import { Check, User, Users } from "lucide-react";
+import { Button } from "@/shared/components/ui/button";
 import { useCharacterLibraryStore } from "@/features/video-studio/stores/character-library-store";
 import { useVideoStudioSettingsStore } from "@/features/video-studio/stores/video-studio-settings-store";
 import { useProjectStore } from "@/features/video-studio/stores/project-store";
@@ -64,9 +65,9 @@ export function CharacterSelector({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button
+        <Button variant="outline" size="xs"
           disabled={disabled}
-          className="flex items-center gap-1 px-2 py-1 rounded border border-dashed border-muted-foreground/30 hover:border-primary/50 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          className="border-dashed border-muted-foreground/30 text-muted-foreground hover:border-primary/50"
         >
           <Users className="h-3 w-3" />
           {validSelectedCount > 0 ? (
@@ -74,7 +75,7 @@ export function CharacterSelector({
           ) : (
             <span>{t("director.characterLibrary")}</span>
           )}
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-2" align="start">
         <p className="text-sm font-medium mb-2">{t("director.selectCharactersLabel")}</p>

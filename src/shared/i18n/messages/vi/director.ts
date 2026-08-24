@@ -64,7 +64,6 @@ const director = {
   "director.card.regenerate": "Tạo lại",
   "director.card.generateImage": "Tạo ảnh",
   "director.card.generateVideo": "Tạo video",
-  "director.card.dragTimeline": "Kéo vào timeline",
   "director.card.moderationSkipped": "Bị bỏ qua do kiểm duyệt",
   "director.card.prompts": "Prompt",
   "director.card.startFrame": "Khung đầu",

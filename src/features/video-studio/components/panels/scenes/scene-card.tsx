@@ -86,7 +86,7 @@ export function SceneCard({
       <div
         style={indentStyle}
         className={cn(
-          "rounded-md border cursor-pointer transition-all p-2",
+          "rounded-lg border cursor-pointer transition-all p-2",
             "hover:border-foreground/30",
             isSelected && "border-primary ring-1 ring-primary"
         )}
@@ -141,7 +141,7 @@ export function SceneCard({
                 title={t("taskInfo.image")}
                 className="h-6 w-6 bg-black/50 text-white hover:bg-black/70 hover:text-white"
               />
-              <label className="inline-flex h-6 px-1.5 items-center justify-center rounded-md bg-black/50 text-white hover:bg-black/70 cursor-pointer">
+              <label className="inline-flex h-6 px-1.5 items-center justify-center rounded-lg bg-black/50 text-white hover:bg-black/70 cursor-pointer">
                 <input
                   type="file"
                   accept="image/*"
@@ -160,13 +160,13 @@ export function SceneCard({
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium truncate">{scene.name}</p>
-            <span className={cn("px-2 py-0.5 rounded text-[10px] shrink-0", hasImage ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600")}>
+            <span className={cn("px-2 py-0.5 rounded text-2xs shrink-0", hasImage ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600")}>
               {hasImage ? t("scenes.imageReady") : t("scenes.imageMissing")}
             </span>
           </div>
           {flowSyncEnabled && hasSyncSource && (
             <span className={cn(
-              "inline-flex px-2 py-0.5 rounded text-[10px]",
+              "inline-flex px-2 py-0.5 rounded text-2xs",
               flowSyncOffline
                 ? "bg-muted text-muted-foreground"
                 : flowSyncProgress?.missing === 0
@@ -212,7 +212,7 @@ export function SceneCard({
     <div
       style={indentStyle}
       className={cn(
-          "rounded-md border cursor-pointer transition-all p-2 flex items-center gap-3",
+          "rounded-lg border cursor-pointer transition-all p-2 flex items-center gap-3",
         "hover:border-foreground/30",
         isSelected && "border-primary ring-1 ring-primary"
       )}
@@ -245,12 +245,12 @@ export function SceneCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium truncate">{scene.name}</p>
-          <span className={cn("px-2 py-0.5 rounded text-[10px] shrink-0", hasImage ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600")}>
+          <span className={cn("px-2 py-0.5 rounded text-2xs shrink-0", hasImage ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600")}>
             {hasImage ? t("scenes.imageReady") : t("scenes.imageMissing")}
           </span>
           {flowSyncEnabled && hasSyncSource && (
             <span className={cn(
-              "px-2 py-0.5 rounded text-[10px] shrink-0",
+              "px-2 py-0.5 rounded text-2xs shrink-0",
               flowSyncOffline
                 ? "bg-muted text-muted-foreground"
                 : flowSyncProgress?.missing === 0
@@ -268,7 +268,7 @@ export function SceneCard({
         </div>
         <p className="text-xs text-muted-foreground truncate">{promptText}</p>
       </div>
-      <div className="flex items-center gap-1 text-[10px] flex-shrink-0">
+      <div className="flex items-center gap-1 text-2xs flex-shrink-0">
         <Button
           size="sm"
           variant={hasImage ? "outline" : "default"}
@@ -283,7 +283,7 @@ export function SceneCard({
             <Square className="h-3.5 w-3.5" />
           </Button>
         )}
-        <label className="inline-flex h-6 px-1.5 items-center justify-center rounded-md hover:bg-accent cursor-pointer" onClick={(e) => e.stopPropagation()}>
+        <label className="inline-flex h-6 px-1.5 items-center justify-center rounded-lg hover:bg-accent cursor-pointer" onClick={(e) => e.stopPropagation()}>
           <input
             type="file"
             accept="image/*"

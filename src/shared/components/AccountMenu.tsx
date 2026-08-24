@@ -65,7 +65,7 @@ async function createLocalAvatar(file: File): Promise<string> {
 }
 
 function AvatarPreview({ src, name, size = "small" }: { src: string; name: string; size?: "small" | "large" }) {
-  const sizeClass = size === "large" ? "h-20 w-20 text-xl" : "h-7 w-7 text-[10px]";
+  const sizeClass = size === "large" ? "h-20 w-20 text-xl" : "h-7 w-7 text-2xs";
   return src ? (
     <img
       src={src}
@@ -153,7 +153,7 @@ export function AccountSidebarButton() {
           className="flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground"
         >
           <AvatarPreview src={avatarDataUrl} name={userName} />
-          <span className="block w-full truncate px-0.5 text-center text-[9px] font-medium leading-tight">
+          <span className="block w-full truncate px-0.5 text-center text-2xs font-medium leading-tight">
             {userName || t("account.title")}
           </span>
         </button>
@@ -218,38 +218,39 @@ export function AccountSidebarButton() {
                 </Button>
               )}
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">{t("account.localAvatarHint")}</p>
+            <p className="mt-2 text-2xs text-muted-foreground">{t("account.localAvatarHint")}</p>
           </div>
         </div>
 
         <dl className="grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-xl border border-border/50 p-3">
+          <div className="rounded-xl border border-border/60 p-3">
             <dt className="text-xs text-muted-foreground">{t("account.name")}</dt>
             <dd className="mt-1 truncate font-medium">{userName || fallback}</dd>
           </div>
-          <div className="rounded-xl border border-border/50 p-3">
+          <div className="rounded-xl border border-border/60 p-3">
             <dt className="text-xs text-muted-foreground">{t("account.plan")}</dt>
+            {/* ui-ok: plan tier is a short token (PRO/FREE) */}
             <dd className="mt-1 font-medium uppercase text-primary">{plan}</dd>
           </div>
-          <div className="rounded-xl border border-border/50 p-3">
+          <div className="rounded-xl border border-border/60 p-3">
             <dt className="text-xs text-muted-foreground">{language === "vi" ? "Ngày đăng ký" : "Registered"}</dt>
             <dd className="mt-1 font-medium">{formatAccountDate(registeredAt, locale, fallback)}</dd>
           </div>
-          <div className="rounded-xl border border-border/50 p-3">
+          <div className="rounded-xl border border-border/60 p-3">
             <dt className="text-xs text-muted-foreground">{t("account.expiresAt")}</dt>
             <dd className="mt-1 font-medium">
               {lastValidUntil ? formatAccountDate(lastValidUntil, locale, fallback) : t("account.noExpiration")}
             </dd>
           </div>
-          <div className="rounded-xl border border-border/50 p-3">
+          <div className="rounded-xl border border-border/60 p-3">
             <dt className="text-xs text-muted-foreground">{t("account.lastCheckedAt")}</dt>
             <dd className="mt-1 font-medium">{formatAccountDate(lastCheckedAt, locale, fallback)}</dd>
           </div>
-          <div className="rounded-lg border border-border/50 p-3">
+          <div className="rounded-lg border border-border/60 p-3">
             <dt className="text-xs text-muted-foreground">{language === "vi" ? "Số máy được phép" : "Allowed devices"}</dt>
             <dd className="mt-1 font-medium">{maxDevices}</dd>
           </div>
-          <div className="col-span-2 rounded-lg border border-border/50 p-3">
+          <div className="col-span-2 rounded-lg border border-border/60 p-3">
             <dt className="text-xs text-muted-foreground">{t("account.machineId")}</dt>
             <dd className="mt-1 break-all font-mono text-xs">{machineId || fallback}</dd>
           </div>

@@ -82,11 +82,11 @@ export function VbeeSettingsPanel({ controller }: { controller: TtsController })
           </div>
         </section>
 
-        <section className="space-y-4 border-t border-border/50 pt-5">
+        <section className="space-y-4 border-t border-border/60 pt-5">
           <div>
             <div className="flex items-center justify-between gap-2">
               <Label>{t('tts.vbee.voice')}</Label>
-              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                 <span>{voices.length} {t('tts.vbee.voices')}</span>
                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={loading} onClick={() => void loadVoices(true)} title={t('tts.vbee.refreshVoices')}>
                   {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
@@ -128,8 +128,8 @@ export function VbeeSettingsPanel({ controller }: { controller: TtsController })
               <Star className={`h-4 w-4 ${favoriteVoiceCodes.includes(vbeeVoiceCode) ? 'fill-amber-400 text-amber-500' : ''}`} />
             </Button>
             </div>
-            {error && <p className="mt-2 rounded-lg bg-destructive/10 px-2.5 py-2 text-[10px] leading-4 text-destructive">{error}</p>}
-            {selectedVoice && <p className="mt-1.5 text-[10px] text-muted-foreground">{selectedVoice.ownership === 'PERSONAL' ? t('tts.vbee.personalVoice') : selectedVoice.ownership === 'COMMUNITY' ? t('tts.vbee.communityVoice') : t('tts.vbee.officialVoice')}{selectedVoice.creditFactor ? ` · ×${selectedVoice.creditFactor} ${t('tts.vbee.credits')}` : ''}</p>}
+            {error && <p className="mt-2 rounded-lg bg-destructive/10 px-2.5 py-2 text-2xs leading-4 text-destructive">{error}</p>}
+            {selectedVoice && <p className="mt-1.5 text-2xs text-muted-foreground">{selectedVoice.ownership === 'PERSONAL' ? t('tts.vbee.personalVoice') : selectedVoice.ownership === 'COMMUNITY' ? t('tts.vbee.communityVoice') : t('tts.vbee.officialVoice')}{selectedVoice.creditFactor ? ` · ×${selectedVoice.creditFactor} ${t('tts.vbee.credits')}` : ''}</p>}
           </div>
 
           <div>
@@ -158,7 +158,7 @@ export function VbeeSettingsPanel({ controller }: { controller: TtsController })
           </div>
         </section>
 
-        <section className="rounded-xl border border-border/50 bg-muted/20 p-3 text-[11px] leading-5 text-muted-foreground">{t('tts.vbee.longTextHint')}</section>
+        <section className="rounded-xl border border-border/60 bg-muted/20 p-3 text-2xs leading-5 text-muted-foreground">{t('tts.vbee.longTextHint')}</section>
       </div>
     </aside>
   );

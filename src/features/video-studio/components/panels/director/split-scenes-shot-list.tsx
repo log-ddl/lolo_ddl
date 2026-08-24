@@ -30,11 +30,11 @@ export function ShotStatusPill({ scene, status }: { scene: SplitScene; status: S
   const { imageElapsedSeconds, videoElapsedSeconds, imagePhase, videoPhase } = status;
 
   if (scene.imageStatus === 'generating') {
-    return <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300"><Loader2 className="h-3 w-3 animate-spin" />Đang tạo ảnh {imageElapsedSeconds}s</span>;
+    return <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-2xs text-blue-700 dark:text-blue-300"><Loader2 className="h-3 w-3 animate-spin" />Đang tạo ảnh {imageElapsedSeconds}s</span>;
   }
   if (scene.imageStatus === 'uploading') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-2xs text-blue-700 dark:text-blue-300">
         <Loader2 className="h-3 w-3 animate-spin" />
         Đang chuẩn bị ảnh{imagePhase && GOOGLE_FLOW_PHASE_SUFFIX[imagePhase] ? ` · ${GOOGLE_FLOW_PHASE_SUFFIX[imagePhase]}` : ''}
       </span>
@@ -42,25 +42,25 @@ export function ShotStatusPill({ scene, status }: { scene: SplitScene; status: S
   }
   if (scene.videoStatus === 'generating' || scene.videoStatus === 'uploading') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-2xs text-emerald-700 dark:text-emerald-300">
         <Loader2 className="h-3 w-3 animate-spin" />
         Đang tạo video {videoElapsedSeconds}s{videoPhase && GOOGLE_FLOW_PHASE_SUFFIX[videoPhase] ? ` · ${GOOGLE_FLOW_PHASE_SUFFIX[videoPhase]}` : ''}
       </span>
     );
   }
   if (scene.imageStatus === 'queued' || scene.videoStatus === 'queued') {
-    return <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">Đang chờ</span>;
+    return <span className="rounded-full bg-muted px-2 py-0.5 text-2xs text-muted-foreground">Đang chờ</span>;
   }
   if (scene.imageStatus === 'failed' || scene.videoStatus === 'failed') {
-    return <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] text-destructive">Lỗi</span>;
+    return <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-2xs text-destructive">Lỗi</span>;
   }
   if (scene.videoStatus === 'completed' && scene.videoUrl) {
-    return <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">Đã có video</span>;
+    return <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-2xs text-emerald-700 dark:text-emerald-300">Đã có video</span>;
   }
   if (scene.imageDataUrl) {
-    return <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">Đã có ảnh</span>;
+    return <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-2xs text-blue-700 dark:text-blue-300">Đã có ảnh</span>;
   }
-  return <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">Chưa tạo</span>;
+  return <span className="rounded-full bg-muted px-2 py-0.5 text-2xs text-muted-foreground">Chưa tạo</span>;
 }
 
 export interface CompactShotCardProps {
@@ -121,17 +121,17 @@ export function CompactShotCard({
             {sceneTitle && <span className="truncate text-sm font-medium">{sceneTitle}</span>}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground">
               <span className={cn("h-2.5 w-2.5 rounded-full", assetColor)} />Asset
             </span>
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-2xs font-medium text-primary">
               {shotDuration}
             </span>
 
             <ShotStatusPill scene={scene} status={status} />
             {frameMode === 'both' && !isRefToVideo && (
               <span className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-medium",
                 canLinkNextFrame
                   ? "bg-violet-500/10 text-violet-700 dark:text-violet-300"
                   : "bg-muted text-muted-foreground",

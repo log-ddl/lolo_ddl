@@ -102,7 +102,7 @@ export function MediaModelSelectors() {
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-4 rounded-lg border border-border/70 p-4">
+          <div className="space-y-4 rounded-lg border border-border/60 p-4">
             <div className="space-y-2">
               <Label>Nhà cung cấp tạo ảnh</Label>
               <Select
@@ -142,7 +142,7 @@ export function MediaModelSelectors() {
             </div>
           </div>
 
-          <div className="space-y-4 rounded-lg border border-border/70 p-4">
+          <div className="space-y-4 rounded-lg border border-border/60 p-4">
             <div className="space-y-2">
               <Label>Nhà cung cấp tạo video</Label>
               <Select

@@ -345,18 +345,10 @@ export function ExportView() {
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* Header */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/50 bg-panel/70 px-5">
-        <div className="flex items-center gap-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Film className="size-4 text-primary" />
-            {t("export.stageTitle")}
-            <span className="rounded-lg bg-muted px-2 py-0.5 font-mono text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
-              {t("export.stageSubtitle")}
-            </span>
-          </h2>
-        </div>
+      {/* Status strip. The panel name lives in the project breadcrumb above. */}
+      <div className="flex h-10 shrink-0 items-center justify-end border-b border-border/60 bg-panel/70 px-5">
         <div className="flex items-center gap-2">
-          <span className="rounded-lg border border-border/60 bg-muted px-2 py-1 font-mono text-[10px] uppercase text-muted-foreground">
+          <span className="rounded-lg border border-border/60 bg-muted px-2 py-1 font-mono text-2xs uppercase text-muted-foreground">
             {t("export.status", { value: progress === 100 ? t("export.statusReady") : t("export.statusInProgress") })}
           </span>
         </div>
@@ -400,7 +392,7 @@ export function ExportView() {
                       <Icon className="h-4 w-4 shrink-0" />
                       <span className="min-w-0 text-left">
                         <span className="block text-sm font-medium truncate">{label}</span>
-                        <span className="block text-[11px] text-muted-foreground">
+                        <span className="block text-2xs text-muted-foreground">
                           {t("export.readyImages", { ready: readyCount, total: sourceItems.length })}
                         </span>
                       </span>
@@ -429,12 +421,12 @@ export function ExportView() {
                           ) : candidate.videoUrl ? (
                             <div className="flex flex-col items-center gap-2 text-primary">
                               <Film className="h-7 w-7" />
-                              <span className="text-[10px]">{t("export.videoOnly")}</span>
+                              <span className="text-2xs">{t("export.videoOnly")}</span>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-2 text-muted-foreground">
                               <ImageIcon className="h-7 w-7" />
-                              <span className="text-[10px]">{t("export.noImage")}</span>
+                              <span className="text-2xs">{t("export.noImage")}</span>
                             </div>
                           )}
                           {hasMedia && (
@@ -444,12 +436,12 @@ export function ExportView() {
                           )}
                           <div className="absolute bottom-2 left-2 flex items-center gap-1">
                             {candidate.url && (
-                              <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-[10px] shadow" onClick={() => setPreview({ type: 'image', url: candidate.url! })}>
+                              <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-2xs shadow" onClick={() => setPreview({ type: 'image', url: candidate.url! })}>
                                 <Eye className="mr-1 h-3 w-3" />{t("autopilot.panel.previewImage")}
                               </Button>
                             )}
                             {candidate.videoUrl && (
-                              <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-[10px] shadow" onClick={() => setPreview({ type: 'video', url: candidate.videoUrl! })}>
+                              <Button type="button" size="sm" variant="secondary" className="h-7 px-2 text-2xs shadow" onClick={() => setPreview({ type: 'video', url: candidate.videoUrl! })}>
                                 <Play className="mr-1 h-3 w-3" />{t("autopilot.panel.previewVideo")}
                               </Button>
                             )}
@@ -458,9 +450,9 @@ export function ExportView() {
                         <button type="button" disabled={!hasMedia} onClick={() => toggleAsset(candidate)} className="block w-full p-2 text-left disabled:cursor-not-allowed">
                           <p className="text-xs font-medium truncate" title={candidate.name}>{candidate.name}</p>
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] text-muted-foreground">{t(`export.source.${candidate.source}`)}</p>
+                            <p className="text-2xs text-muted-foreground">{t(`export.source.${candidate.source}`)}</p>
                             {candidate.videoUrl && (
-                              <span className="text-[10px] font-medium text-primary">{t("export.videoIncluded")}</span>
+                              <span className="text-2xs font-medium text-primary">{t("export.videoIncluded")}</span>
                             )}
                           </div>
                         </button>
@@ -491,27 +483,27 @@ export function ExportView() {
                     <h3 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
                       {scriptData?.title || activeProject?.name || t("export.untitledProject")}
                     </h3>
-                    <span className="px-2 py-0.5 bg-muted border border-border text-muted-foreground text-[10px] rounded uppercase font-mono tracking-wider">
+                    <span className="px-2 py-0.5 bg-muted border border-border text-muted-foreground text-2xs rounded uppercase font-mono tracking-wider">
                       {t("export.masterSequence")}
                     </span>
                   </div>
                   <div className="flex items-center gap-6 mt-3">
                     <div className="flex flex-col">
-                      <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold mb-0.5">
+                      <span className="text-2xs text-muted-foreground font-bold mb-0.5">
                          {hasSplitScenes ? t("export.splitScenes") : t("export.shotsLabel")}
                       </span>
                       <span className="text-sm font-mono text-foreground/80">{totalItems}</span>
                     </div>
                     <div className="w-px h-6 bg-border" />
                     <div className="flex flex-col">
-                      <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold mb-0.5">
+                      <span className="text-2xs text-muted-foreground font-bold mb-0.5">
                          {t("export.estDuration")}
                       </span>
                       <span className="text-sm font-mono text-foreground/80">~{estimatedDuration}s</span>
                     </div>
                     <div className="w-px h-6 bg-border" />
                     <div className="flex flex-col">
-                      <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold mb-0.5">
+                      <span className="text-2xs text-muted-foreground font-bold mb-0.5">
                          {t("export.target")}
                       </span>
                       <span className="text-sm font-mono text-foreground/80">{targetDuration}</span>
@@ -524,7 +516,7 @@ export function ExportView() {
                     <span className="text-3xl font-mono font-bold text-primary">{progress}</span>
                     <span className="text-sm text-muted-foreground">%</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center justify-end gap-2">
+                  <div className="text-2xs text-muted-foreground flex items-center justify-end gap-2">
                     {progress === 100 ? (
                       <CheckCircle className="w-3 h-3 text-green-500" />
                     ) : (
@@ -537,13 +529,13 @@ export function ExportView() {
 
               {/* Timeline Visualizer Strip */}
               <div className="mb-10">
-                <div className="flex justify-between text-[10px] text-muted-foreground font-mono uppercase tracking-widest mb-2 px-1">
+                <div className="flex justify-between text-2xs text-muted-foreground font-mono mb-2 px-1">
                   <span>{t("export.sequenceMap")}{hasSplitScenes ? ` (${t("export.director")})` : ''}</span>
                   <span>TC 00:00:00:00</span>
                 </div>
                 <div className="h-20 bg-muted/30 rounded-lg border border-border flex items-center px-2 gap-1 overflow-x-auto relative shadow-inner">
                   {totalItems === 0 ? (
-                    <div className="w-full flex items-center justify-center text-muted-foreground/50 text-xs font-mono uppercase tracking-widest">
+                    <div className="w-full flex items-center justify-center text-muted-foreground/50 text-xs font-mono">
                       <Film className="w-4 h-4 mr-2" />
                       {t("export.noShots")}
                     </div>
@@ -569,7 +561,7 @@ export function ExportView() {
                           
                           {/* Hover Tooltip */}
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 whitespace-nowrap">
-                            <div className="bg-popover text-popover-foreground text-[10px] px-2 py-1 rounded border border-border shadow-xl">
+                            <div className="bg-popover text-popover-foreground text-2xs px-2 py-1 rounded border border-border shadow-xl">
                               {t("export.sceneStatus", { index: idx + 1, suffix: hasVideo ? t("export.videoBadge") : hasImage ? t("export.imageBadge") : '' })}
                             </div>
                           </div>
@@ -594,7 +586,7 @@ export function ExportView() {
                           
                           {/* Hover Tooltip */}
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 whitespace-nowrap">
-                            <div className="bg-popover text-popover-foreground text-[10px] px-2 py-1 rounded border border-border shadow-xl">
+                            <div className="bg-popover text-popover-foreground text-2xs px-2 py-1 rounded border border-border shadow-xl">
                               {t("export.shotStatus", { index: idx + 1 })}
                             </div>
                           </div>
@@ -605,7 +597,7 @@ export function ExportView() {
                 </div>
                 {/* Image/video status summary */}
                 {hasSplitScenes && (
-                  <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-4 mt-2 text-2xs text-muted-foreground">
                     <span>{t("export.imagesCount", { ready: imageReadyItems, total: totalItems })}</span>
                     <span>{t("export.videosCount", { ready: completedItems, total: totalItems })}</span>
                   </div>
@@ -634,7 +626,7 @@ export function ExportView() {
                   disabled={!canExport || isExporting}
                   onClick={handleExportToFolder}
                   className={cn(
-                    "h-12 font-bold text-xs uppercase tracking-widest transition-all",
+"h-12 font-bold text-xs transition-all",
                     canExport && !isExporting
                       ? "bg-primary text-primary-foreground hover:bg-primary/90"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
@@ -651,7 +643,7 @@ export function ExportView() {
                   variant="outline"
                   disabled={!canExport || isExporting}
                   onClick={handleDownloadFiles}
-                  className="h-12 font-bold text-xs uppercase tracking-widest"
+                  className="h-12 font-bold text-xs"
                 >
                   <Download className="w-4 h-4 mr-2" />
                   {t("export.downloadIndividually")}

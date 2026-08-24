@@ -5,6 +5,7 @@
  */
 
 import { parseSrt } from '@/features/video-studio/lib/auto-video/srt-parser';
+import type { VideoLength } from '@/features/video-studio/types/script';
 import { useProjectStore } from '@/features/video-studio/stores/project-store';
 import { getAbsoluteImagePath, saveImageToLocal, saveVideoToLocal } from '@/features/video-studio/lib/image-storage';
 import { useMediaStore } from '@/features/video-studio/stores/media-store';
@@ -220,10 +221,8 @@ export class AutopilotEngine {
   updateShotImagePath(jobId: string, shotIndex: number, newImagePath: string): boolean {
     const job = this.jobs.get(jobId);
     if (!job) return false;
-    // The new file is not what Google Flow holds under the recorded media id,
-    // so drop it: video generation must upload this frame instead of reusing.
     const mediaOutputs = (job.mediaOutputs || []).map((item) =>
-      item.index === shotIndex ? { ...item, imagePath: newImagePath, imageFlow: undefined } : item,
+      item.index === shotIndex ? { ...item, imagePath: newImagePath } : item,
     );
     this.updateJob(jobId, { mediaOutputs });
     return true;
@@ -269,9 +268,6 @@ export class AutopilotEngine {
       imagePath,
       videoPath: previous?.videoPath || '',
       imageMediaId,
-      // An imported frame was never uploaded to Flow; a leftover media id from
-      // the replaced AI frame would make video generation ignore this import.
-      imageFlow: undefined,
       imageStatus: 'completed' as const,
     };
     this.updateJob(jobId, { mediaOutputs: [...(job.mediaOutputs || []).filter((item) => item.index !== shotIndex), output].sort((a, b) => a.index - b.index) });
@@ -382,8 +378,8 @@ export class AutopilotEngine {
     return ok;
   }
 
-  /** Change the per-shot video length (4/6/8s). */
-  updateShotVideoLength(jobId: string, shotIndex: number, videoLength: 4 | 6 | 8): boolean {
+  /** Change the per-shot video length (4/6/8s, plus 10s on Omni Flash). */
+  updateShotVideoLength(jobId: string, shotIndex: number, videoLength: VideoLength): boolean {
     return this.updateShotFields(jobId, shotIndex, { videoLength });
   }
 
@@ -393,7 +389,7 @@ export class AutopilotEngine {
     if (!job || ['running', 'queued'].includes(job.status)) return false;
     const mediaOutputs = (job.mediaOutputs || []).map((item) =>
       item.index === shotIndex
-        ? { ...item, imagePath: '', imageMediaId: undefined, imageFlow: undefined, imageStatus: 'idle' as const, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const }
+        ? { ...item, imagePath: '', imageMediaId: undefined, imageStatus: 'idle' as const, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const }
         : item,
     );
     this.updateJob(jobId, { mediaOutputs });
@@ -412,7 +408,7 @@ export class AutopilotEngine {
     const mediaOutputs = (job.mediaOutputs || []).map((item) => {
       if (item.index !== shotIndex) return item;
       if (kind === 'image') {
-        return { ...item, imagePath: '', imageMediaId: undefined, imageFlow: undefined, imageStatus: 'idle' as const, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const };
+        return { ...item, imagePath: '', imageMediaId: undefined, imageStatus: 'idle' as const, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const };
       }
       return { ...item, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const };
     });

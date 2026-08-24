@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import {
   Clock,
   Film,
@@ -100,7 +101,7 @@ export function Dashboard() {
           </span>
           <div className="min-w-0">
             <h1 className="text-sm font-semibold leading-tight">{t("autoEdit.title")}</h1>
-            <p className="text-[11px] text-muted-foreground">{t("autoEdit.dashboard.subtitle")}</p>
+            <p className="text-2xs text-muted-foreground">{t("autoEdit.dashboard.subtitle")}</p>
           </div>
           <div className="flex-1" />
           <button
@@ -111,14 +112,14 @@ export function Dashboard() {
             <FolderOpen className="size-4" />
             {t("autoEdit.openProject")}
           </button>
-          <button
+          <Button size="sm"
             type="button"
             onClick={create}
-            className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground shadow-xs transition-opacity hover:opacity-90"
+            className=""
           >
             <Plus className="size-4" />
             {t("autoEdit.newProject")}
-          </button>
+          </Button>
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto p-6">
@@ -162,14 +163,14 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       </span>
       <p className="text-sm font-medium text-foreground">{t("autoEdit.dashboard.empty")}</p>
       <p className="max-w-xs text-xs text-muted-foreground">{t("autoEdit.dashboard.emptyHint")}</p>
-      <button
+      <Button 
         type="button"
         onClick={onCreate}
-        className="mt-1 flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-opacity hover:opacity-90"
+        className="mt-1"
       >
         <Plus className="size-4" />
         {t("autoEdit.newProject")}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -229,14 +230,14 @@ function ProjectCard({
               if (e.key === "Escape") onCommitRename();
             }}
             onClick={(e) => e.stopPropagation()}
-            className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-medium text-foreground"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-2 py-1 text-sm font-medium text-foreground"
           />
         ) : (
           <div className="mt-2 w-full truncate text-sm font-medium text-foreground">{project.name}</div>
         )}
       </div>
 
-      <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+      <div className="mt-1 flex items-center gap-2 text-2xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <Clock className="size-3" />
           {updatedLabel}
@@ -246,29 +247,29 @@ function ProjectCard({
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-1 border-t border-border/50 pt-2">
-        <button
+      <div className="mt-2 flex items-center gap-1 border-t border-border/60 pt-2">
+        <Button variant="ghost" size="icon-sm"
           type="button"
           onClick={onStartRename}
           title={t("autoEdit.dashboard.rename")}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          className="size-7 text-muted-foreground"
         >
           <Pencil className="size-3.5" />
-        </button>
-        <button
+        </Button>
+        <Button variant="ghost" size="icon-sm"
           type="button"
           onClick={onReveal}
           title={t("autoEdit.dashboard.reveal")}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          className="size-7 text-muted-foreground"
         >
           <MoreHorizontal className="size-3.5" />
-        </button>
+        </Button>
         <div className="flex-1" />
         <button
           type="button"
           onClick={onDelete}
           className={cn(
-            "flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors",
+            "flex h-7 items-center gap-1 rounded-lg px-2 text-2xs font-medium transition-colors",
             confirming
               ? "bg-destructive/10 text-destructive"
               : "text-muted-foreground hover:bg-sidebar-accent hover:text-destructive",

@@ -350,7 +350,7 @@ export function SimpleTimeline() {
                     </button>
                   </div>
                   {/* Info bar */}
-                  <div className="h-5 px-1 flex items-center justify-between bg-muted/50 text-[10px]">
+                  <div className="h-5 px-1 flex items-center justify-between bg-muted/50 text-2xs">
                     <span className="truncate">{clip.name}</span>
                     {isCurrentlyPlaying && (
                       <span className="text-primary animate-pulse">▶</span>

@@ -75,7 +75,7 @@ export function Clip({
   return (
     <div
       className={cn(
-        "group absolute top-1 bottom-1 select-none overflow-hidden rounded-md",
+        "group absolute top-1 bottom-1 select-none overflow-hidden rounded-lg",
         "cursor-grab active:cursor-grabbing",
         isSelected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         isDropTarget && "ring-2 ring-emerald-400 ring-offset-1 ring-offset-background",
@@ -141,7 +141,7 @@ export function Clip({
         style={{ color }}
       >
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
-        <span className="truncate text-[11px] font-medium leading-tight text-foreground">
+        <span className="truncate text-2xs font-medium leading-tight text-foreground">
           {element.name}
         </span>
 
@@ -158,13 +158,13 @@ export function Clip({
             <span className="flex h-4 items-center gap-0.5 rounded bg-background/70 px-1">
               <Sparkles className="size-2.5 text-foreground/80" />
               {effectCount > 1 && (
-                <span className="text-[9px] font-semibold text-foreground/80">{effectCount}</span>
+                <span className="text-2xs font-semibold text-foreground/80">{effectCount}</span>
               )}
             </span>
           )}
           {/* Clip length, hidden on clips too narrow to read it. */}
           {showDuration && (
-            <span className="rounded bg-background/70 px-1 font-mono text-[9px] tabular-nums text-foreground/80">
+            <span className="rounded bg-background/70 px-1 font-mono text-2xs tabular-nums text-foreground/80">
               {formatClipDuration(duration)}
             </span>
           )}

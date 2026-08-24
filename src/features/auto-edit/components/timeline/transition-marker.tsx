@@ -152,7 +152,7 @@ export function TransitionMarker({
 
       {/* Live duration readout while dragging. */}
       {draftMs != null && (
-        <span className="absolute -top-4 left-1/2 -translate-x-1/2 rounded bg-background/90 px-1 font-mono text-[9px] tabular-nums text-foreground">
+        <span className="absolute -top-4 left-1/2 -translate-x-1/2 rounded bg-background/90 px-1 font-mono text-2xs tabular-nums text-foreground">
           {Math.round(draftMs)}ms
         </span>
       )}

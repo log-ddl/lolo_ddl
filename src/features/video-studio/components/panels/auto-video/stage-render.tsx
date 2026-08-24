@@ -282,12 +282,12 @@ export function StageRender() {
         </div>
 
         <div className="bg-card border border-border rounded-xl p-4 text-xs space-y-2">
-          <div className="font-bold uppercase tracking-wider">{t("autoVideo.render.diagnostics")}</div>
+          <div className="font-bold">{t("autoVideo.render.diagnostics")}</div>
           <div className="text-muted-foreground">
             {t("autoVideo.render.diagnosticsSummary", { mode: mediaMode, images: stats.withImages, total: stats.total, videos: stats.withVideos, fallback: stats.fallbackImages, missing: stats.missing })}
           </div>
           {imagePathSamples.length > 0 ? (
-            <pre className="bg-muted/30 rounded p-2 max-h-32 overflow-auto whitespace-pre-wrap text-[10px]">
+            <pre className="bg-muted/30 rounded p-2 max-h-32 overflow-auto whitespace-pre-wrap text-2xs">
               {imagePathSamples.join("\n")}
             </pre>
           ) : (
@@ -297,10 +297,10 @@ export function StageRender() {
 
         {/* Settings */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider mb-2">{t("autoVideo.render.settings")}</h3>
+          <h3 className="text-sm font-bold mb-2">{t("autoVideo.render.settings")}</h3>
 
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">{t("autoVideo.render.resolution")}</Label>
+            <Label className="text-xs mb-1.5 block">{t("autoVideo.render.resolution")}</Label>
             <div className="flex gap-2">
               {RESOLUTIONS.map((r) => (
                 <Chip
@@ -316,7 +316,7 @@ export function StageRender() {
           </div>
 
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">FPS</Label>
+            <Label className="text-xs mb-1.5 block">FPS</Label>
             <div className="flex gap-2">
               {FPS_OPTIONS.map((f) => (
                 <Chip
@@ -332,7 +332,7 @@ export function StageRender() {
           </div>
 
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">Codec</Label>
+            <Label className="text-xs mb-1.5 block">Codec</Label>
             <div className="flex gap-2 flex-wrap">
               {CODECS.map((c) => (
                 <Chip
@@ -349,7 +349,7 @@ export function StageRender() {
           </div>
 
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+            <Label className="text-xs mb-1.5 block">
               CRF — {renderSettings.crf}
             </Label>
             <input
@@ -361,7 +361,7 @@ export function StageRender() {
               disabled={rendering}
               className="w-full"
             />
-            <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+            <div className="flex justify-between text-2xs text-muted-foreground mt-1">
               <span>{t("autoVideo.render.qualityHigh")}</span>
               <span>{t("autoVideo.render.fileSmall")}</span>
             </div>
@@ -370,7 +370,7 @@ export function StageRender() {
 
         {/* Subtitle + BGM */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider mb-2">{t("autoVideo.render.overlayTitle")}</h3>
+          <h3 className="text-sm font-bold mb-2">{t("autoVideo.render.overlayTitle")}</h3>
 
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -386,7 +386,7 @@ export function StageRender() {
 
           {renderSettings.burnSubtitles && (
             <div>
-              <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+              <Label className="text-xs mb-1.5 block">
                 {t("autoVideo.render.subtitleFontSize")} — {renderSettings.subtitleFontSize > 0 ? renderSettings.subtitleFontSize : t("autoVideo.render.subtitleFontAuto")}
               </Label>
               <input
@@ -442,7 +442,7 @@ export function StageRender() {
           {renderSettings.bgmPath && (
             <div className="space-y-3">
               <div>
-                <Label className="text-xs uppercase tracking-wider mb-1.5 block">
+                <Label className="text-xs mb-1.5 block">
                   {t("autoVideo.render.bgmVolume")} — {Math.round(renderSettings.bgmVolume * 100)}%
                 </Label>
                 <input
@@ -547,7 +547,7 @@ export function StageRender() {
         {/* Render log */}
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="text-xs font-bold uppercase tracking-wider">{t("autoVideo.render.logTitle")}</div>
+            <div className="text-xs font-bold">{t("autoVideo.render.logTitle")}</div>
             <Button
               variant="outline"
               size="sm"
@@ -560,7 +560,7 @@ export function StageRender() {
               {t("autoVideo.render.copy")}
             </Button>
           </div>
-          <pre className="text-[10px] text-muted-foreground bg-muted/30 rounded p-3 max-h-72 overflow-auto whitespace-pre-wrap">
+          <pre className="text-2xs text-muted-foreground bg-muted/30 rounded p-3 max-h-72 overflow-auto whitespace-pre-wrap">
             {[renderError, renderLog].filter(Boolean).join("\n\n") || t("autoVideo.render.emptyLog")}
           </pre>
         </div>
@@ -572,7 +572,7 @@ export function StageRender() {
 function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div>
-      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
+      <div className="text-2xs text-muted-foreground">{label}</div>
       <div className={cn("text-2xl font-bold mt-1", warn && "text-amber-500")}>{value}</div>
     </div>
   );
@@ -593,7 +593,7 @@ function Chip({
       disabled={disabled}
       title={hint}
       className={cn(
-        "px-3 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-50",
+        "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50",
         active
           ? "bg-primary text-primary-foreground border-primary"
           : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground",

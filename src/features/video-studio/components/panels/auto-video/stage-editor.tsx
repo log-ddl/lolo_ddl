@@ -281,7 +281,7 @@ export function StageEditor() {
             <FolderOpen className="w-4 h-4 mr-1" />
             {mediaMode === "video" ? t("autoVideo.editor.autoFillVideoFolder") : t("autoVideo.editor.autoFillFolder")}
           </Button>
-          <div className="flex items-center gap-1 rounded-md border border-border bg-muted/30 p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
             <ModeButton active={mediaMode === "image"} onClick={() => setMediaMode("image")}>{t("autoVideo.import.image")}</ModeButton>
             <ModeButton active={mediaMode === "video"} onClick={() => setMediaMode("video")}>{t("autoVideo.import.video")}</ModeButton>
           </div>
@@ -427,10 +427,10 @@ function SegmentRow({ segment, mediaMode, sfxPaths }: { segment: MappedSegment; 
       {/* Index + time */}
       <div className="w-20 shrink-0 bg-muted/30 flex flex-col items-center justify-center text-center py-2">
         <div className="text-xs text-muted-foreground font-medium">#{segment.index}</div>
-        <div className="text-[10px] text-muted-foreground mt-0.5">
+        <div className="text-2xs text-muted-foreground mt-0.5">
           {formatTimestamp(segment.startMs)}
         </div>
-        <div className="text-[10px] text-muted-foreground">
+        <div className="text-2xs text-muted-foreground">
           {formatDurationSec(duration)}
         </div>
       </div>
@@ -438,7 +438,7 @@ function SegmentRow({ segment, mediaMode, sfxPaths }: { segment: MappedSegment; 
       {/* Text */}
       <div className="flex-1 py-3 min-w-0">
         <div className="text-sm leading-relaxed">{segment.text}</div>
-        <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 mt-2 text-2xs text-muted-foreground">
           <label>{t("autoVideo.editor.effect")}</label>
           <select className="bg-background border border-border rounded px-1 py-0.5" value={segment.mediaEffect ?? "none"} onChange={(e) => setMediaEffect(segment.index, e.target.value as AutoVideoMediaEffect)}>
             {MEDIA_EFFECT_OPTIONS.map((option) => (
@@ -468,7 +468,7 @@ function SegmentRow({ segment, mediaMode, sfxPaths }: { segment: MappedSegment; 
           )}
         </div>
         {lowConf && (
-          <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-600">
+          <div className="flex items-center gap-1 mt-1 text-2xs text-amber-600">
             <AlertTriangle className="w-3 h-3" />
             {t("autoVideo.editor.lowConfidence")} ({segment.confidence?.toFixed(2)})
           </div>
@@ -500,7 +500,7 @@ function SegmentRow({ segment, mediaMode, sfxPaths }: { segment: MappedSegment; 
               />
             )}
             {fallbackImage && (
-              <div className="absolute left-1 bottom-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-medium text-white">
+              <div className="absolute left-1 bottom-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-2xs font-medium text-white">
                 {t("autoVideo.import.fallbackImage")}
               </div>
             )}
@@ -518,7 +518,7 @@ function SegmentRow({ segment, mediaMode, sfxPaths }: { segment: MappedSegment; 
         ) : (
           <div className="text-xs text-muted-foreground flex flex-col items-center gap-1">
             <ImageIcon className="w-4 h-4" />
-            <span className="text-[10px] text-center px-2">
+            <span className="text-2xs text-center px-2">
               {mediaMode === "video" ? t("autoVideo.editor.dropVideo") : t("autoVideo.editor.dropImage")}
             </span>
           </div>

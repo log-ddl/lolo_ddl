@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import type { CSSProperties } from "react";
 import { Maximize, Minimize, Pause, Play } from "lucide-react";
 import { useI18n } from "@/shared/i18n";
@@ -161,47 +162,47 @@ function PreviewCanvas({ project }: { project: TProject }) {
   return (
     <div ref={panelRef} className="flex h-full min-w-0 flex-col bg-background">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-border/60 px-3">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-xs font-semibold text-muted-foreground">
           {t("autoEdit.panels.preview")}
         </span>
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs tabular-nums text-muted-foreground">
             {formatTimecodeCompact(playheadMs)}
           </span>
-          <button
+          <Button variant="ghost" size="icon-sm"
             type="button"
             onClick={() => setPlaying(!isPlaying)}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground"
+            className="size-7 text-muted-foreground"
             aria-label={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={() => setFit((f) => !f)}
             className={cn(
-              "flex h-6 items-center rounded-md px-1.5 text-[11px] font-medium transition-colors",
+              "flex h-6 items-center rounded-lg px-1.5 text-2xs font-medium transition-colors",
               fit ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
             )}
             title={t("autoEdit.preview.fit")}
           >
             {fit ? "Fit" : "100%"}
           </button>
-          <button
+          <Button variant="ghost" size="icon-sm"
             type="button"
             onClick={toggleFullscreen}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground"
+            className="size-7 text-muted-foreground"
             aria-label={t("autoEdit.preview.fullscreen")}
           >
             {isFullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div ref={containerRef} className="flex-1 min-h-0 overflow-auto p-3">
         <div className="grid min-h-full min-w-full place-items-center">
           <div
-            className="relative overflow-hidden rounded-sm bg-black shadow-sm"
+            className="relative overflow-hidden rounded-lg bg-black shadow-sm"
             style={{
               width: stage.w,
               height: stage.h,

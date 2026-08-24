@@ -48,7 +48,9 @@ function RailItem({ item }: { item: FeatureRailItem }) {
           )}
         >
           <Icon className="size-4" />
-          <span className="max-w-full truncate text-[9px] font-medium leading-tight">{item.label}</span>
+          {/* Two lines rather than an ellipsis: "Prompt Import" never fits on
+              one line at any sane rail width. */}
+          <span className="line-clamp-2 max-w-full text-center text-2xs font-medium leading-tight">{item.label}</span>
         </button>
       </TooltipTrigger>
       <TooltipContent side="right" className="text-xs">{item.tooltip || item.label}</TooltipContent>
@@ -66,7 +68,8 @@ export function FeatureRail({ items = [], bottomItems = [], backAction, showCliS
 
   return (
     <TooltipProvider delayDuration={300}>
-      <aside className="buzz-rail flex w-16 shrink-0 flex-col border-r border-border/60">
+      {/* 72px, not 64: at the 11px label size "Tổng quan" no longer fits in 64. */}
+      <aside className="buzz-rail flex w-18 shrink-0 flex-col border-r border-border/60">
         <div className="px-2 pb-2 pt-3">
           <HomeLogoButton onClick={goHome} label={t("appHome.backToHome")} mark={t("brand.mark")} />
           {backAction && (
@@ -91,7 +94,7 @@ export function FeatureRail({ items = [], bottomItems = [], backAction, showCliS
             <TooltipTrigger asChild>
               <a href="https://www.facebook.com/logdd.pitre" target="_blank" rel="noopener noreferrer" className={railActionClass}>
                 <HelpCircle className="size-4" />
-                <span className="text-[9px] font-medium leading-tight">{t("tabBar.help")}</span>
+                <span className="text-2xs font-medium leading-tight">{t("tabBar.help")}</span>
               </a>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">{t("tabBar.usageGuide")}</TooltipContent>
@@ -101,7 +104,7 @@ export function FeatureRail({ items = [], bottomItems = [], backAction, showCliS
               <TooltipTrigger asChild>
                 <button type="button" onClick={openSettings} className={railActionClass}>
                   <Settings className="size-4" />
-                  <span className="text-[9px] font-medium leading-tight">CLI</span>
+                  <span className="text-2xs font-medium leading-tight">CLI</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="text-xs">{t("tabBar.cliSettings")}</TooltipContent>
@@ -112,7 +115,8 @@ export function FeatureRail({ items = [], bottomItems = [], backAction, showCliS
             <TooltipTrigger asChild>
               <button type="button" onClick={() => setUILanguage(nextLanguage)} className={railActionClass}>
                 <Languages className="size-4" />
-                <span className="text-[9px] font-medium uppercase leading-tight">{nextLanguage}</span>
+                {/* ui-ok: two-letter language code */}
+                <span className="text-2xs font-medium uppercase leading-tight">{nextLanguage}</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">{nextLanguage === "en" ? t("tabBar.switchToEnglish") : t("tabBar.switchToVietnamese")}</TooltipContent>
@@ -121,7 +125,7 @@ export function FeatureRail({ items = [], bottomItems = [], backAction, showCliS
             <TooltipTrigger asChild>
               <button type="button" onClick={toggleTheme} className={railActionClass}>
                 {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-                <span className="text-[9px] font-medium leading-tight">{theme === "dark" ? t("tabBar.theme.light") : t("tabBar.theme.dark")}</span>
+                <span className="text-2xs font-medium leading-tight">{theme === "dark" ? t("tabBar.theme.light") : t("tabBar.theme.dark")}</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">{theme === "dark" ? t("tabBar.theme.toLight") : t("tabBar.theme.toDark")}</TooltipContent>

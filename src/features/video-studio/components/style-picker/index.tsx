@@ -185,7 +185,7 @@ export function StylePicker({
           {STYLE_CATEGORIES.map((category) => (
             <div key={category.id} className="mb-4">
               {/* Category heading */}
-              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b border-border/50 mb-2">
+              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b border-border/60 mb-2">
                 {category.name}
               </div>
               {/* Style list */}
@@ -210,7 +210,7 @@ export function StylePicker({
                 <span className="text-xs font-medium text-primary">{t("stylePicker.myStyles")}</span>
                 <button
                   type="button"
-                  className="flex items-center gap-1 text-[11px] text-primary hover:opacity-70"
+                  className="flex items-center gap-1 text-2xs text-primary hover:opacity-70"
                   onClick={() => openStyleEditor()}
                 >
                   <Plus className="h-3 w-3" />
@@ -274,7 +274,9 @@ export function StylePicker({
           {trigger || (
             <button
               className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background",
+                // h-9 to match Input/SelectTrigger — the category chip inside
+                // used to push this trigger taller than its neighbours.
+                "flex h-9 items-center gap-2 px-3 rounded-lg border border-input bg-background",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
@@ -285,7 +287,7 @@ export function StylePicker({
               <div className="flex items-center gap-2">
                 {selectedStyle && (
                   <span className={cn(
-                    "w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold",
+                    "w-5 h-5 shrink-0 rounded flex items-center justify-center text-2xs font-bold",
                     selectedStyle.id.startsWith('custom_style_')
                       ? 'bg-primary/20 text-primary'
                       : CATEGORY_COLORS[selectedStyle.category] || 'bg-muted'
@@ -420,7 +422,7 @@ function StyleItem({ style, isSelected, isCustom, onSelect, onHover, onLeave, on
   return (
     <div
       className={cn(
-        "group w-full flex items-center gap-1 rounded-md transition-colors",
+        "group w-full flex items-center gap-1 rounded-lg transition-colors",
         "hover:bg-accent",
         isSelected && "bg-accent"
       )}
@@ -430,7 +432,7 @@ function StyleItem({ style, isSelected, isCustom, onSelect, onHover, onLeave, on
       <button type="button" className="min-w-0 flex flex-1 items-center gap-2 px-2 py-1.5" onClick={onSelect}>
       {/* Color block placeholder */}
       <span className={cn(
-        "w-10 h-10 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0",
+        "w-10 h-10 rounded flex items-center justify-center text-2xs font-bold flex-shrink-0",
         isCustom ? 'bg-primary/20 text-primary' : CATEGORY_COLORS[style.category] || 'bg-muted'
       )}>
         {isCustom ? '★' : style.category === 'none' ? 'NO' : style.category === '3d' ? '3D' : style.category === '2d' ? '2D' : style.category === 'real' ? t("stylePicker.category.real") : t("stylePicker.category.stopMotion")}

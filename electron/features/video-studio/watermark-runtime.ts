@@ -3,6 +3,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import https from 'node:https'
 import { spawn } from 'node:child_process'
+import { ensureManagedPython } from '../tts-voice/managed-python'
 
 const PYTHON_VERSION = '3.12.10'
 const PYTHON_WIN_URL = `https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe`
@@ -13,8 +14,15 @@ function runtimeRoot() {
   return path.join(app.getPath('userData'), 'runtimes', 'watermark')
 }
 
+/**
+ * Interpreter we install ourselves: a full Python install on Windows, a venv
+ * built from the system Python everywhere else (macOS/Linux ship a Python but
+ * refuse `pip install` into it).
+ */
 function bundledPython() {
-  return process.platform === 'win32' ? path.join(runtimeRoot(), 'python', 'python.exe') : ''
+  return process.platform === 'win32'
+    ? path.join(runtimeRoot(), 'python', 'python.exe')
+    : path.join(runtimeRoot(), 'venv', 'bin', 'python3')
 }
 
 function depsOkMarker() {
@@ -98,19 +106,90 @@ async function findUsablePython(): Promise<string | null> {
     if (await hasDeps(candidate)) return candidate
   }
 
-  const systemCandidates =
-    process.platform === 'win32'
-      ? [{ command: 'py', args: ['-3'] }, { command: 'python', args: [] }]
-      : [{ command: 'python3', args: [] }, { command: 'python', args: [] }]
-  for (const candidate of systemCandidates) {
-    // Probe the interpreter once to find its absolute path, then check deps.
-    const probe = await spawnCapture(candidate.command, [...candidate.args, '-c', 'import sys; print(sys.executable)'], 30_000)
-    if (!probe.ok) continue
-    const exe = probe.output.trim().split(/\r?\n/).at(-1)
-    if (!exe) continue
+  for (const exe of await systemPythons()) {
     if (await hasDeps(exe)) return exe
   }
   return null
+}
+
+/**
+ * Absolute paths of every system Python we can reach, deps or not. A GUI app
+ * launched from Finder/Explorer inherits a bare PATH, so well-known install
+ * locations are probed explicitly on top of the PATH lookup.
+ */
+async function systemPythons(): Promise<string[]> {
+  const commands =
+    process.platform === 'win32'
+      ? [{ command: 'py', args: ['-3'] }, { command: 'python', args: [] }]
+      : [{ command: 'python3', args: [] }, { command: 'python', args: [] }]
+  const found: string[] = []
+  for (const candidate of commands) {
+    // Probe the interpreter once to resolve its absolute path.
+    const probe = await spawnCapture(candidate.command, [...candidate.args, '-c', 'import sys; print(sys.executable)'], 30_000)
+    if (!probe.ok) continue
+    const exe = probe.output.trim().split(/\r?\n/).at(-1)
+    if (exe && !found.includes(exe)) found.push(exe)
+  }
+  if (process.platform !== 'win32') {
+    const wellKnown = ['/opt/homebrew/bin/python3', '/usr/local/bin/python3', '/usr/bin/python3']
+    for (const exe of wellKnown) {
+      if (fs.existsSync(exe) && !found.includes(exe)) found.push(exe)
+    }
+  }
+  return found
+}
+
+/**
+ * Install the required deps into `python` and verify the import works.
+ */
+async function installDeps(python: string, onProgress?: (stage: string, ratio: number, message: string) => void): Promise<void> {
+  onProgress?.('pip', 0, `Đang cài thư viện (${PYTHON_DEPS.join(', ')})...`)
+  const pip = await spawnCapture(
+    python,
+    ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-warn-script-location', ...PYTHON_DEPS],
+    15 * 60_000,
+  )
+  if (!pip.ok) throw new Error(`Cài thư viện thất bại: ${pip.output.slice(-800)}`)
+  if (!(await hasDeps(python))) throw new Error('Kiểm tra thư viện thất bại')
+  fs.writeFileSync(depsOkMarker(), PYTHON_VERSION, 'utf8')
+}
+
+/**
+ * Base interpreter used to create the venv: the app's own managed Python 3.12
+ * (downloaded by the TTS bootstrap, shared here) first, then any system Python.
+ */
+async function baseInterpreter(onProgress?: (stage: string, ratio: number, message: string) => void): Promise<string | null> {
+  try {
+    return await ensureManagedPython((_stage, percent, message) => {
+      onProgress?.('install', Math.min(0.2, percent / 100), message)
+    })
+  } catch (error) {
+    console.warn('[WatermarkRuntime] Managed Python unavailable, falling back to system Python:', error)
+    return (await systemPythons())[0] ?? null
+  }
+}
+
+/**
+ * macOS/Linux: build a venv from the base Python and install the deps there,
+ * since the system interpreter itself is externally managed.
+ */
+async function bootstrapVenv(onProgress?: (stage: string, ratio: number, message: string) => void): Promise<string> {
+  const base = await baseInterpreter(onProgress)
+  if (!base) {
+    throw new Error('Không tìm thấy Python 3 trên máy. Cài Python 3 (brew install python) rồi thử lại.')
+  }
+  const venvDir = path.join(runtimeRoot(), 'venv')
+  const python = bundledPython()
+  if (!fs.existsSync(python)) {
+    onProgress?.('install', 0.2, 'Đang tạo môi trường Python...')
+    fs.mkdirSync(runtimeRoot(), { recursive: true })
+    const create = await spawnCapture(base, ['-m', 'venv', venvDir], 5 * 60_000)
+    if (!create.ok || !fs.existsSync(python)) {
+      throw new Error(`Tạo môi trường Python thất bại: ${create.output.slice(-800)}`)
+    }
+  }
+  await installDeps(python, onProgress)
+  return python
 }
 
 function downloadFile(url: string, dest: string, onProgress?: (ratio: number) => void): Promise<void> {
@@ -166,6 +245,7 @@ function downloadFile(url: string, dest: string, onProgress?: (ratio: number) =>
  * only the first caller performs the install.
  */
 let runtimePromise: Promise<string | null> | null = null
+let lastBootstrapError = ''
 
 export function ensureWatermarkRuntime(
   onProgress?: (stage: string, ratio: number, message: string) => void,
@@ -178,7 +258,9 @@ export function ensureWatermarkRuntime(
         if (existing) return existing
 
         if (process.platform !== 'win32') {
-          return null
+          const venvPython = await bootstrapVenv(onProgress)
+          onProgress?.('ready', 1, 'Runtime Python sẵn sàng')
+          return venvPython
         }
 
         onProgress?.('download', 0, `Đang tải Python ${PYTHON_VERSION}...`)
@@ -205,17 +287,7 @@ export function ensureWatermarkRuntime(
         const python = bundledPython()
         if (!python || !fs.existsSync(python)) throw new Error('Không tìm thấy Python sau khi cài')
 
-        onProgress?.('pip', 0, `Đang cài thư viện (${PYTHON_DEPS.join(', ')})...`)
-        const pip = await spawnCapture(
-          python,
-          ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-warn-script-location', ...PYTHON_DEPS],
-          15 * 60_000,
-        )
-        if (!pip.ok) throw new Error(`Cài thư viện thất bại: ${pip.output.slice(-800)}`)
-
-        const verify = await hasDeps(python)
-        if (!verify) throw new Error('Kiểm tra thư viện thất bại')
-        fs.writeFileSync(depsOkMarker(), PYTHON_VERSION, 'utf8')
+        await installDeps(python, onProgress)
 
         try {
           fs.rmSync(installer, { force: true })
@@ -226,6 +298,10 @@ export function ensureWatermarkRuntime(
         return python
       } catch (error) {
         console.error('[WatermarkRuntime] Bootstrap failed:', error)
+        lastBootstrapError = error instanceof Error ? error.message : String(error)
+        // Let the next call retry (network hiccup, missing Python the user
+        // installs afterwards) instead of failing for the rest of the session.
+        runtimePromise = null
         return null
       }
     })()
@@ -252,7 +328,8 @@ export async function runWatermarkRemoval(
 
   const python = await ensureWatermarkRuntime(onProgress)
   if (!python) {
-    return { ok: false, output: 'Không thể khởi tạo runtime Python (xem log phía trên)' }
+    const detail = lastBootstrapError ? `: ${lastBootstrapError}` : ' (xem log phía trên)'
+    return { ok: false, output: `Không thể khởi tạo runtime Python${detail}` }
   }
 
   const scriptArgs = [script, inputPath, '-o', outputPath]
@@ -293,7 +370,8 @@ export function registerWatermarkIpc(getMediaRoot: () => string) {
       const result = await runWatermarkRemoval(filePath, outPath, validBox, emit)
       if (!result.ok || !fs.existsSync(outPath)) {
         if (result.output) console.warn('[WatermarkRemoval]', result.output)
-        return { success: false, output: result.output, error: 'Watermark removal failed' }
+        const reason = result.output.trim().split(/\r?\n/).filter(Boolean).at(-1)
+        return { success: false, output: result.output, error: reason || 'Watermark removal failed' }
       }
       return { success: true, localPath: `local-image://shots/${outName}`, output: result.output }
     } catch (error) {

@@ -30,6 +30,7 @@
     "build:mac:universal": "node ./scripts/build-desktop.mjs --mac --universal",
     "build:linux": "node ./scripts/build-desktop.mjs --linux",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:ui": "node scripts/check-ui.mjs",
     "test:autopilot": "node --experimental-strip-types src/features/video-studio/autopilot/narration-timeline.test.ts",
     "test:long-form": "node --experimental-strip-types src/features/video-studio/lib/long-form/orchestrator.test.ts",
     "test:render-transitions": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test-render-transitions.ps1",

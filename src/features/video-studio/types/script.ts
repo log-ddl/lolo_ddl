@@ -174,13 +174,14 @@ export interface ScriptData {
 export type ShotStatus = 'idle' | 'generating' | 'completed' | 'failed';
 export type ScriptWorkflowType = 'narrative' | 'explainer';
 export type VideoGenerationMode = 'image-to-video' | 'ref-to-video';
-export type VideoLength = 4 | 6 | 8;
+/** 10s only exists on Gemini Omni Flash; Veo 3.1 tops out at 8s. */
+export type VideoLength = 4 | 6 | 8 | 10;
 
 export function normalizeVideoLength(value: unknown): VideoLength {
   const numeric = typeof value === 'string'
     ? Number(value.replace(/[^0-9]/g, ''))
     : Number(value);
-  return numeric === 6 || numeric === 8 ? numeric : 4;
+  return numeric === 6 || numeric === 8 || numeric === 10 ? numeric : 4;
 }
 
 export function normalizeRefImageIndexes(value: unknown): number[] {

@@ -175,15 +175,15 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-medium">Kết nối Google Flow</div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-2xs text-muted-foreground">
             {status?.readyCredentialCount || 0} tiện ích sẵn sàng · {status?.imageLaneCount || 0} luồng ảnh / {status?.videoLaneCount || 0} luồng video · giao thức v{status?.protocolVersion || 1}
           </div>
         </div>
         <div className="flex gap-1">
-          <Button type="button" variant="outline" size="sm" className="h-7 text-[11px]" disabled={addingAccount} onClick={() => void addInAppAccount()}>
+          <Button type="button" variant="outline" size="sm" className="h-7 text-2xs" disabled={addingAccount} onClick={() => void addInAppAccount()}>
             {addingAccount ? 'Đang mở…' : '+ Thêm tài khoản'}
           </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => {
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-2xs" onClick={() => {
             void (async () => {
               await window.googleFlowRuntime?.refreshInAppAccounts();
               await new Promise((resolve) => setTimeout(resolve, 2500));
@@ -192,10 +192,10 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
               await refreshInAppAccounts();
             })();
           }}>Làm mới</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" onClick={clearFinished}>Xóa đã xong</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-2xs" onClick={clearFinished}>Xóa đã xong</Button>
         </div>
       </div>
-      <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+      <label className="flex items-center gap-2 text-2xs text-muted-foreground">
         <input
           type="checkbox"
           className="h-3.5 w-3.5"
@@ -211,11 +211,11 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
             const custom = accountLabels[account.accountSlotId]?.trim();
             const editing = editingSlot === account.accountSlotId;
             return (
-              <div key={account.accountSlotId} className="flex items-center justify-between gap-2 rounded border bg-background/70 px-2 py-1.5 text-[11px]">
+              <div key={account.accountSlotId} className="flex items-center justify-between gap-2 rounded border bg-background/70 px-2 py-1.5 text-2xs">
                 {editing ? (
                   <input
                     autoFocus
-                    className="h-6 min-w-0 flex-1 rounded border bg-background px-1.5 text-[11px]"
+                    className="h-6 min-w-0 flex-1 rounded border bg-background px-1.5 text-2xs"
                     value={draftName}
                     maxLength={40}
                     placeholder={`Tài khoản ${shortId}`}
@@ -233,8 +233,8 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
                 <div className="flex shrink-0 gap-1">
                   {editing ? (
                     <>
-                      <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => saveAccountLabel(account.accountSlotId, draftName)}>Lưu</Button>
-                      <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setEditingSlot(null)}>Hủy</Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 text-2xs" onClick={() => saveAccountLabel(account.accountSlotId, draftName)}>Lưu</Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 text-2xs" onClick={() => setEditingSlot(null)}>Hủy</Button>
                     </>
                   ) : (
                     <>
@@ -242,21 +242,21 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-[10px]"
+                        className="h-6 text-2xs"
                         onClick={() => { setEditingSlot(account.accountSlotId); setDraftName(custom || ''); }}
                       >Đổi tên</Button>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-[10px]"
+                        className="h-6 text-2xs"
                         onClick={() => void window.googleFlowRuntime?.showInAppAccount(account.accountSlotId)}
                       >Hiện</Button>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-[10px] text-red-600 hover:text-red-600"
+                        className="h-6 text-2xs text-red-600 hover:text-red-600"
                         disabled={removingAccount === account.accountSlotId}
                         onClick={() => void removeInAppAccount(account.accountSlotId)}
                       >{removingAccount === account.accountSlotId ? 'Đang gỡ…' : 'Gỡ tài khoản'}</Button>
@@ -273,7 +273,7 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
         const activeBinding = bindings.find((binding) => binding.active);
         const busy = projectBusy === credential.credentialId;
         return (
-          <div key={credential.credentialId} className="rounded border bg-background/70 px-2 py-1.5 text-[11px] space-y-2">
+          <div key={credential.credentialId} className="rounded border bg-background/70 px-2 py-1.5 text-2xs space-y-2">
             <div className="flex items-center justify-between gap-3">
               <span>
                 {accountLabels[credential.extensionInstanceId]?.trim() ? `${accountLabels[credential.extensionInstanceId].trim()} · ` : ''}
@@ -284,9 +284,9 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
             {alwaysVisible && activeProjectId && (
               <div className="flex items-end gap-2 rounded border bg-muted/20 p-2">
                 <label className="min-w-0 flex-1 space-y-1">
-                  <span className="text-[10px] text-muted-foreground">Flow project của dự án “{activeProject?.name || activeProjectId}”</span>
+                  <span className="text-2xs text-muted-foreground">Flow project của dự án “{activeProject?.name || activeProjectId}”</span>
                   <select
-                    className="h-8 w-full rounded border bg-background px-2 font-mono text-[11px]"
+                    className="h-8 w-full rounded border bg-background px-2 font-mono text-2xs"
                     value={activeBinding?.flowProjectId || ''}
                     disabled={busy || !bindings.length}
                     onChange={(event) => { if (event.target.value) void activateFlowProject(credential.credentialId, event.target.value); }}
@@ -303,7 +303,7 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8 shrink-0 text-[11px]"
+                  className="h-8 shrink-0 text-2xs"
                   disabled={busy || credential.state !== 'ready'}
                   onClick={() => void createFlowProject(credential.credentialId)}
                 >{busy ? 'Đang xử lý…' : 'Tạo project mới'}</Button>
@@ -315,19 +315,19 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
       <div className="space-y-1.5">
         {taskList.slice(0, 8).map((task) => (
           <div key={task.taskId} className="rounded border bg-background/70 px-2 py-1.5">
-            <div className="flex items-center justify-between gap-2 text-[11px]">
+            <div className="flex items-center justify-between gap-2 text-2xs">
               <span className="font-medium">{task.kind === 'image' ? 'Ảnh' : task.kind === 'video' ? 'Video' : task.kind} · luồng {task.laneSlot || '—'}/{task.totalLanes || '—'}</span>
               <Badge variant="secondary" className={statusClass[task.status]}>{phaseLabel[task.phase || ''] || statusLabel[task.status] || task.status}</Badge>
             </div>
-            {task.message && <div className="mt-1 text-[10px] text-red-600 line-clamp-1">{task.message}</div>}
+            {task.message && <div className="mt-1 text-2xs text-red-600 line-clamp-1">{task.message}</div>}
           </div>
         ))}
       </div>
       {alwaysVisible && !status?.readyCredentialCount && !inAppAccounts.length && (
-        <p className="text-[11px] text-muted-foreground">Bấm “+ Thêm tài khoản” để đăng nhập Google Flow ngay trong ứng dụng.</p>
+        <p className="text-2xs text-muted-foreground">Bấm “+ Thêm tài khoản” để đăng nhập Google Flow ngay trong ứng dụng.</p>
       )}
       {alwaysVisible && activeProjectId && projectBindings.length > 0 && (
-        <p className="text-[10px] text-muted-foreground">Đổi Flow project không xóa project hoặc Media ID cũ. Ảnh dùng trong project mới sẽ được tải lên một lần rồi tiếp tục dùng lại từ cache riêng của project đó.</p>
+        <p className="text-2xs text-muted-foreground">Đổi Flow project không xóa project hoặc Media ID cũ. Ảnh dùng trong project mới sẽ được tải lên một lần rồi tiếp tục dùng lại từ cache riêng của project đó.</p>
       )}
     </div>
   );

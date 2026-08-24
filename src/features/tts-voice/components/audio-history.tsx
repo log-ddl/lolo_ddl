@@ -45,7 +45,7 @@ export function AudioHistory({ items, onRename, onRemove }: AudioHistoryProps) {
           <Clock3 className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold text-sm">{t('tts.history.title')}</h2>
         </div>
-        {items.length > 0 && <span className="text-[11px] text-muted-foreground">{t('tts.history.resultCount', { visible: visibleItems.length, total: items.length })}</span>}
+        {items.length > 0 && <span className="text-2xs text-muted-foreground">{t('tts.history.resultCount', { visible: visibleItems.length, total: items.length })}</span>}
       </div>
       {items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -56,14 +56,14 @@ export function AudioHistory({ items, onRename, onRemove }: AudioHistoryProps) {
           <div className="rounded-xl border border-border/60 bg-card/50 p-3">
             <div className="grid gap-3 sm:grid-cols-[minmax(200px,1fr)_175px_auto] sm:items-end">
               <div>
-                <Label className="text-[10px]">{t('tts.history.search')}</Label>
+                <Label className="text-2xs">{t('tts.history.search')}</Label>
                 <div className="relative mt-1.5">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('tts.history.searchPlaceholder')} className="h-9 pl-9 text-xs" />
                 </div>
               </div>
               <div>
-                <Label className="text-[10px]">{t('tts.history.sort')}</Label>
+                <Label className="text-2xs">{t('tts.history.sort')}</Label>
                 <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'newest' | 'oldest')}>
                   <SelectTrigger className="mt-1.5 h-9 w-full bg-background text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>

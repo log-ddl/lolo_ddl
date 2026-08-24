@@ -12,6 +12,8 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { useAPIConfigStore } from "@/features/video-studio/stores/api-config-store";
+import { modelsFromBindings, supportedVideoLengths } from "@/features/video-studio/lib/ai/video-lengths";
 import { CharacterSelector } from "./character-selector";
 import { SceneLibrarySelector } from "./scene-library-selector";
 import { ShotReferenceSelector } from "./shot-reference-selector";
@@ -54,6 +56,38 @@ export interface SplitSceneCardFrameProps {
   t: Translate;
 }
 
+/**
+ * Clip length picker. The list follows the bound video model: 10s only exists
+ * on Gemini Omni Flash, so a scene still holding 10s from an earlier model
+ * shows it as a disabled option instead of silently reading as blank.
+ */
+function VideoLengthSelect({
+  className, value, disabled, onChange, onClick,
+}: {
+  className: string;
+  value: number;
+  disabled?: boolean;
+  onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
+  onClick?: (event: React.MouseEvent<HTMLSelectElement>) => void;
+}) {
+  const bindings = useAPIConfigStore((state) => state.featureBindings?.video_generation);
+  const lengths = React.useMemo(() => supportedVideoLengths(modelsFromBindings(bindings)), [bindings]);
+
+  return (
+    <select
+      className={className}
+      value={value}
+      onChange={onChange}
+      onClick={onClick}
+      disabled={disabled}
+      title="Video length"
+    >
+      {lengths.map((length) => <option key={length} value={length}>{length}s</option>)}
+      {!(lengths as number[]).includes(value) && <option value={value} disabled>{value}s</option>}
+    </select>
+  );
+}
+
 export function SplitSceneCardFrame(props: SplitSceneCardFrameProps) {
   const {
     scene, allScenes, referenceSlot, firstFrameInput, firstFrameInputRef,
@@ -68,37 +102,27 @@ export function SplitSceneCardFrame(props: SplitSceneCardFrameProps) {
     <>
         <div className="flex flex-wrap gap-2 lg:flex-nowrap">
           {isRefToVideo && (
-            <select
-              className="h-6 rounded border border-border bg-background px-1.5 text-[10px] font-medium text-foreground"
+            <VideoLengthSelect
+              className="h-6 rounded border border-border bg-background px-1.5 text-2xs font-medium text-foreground"
               value={scene.videoLength || 4}
               onChange={(e) => onUpdateField?.(scene.id, 'videoLength', Number(e.target.value))}
               disabled={isGeneratingAny || !onUpdateField}
-              title="Video length"
-            >
-              <option value={4}>4s</option>
-              <option value={6}>6s</option>
-              <option value={8}>8s</option>
-            </select>
+            />
           )}
           {!isRefToVideo && <>
             {/* Start frame image */}
             <div className="w-[132px] shrink-0 max-w-full sm:w-[148px]">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-medium">
+                <span className="text-2xs px-1.5 py-0.5 rounded bg-primary/20 text-primary font-medium">
                   {t("director.card.startFrame")}
                 </span>
-                <select
-                  className="h-5 rounded border border-border bg-background px-1 text-[10px] font-medium text-foreground"
+                <VideoLengthSelect
+                  className="h-5 rounded border border-border bg-background px-1 text-2xs font-medium text-foreground"
                   value={scene.videoLength || 4}
                   onChange={(e) => onUpdateField?.(scene.id, 'videoLength', Number(e.target.value))}
                   onClick={(e) => e.stopPropagation()}
                   disabled={isGeneratingAny || !onUpdateField}
-                  title="Video length"
-                >
-                  <option value={4}>4s</option>
-                  <option value={6}>6s</option>
-                  <option value={8}>8s</option>
-                </select>
+                />
               </div>
               <div
                 className="aspect-video bg-muted rounded cursor-pointer relative group/image overflow-hidden border-2 transition-colors border-primary border-solid"
@@ -139,27 +163,27 @@ export function SplitSceneCardFrame(props: SplitSceneCardFrameProps) {
                       </button>
                     </div>
                     {scene.imageSource === 'ai-generated' && (
-                      <span className="absolute bottom-0.5 left-0.5 text-[8px] bg-primary text-white px-1 rounded">{t("director.aiBadge")}</span>
+                      <span className="absolute bottom-0.5 left-0.5 text-2xs bg-primary text-white px-1 rounded">{t("director.aiBadge")}</span>
                     )}
                   </>
                 ) : hasImage ? (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-muted/60">
                     <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
-                    <span className="text-[10px] text-muted-foreground/50">Đang tải ảnh</span>
+                    <span className="text-2xs text-muted-foreground/50">Đang tải ảnh</span>
                   </div>
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-1">
                     <Upload className="h-4 w-4 text-muted-foreground/50" />
-                    <span className="text-[10px] text-muted-foreground/50">{t("director.card.upload")}</span>
+                    <span className="text-2xs text-muted-foreground/50">{t("director.card.upload")}</span>
                   </div>
                 )}
                 {isImageGenerating && (
                   <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1">
                     <Loader2 className="h-4 w-4 text-white animate-spin" />
-                    <span className="text-[10px] text-white">Đang tạo {imageElapsedSeconds}s</span>
+                    <span className="text-2xs text-white">Đang tạo {imageElapsedSeconds}s</span>
                     <button
                       onClick={(e) => { e.stopPropagation(); onStopImageGeneration?.(scene.id); }}
-                      className="mt-1 px-2 py-0.5 rounded bg-red-600/80 hover:bg-red-600 text-white text-[9px] flex items-center gap-0.5 transition-colors"
+                      className="mt-1 px-2 py-0.5 rounded bg-red-600/80 hover:bg-red-600 text-white text-2xs flex items-center gap-0.5 transition-colors"
                       title={t("director.card.stop")}
                     >
                       <Square className="h-2.5 w-2.5" />{t("director.card.stop")}
@@ -168,7 +192,7 @@ export function SplitSceneCardFrame(props: SplitSceneCardFrameProps) {
                 )}
                 {(isImageQueued || isImagePreparing) && !isImageGenerating && (
                   <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-1">
-                    <span className="text-[10px] text-white">{isImagePreparing ? 'Đang chuẩn bị ảnh' : t("director.pendingStatus")}</span>
+                    <span className="text-2xs text-white">{isImagePreparing ? 'Đang chuẩn bị ảnh' : t("director.pendingStatus")}</span>
                   </div>
                 )}
               </div>
@@ -223,12 +247,12 @@ export function SplitSceneCardFrame(props: SplitSceneCardFrameProps) {
         </div>
 
         {hasIgnoredImageToVideoData && (
-          <div className="rounded-md border border-amber-500/20 bg-amber-500/8 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/8 px-2.5 py-2 text-2xs text-amber-700 dark:text-amber-300">
             {t("director.refToVideoIgnoredNotice")}
           </div>
         )}
 
-        <div className="flex flex-wrap gap-1 text-[10px]">
+        <div className="flex flex-wrap gap-1 text-2xs">
           <span className={cn(
             "rounded-full border px-2 py-0.5",
             generationMode === 'imageVideo'

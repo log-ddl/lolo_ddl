@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import {
   AlertCircle,
   ChevronDown,
@@ -78,7 +79,7 @@ function HistoryChart({ history }: { history: VphPoint[] }) {
 
   return (
     <div>
-      <div className="relative h-14 border-b border-border/50">
+      <div className="relative h-14 border-b border-border/60">
         <div className="absolute inset-0 flex items-end gap-[2px]">
           {bars.map((bar, index) => (
             <span
@@ -95,7 +96,7 @@ function HistoryChart({ history }: { history: VphPoint[] }) {
           ))}
         </div>
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+      <div className="mt-1 flex justify-between text-2xs text-muted-foreground">
         <span>{t("research.monitor.hours48Ago")}</span>
         <span>{t("research.monitor.now")}</span>
       </div>
@@ -147,14 +148,14 @@ function ChannelCard({
 
   return (
     <article className="overflow-hidden rounded-xl border border-border/60 bg-card/80 shadow-sm">
-      <header className="flex items-center gap-3 border-b border-border/50 px-4 py-3">
+      <header className="flex items-center gap-3 border-b border-border/60 px-4 py-3">
         {channel.thumbnailUrl
           ? <img src={channel.thumbnailUrl} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
           : <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Users className="h-5 w-5" /></div>}
         <div className="min-w-0 flex-1">
           <a href={`https://www.youtube.com/channel/${channel.id}`} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-center gap-1.5">
             <h3 className="max-w-[150px] shrink-0 truncate text-xs font-semibold hover:text-primary">{channel.title}</h3>
-            <span className="min-w-0 truncate text-[11px] text-muted-foreground">{channel.handle}</span>
+            <span className="min-w-0 truncate text-2xs text-muted-foreground">{channel.handle}</span>
             <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
           </a>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -162,23 +163,23 @@ function ChannelCard({
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <button type="button" disabled={loading} onClick={onScanNow} title={t("research.monitor.scanNow")} className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border/60 px-2 text-[11px] font-medium hover:bg-muted/40 disabled:opacity-50">
+          <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" disabled={loading} onClick={onScanNow} title={t("research.monitor.scanNow")}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             {t("research.monitor.scanNow")}
-          </button>
-          <button type="button" onClick={onOpenSettings} title={t("research.monitor.channelSettings")} className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border/60 px-2 text-[11px] font-medium hover:bg-muted/40">
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={onOpenSettings} title={t("research.monitor.channelSettings")}>
             <Settings2 className="h-3.5 w-3.5" />
             {t("research.monitor.channelSettings")}
-          </button>
-          <button type="button" onClick={onRemove} title={t("research.monitor.remove")} className="p-1.5 text-muted-foreground hover:text-destructive">
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={onRemove} title={t("research.monitor.remove")}>
             <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </div>
       </header>
 
       <div className="grid grid-cols-3 gap-px bg-border/40">
         <div className="bg-card px-3.5 py-2.5">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("research.monitor.publicViews")}</p>
+          <p className="text-xs text-muted-foreground">{t("research.monitor.publicViews")}</p>
           <p className="mt-0.5 text-base font-bold">{formatViews(channel.viewCount)}</p>
         </div>
         <div
@@ -188,21 +189,21 @@ function ChannelCard({
             minutes: Math.round(channelLatest.elapsedHours * 60),
           }) : t("research.monitor.measureHint")}
         >
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("research.monitor.latestDelta")}</p>
+        <p className="text-xs text-muted-foreground">{t("research.monitor.latestDelta")}</p>
           <p className="mt-0.5 text-base font-bold text-emerald-500">{channelLatest ? formatViews(channelLatest.deltaViews) : "—"}</p>
         </div>
         <div className="bg-card px-3.5 py-2.5">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("research.monitor.views48h")}</p>
+          <p className="text-xs text-muted-foreground">{t("research.monitor.views48h")}</p>
           <p className="mt-0.5 text-base font-bold">{channel.viewsLast48Hours == null ? "—" : formatViews(channel.viewsLast48Hours)}</p>
         </div>
       </div>
 
-      <div className="border-b border-border/50 px-4 py-2">
+      <div className="border-b border-border/60 px-4 py-2">
         <HistoryChart history={channelHistory} />
       </div>
 
       <div className="px-4 py-3">
-        <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_84px_96px_72px] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_84px_96px_72px] gap-2 px-1 text-2xs font-semibold text-muted-foreground">
           <span>{t("research.monitor.video")}</span>
           <span className="text-right">{t("research.monitor.totalViews")}</span>
           <span className="text-right">{t("research.monitor.latestDelta")}</span>
@@ -222,8 +223,8 @@ function ChannelCard({
                 <span className="flex min-w-0 items-center gap-2">
                   {video.thumbnailUrl ? <img src={video.thumbnailUrl} alt="" className="h-8 w-12 shrink-0 rounded object-cover" /> : <span className="h-8 w-12 shrink-0 rounded bg-muted" />}
                   <span className="min-w-0">
-                    <span className="block truncate text-[10px] font-medium">{video.title}</span>
-                    <span className="block text-[11px] text-muted-foreground">{formatAge(video.publishedAt, language)}</span>
+                    <span className="block truncate text-2xs font-medium">{video.title}</span>
+                    <span className="block text-2xs text-muted-foreground">{formatAge(video.publishedAt, language)}</span>
                   </span>
                 </span>
                 <span className="text-right text-xs">{formatViews(video.viewCount)}</span>
@@ -241,22 +242,22 @@ function ChannelCard({
             );
           })}
           {!visibleVideos.length && (
-            <p className="py-6 text-center text-[11px] text-muted-foreground">
+            <p className="py-6 text-center text-2xs text-muted-foreground">
               {customMode ? t("research.monitor.chooseVideosHint") : t("research.monitor.noPublicVideos")}
             </p>
           )}
         </div>
         {remaining > 0 && (
-          <button type="button" onClick={() => setVisibleVideoCount((count) => count + 10)} className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border/50 text-[10px] text-muted-foreground hover:bg-muted/30">
+          <Button type="button" variant="outline" size="sm" className="mt-2 w-full text-muted-foreground" onClick={() => setVisibleVideoCount((count) => count + 10)}>
             <ChevronDown className="h-3.5 w-3.5" />
             {t("research.monitor.showMoreVideos", { count: Math.min(10, remaining) })}
-          </button>
+          </Button>
         )}
         {visibleVideoCount > 10 && (
-          <button type="button" onClick={() => setVisibleVideoCount(10)} className="mt-1 flex h-7 w-full items-center justify-center gap-1 text-[10px] text-muted-foreground">
+          <Button type="button" variant="ghost" size="xs" className="mt-1 w-full text-muted-foreground" onClick={() => setVisibleVideoCount(10)}>
             <ChevronUp className="h-3.5 w-3.5" />
             {t("research.monitor.collapseVideos")}
-          </button>
+          </Button>
         )}
       </div>
     </article>
@@ -364,14 +365,14 @@ export function MonitorView() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => setAddOpen(true)} className="flex h-9 items-center gap-2 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground">
+          <Button type="button" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5" />
             {t("research.monitor.addChannel")}
-          </button>
+          </Button>
         </div>
       </div>
 
-      {error && <div className="mb-4 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive"><AlertCircle className="h-4 w-4" />{error}</div>}
+      {error && <div className="mb-4 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-2xs text-destructive"><AlertCircle className="h-4 w-4" />{error}</div>}
 
       {!apiKey ? (
         <div className="flex h-72 flex-col items-center justify-center text-center">
@@ -384,17 +385,17 @@ export function MonitorView() {
           <Users className="mb-3 h-9 w-9 text-muted-foreground/60" />
           <p className="text-sm font-semibold">{t("research.monitor.empty")}</p>
           <p className="mt-1 text-xs text-muted-foreground">{t("research.monitor.emptyHint")}</p>
-          <button type="button" onClick={() => setAddOpen(true)} className="mt-4 flex h-9 items-center gap-2 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground"><Plus className="h-3.5 w-3.5" />{t("research.monitor.addChannel")}</button>
+          <Button type="button" className="mt-4" onClick={() => setAddOpen(true)}><Plus className="h-3.5 w-3.5" />{t("research.monitor.addChannel")}</Button>
         </div>
       ) : loading && !channels.length ? (
         <div className="flex h-72 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>
       ) : (
         <>
           <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-xl border border-border/50 bg-card/60 px-3.5 py-2.5"><p className="text-xs text-muted-foreground">{t("research.monitor.scannedChannels")}</p><p className="mt-0.5 text-base font-bold">{channels.length}</p></div>
-            <div className="rounded-xl border border-border/50 bg-card/60 px-3.5 py-2.5"><p className="text-xs text-muted-foreground">{t("research.monitor.publicViews")}</p><p className="mt-0.5 text-base font-bold">{formatViews(totalViews)}</p></div>
-            <div className="rounded-xl border border-border/50 bg-card/60 px-3.5 py-2.5"><p className="text-xs text-muted-foreground">{t("research.monitor.latestDelta")}</p><p className="mt-0.5 text-base font-bold text-emerald-500">{formatViews(totalLatestDelta)}</p></div>
-            <div className="rounded-xl border border-border/50 bg-card/60 px-3.5 py-2.5"><p className="text-xs text-muted-foreground">{t("research.monitor.views48h")}</p><p className="mt-0.5 text-base font-bold">{formatViews(totalViews48h)}</p></div>
+            <div className="rounded-xl border border-border/60 bg-card/60 px-3.5 py-2.5"><p className="text-xs text-muted-foreground">{t("research.monitor.scannedChannels")}</p><p className="mt-0.5 text-base font-bold">{channels.length}</p></div>
+            <div className="rounded-xl border border-border/60 bg-card/60 px-3.5 py-2.5"><p className="text-xs text-muted-foreground">{t("research.monitor.publicViews")}</p><p className="mt-0.5 text-base font-bold">{formatViews(totalViews)}</p></div>
+            <div className="rounded-xl border border-border/60 bg-card/60 px-3.5 py-2.5"><p className="text-xs text-muted-foreground">{t("research.monitor.latestDelta")}</p><p className="mt-0.5 text-base font-bold text-emerald-500">{formatViews(totalLatestDelta)}</p></div>
+            <div className="rounded-xl border border-border/60 bg-card/60 px-3.5 py-2.5"><p className="text-xs text-muted-foreground">{t("research.monitor.views48h")}</p><p className="mt-0.5 text-base font-bold">{formatViews(totalViews48h)}</p></div>
           </div>
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
             {channels.map((channel, index) => (
@@ -418,10 +419,10 @@ export function MonitorView() {
         <DialogContent className="rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-base">{t("research.monitor.dialogTitle")}</DialogTitle>
-            <DialogDescription className="text-[11px]">{t("research.monitor.dialogDescription")}</DialogDescription>
+            <DialogDescription className="text-2xs">{t("research.monitor.dialogDescription")}</DialogDescription>
           </DialogHeader>
-          <input autoFocus value={channelInput} onChange={(event) => setChannelInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") addChannel(); }} placeholder="@handle or https://youtube.com/@handle" className="h-11 rounded-xl border border-border/60 bg-background px-3 text-[11px] outline-none focus:border-primary" />
-          <div className="grid gap-4 rounded-xl border border-border/50 bg-muted/15 p-3">
+          <input autoFocus value={channelInput} onChange={(event) => setChannelInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") addChannel(); }} placeholder="@handle or https://youtube.com/@handle" className="h-11 rounded-xl border border-border/60 bg-background px-3 text-2xs outline-none focus:border-primary" />
+          <div className="grid gap-4 rounded-xl border border-border/60 bg-muted/15 p-3">
             <div>
               <p className="mb-2 text-xs font-semibold">{t("research.monitor.scanRange")}</p>
               <div className="grid grid-cols-2 gap-2">
@@ -438,7 +439,7 @@ export function MonitorView() {
                   <input type="number" min={1} value={addConfig.videosPerChannel} onChange={(event) => setAddConfig((config) => ({ ...config, videosPerChannel: Math.max(1, Math.floor(Number(event.target.value) || 1)) }))} className="w-20 bg-transparent text-right font-semibold outline-none" />
                 </label>
               )}
-              {addConfig.videoScanMode === "all" && <p className="mt-1.5 text-[11px] text-amber-600">{t("research.monitor.allVideosQuotaHint")}</p>}
+              {addConfig.videoScanMode === "all" && <p className="mt-1.5 text-2xs text-amber-600">{t("research.monitor.allVideosQuotaHint")}</p>}
             </div>
             <div>
               <p className="mb-2 text-xs font-semibold">{t("research.monitor.videoType")}</p>
@@ -452,8 +453,8 @@ export function MonitorView() {
             </div>
           </div>
           <DialogFooter>
-            <button type="button" onClick={() => setAddOpen(false)} className="h-9 rounded-xl px-3 text-xs text-muted-foreground">{t("research.common.cancel")}</button>
-            <button type="button" onClick={addChannel} disabled={!channelInput.trim()} className="h-9 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50">{t("research.monitor.addAndScan")}</button>
+            <Button type="button" variant="ghost" onClick={() => setAddOpen(false)}>{t("research.common.cancel")}</Button>
+            <Button type="button" onClick={addChannel} disabled={!channelInput.trim()}>{t("research.monitor.addAndScan")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -462,15 +463,15 @@ export function MonitorView() {
         <DialogContent className="max-w-lg rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-base">{t("research.monitor.channelSettingsTitle", { channel: settingsChannel?.title || "" })}</DialogTitle>
-            <DialogDescription className="text-[11px]">{t("research.monitor.channelSettingsDescription")}</DialogDescription>
+            <DialogDescription className="text-2xs">{t("research.monitor.channelSettingsDescription")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold">{t("research.monitor.interval")}</label>
+              <label className="mb-1.5 block text-2xs font-semibold">{t("research.monitor.interval")}</label>
               <select
                 value={draftConfig.intervalMinutes}
                 onChange={(event) => setDraftConfig((config) => ({ ...config, intervalMinutes: Number(event.target.value) }))}
-                className="h-10 w-full rounded-xl border border-border/60 bg-background px-3 text-[11px]"
+                className="h-10 w-full rounded-xl border border-border/60 bg-background px-3 text-2xs"
               >
                 <option value={30}>{t("research.monitor.minutes", { count: 30 })}</option>
                 <option value={60}>{t("research.monitor.hours", { count: 1 })}</option>
@@ -481,20 +482,20 @@ export function MonitorView() {
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold">{t("research.monitor.videoScanMode")}</label>
+              <label className="mb-1.5 block text-2xs font-semibold">{t("research.monitor.videoScanMode")}</label>
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => setDraftConfig((config) => ({ ...config, videoScanMode: "all" }))} className={`h-10 rounded-xl border px-3 text-[11px] font-medium ${draftConfig.videoScanMode === "all" ? "border-primary bg-primary/10 text-primary" : "border-border/60"}`}>
+                <button type="button" onClick={() => setDraftConfig((config) => ({ ...config, videoScanMode: "all" }))} className={`h-10 rounded-xl border px-3 text-2xs font-medium ${draftConfig.videoScanMode === "all" ? "border-primary bg-primary/10 text-primary" : "border-border/60"}`}>
                   {t("research.monitor.allChannelVideos")}
                 </button>
-                <button type="button" onClick={() => setDraftConfig((config) => ({ ...config, videoScanMode: "latest" }))} className={`h-10 rounded-xl border px-3 text-[11px] font-medium ${draftConfig.videoScanMode === "latest" ? "border-primary bg-primary/10 text-primary" : "border-border/60"}`}>
+                <button type="button" onClick={() => setDraftConfig((config) => ({ ...config, videoScanMode: "latest" }))} className={`h-10 rounded-xl border px-3 text-2xs font-medium ${draftConfig.videoScanMode === "latest" ? "border-primary bg-primary/10 text-primary" : "border-border/60"}`}>
                   {t("research.monitor.latestVideos")}
                 </button>
-                <button type="button" onClick={() => setDraftConfig((config) => ({ ...config, videoScanMode: "custom" }))} className={`h-10 rounded-xl border px-3 text-[11px] font-medium ${draftConfig.videoScanMode === "custom" ? "border-primary bg-primary/10 text-primary" : "border-border/60"}`}>
+                <button type="button" onClick={() => setDraftConfig((config) => ({ ...config, videoScanMode: "custom" }))} className={`h-10 rounded-xl border px-3 text-2xs font-medium ${draftConfig.videoScanMode === "custom" ? "border-primary bg-primary/10 text-primary" : "border-border/60"}`}>
                   Custom
                 </button>
               </div>
               {draftConfig.videoScanMode === "latest" && (
-                <label className="mt-2 flex h-10 items-center justify-between rounded-xl border border-border/60 bg-background px-3 text-[11px]">
+                <label className="mt-2 flex h-10 items-center justify-between rounded-xl border border-border/60 bg-background px-3 text-2xs">
                   <span>{t("research.monitor.videosPerEachChannel")}</span>
                   <input
                     type="number"
@@ -516,31 +517,31 @@ export function MonitorView() {
                     setSettingsChannel(null);
                     if (index >= 0) void openCustomPicker(channel, index);
                   }}
-                  className="mt-2 flex h-10 w-full items-center justify-center rounded-xl border border-border/60 text-[11px] font-medium hover:bg-muted/40"
+                  className="mt-2 flex h-10 w-full items-center justify-center rounded-xl border border-border/60 text-2xs font-medium hover:bg-muted/40"
                 >
                   {t("research.monitor.chooseVideos")} ({settingsChannel ? (customIds[settingsChannel.id] || []).length : 0})
                 </button>
               )}
-              {draftConfig.videoScanMode === "all" && <p className="mt-1.5 text-[11px] text-amber-600">{t("research.monitor.allVideosQuotaHint")}</p>}
+              {draftConfig.videoScanMode === "all" && <p className="mt-1.5 text-2xs text-amber-600">{t("research.monitor.allVideosQuotaHint")}</p>}
             </div>
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold">{t("research.monitor.videoType")}</label>
+              <label className="mb-1.5 block text-2xs font-semibold">{t("research.monitor.videoType")}</label>
               <div className="grid grid-cols-3 gap-2">
                 {(["all", "long", "shorts"] as const).map((kind) => (
-                  <button key={kind} type="button" onClick={() => setDraftConfig((config) => ({ ...config, videoKind: kind }))} className={`h-10 rounded-xl border px-2 text-[11px] font-medium ${draftConfig.videoKind === kind ? "border-primary bg-primary/10 text-primary" : "border-border/60"}`}>
+                  <button key={kind} type="button" onClick={() => setDraftConfig((config) => ({ ...config, videoKind: kind }))} className={`h-10 rounded-xl border px-2 text-2xs font-medium ${draftConfig.videoKind === kind ? "border-primary bg-primary/10 text-primary" : "border-border/60"}`}>
                     {t(kind === "all" ? "research.monitor.allVideoTypes" : kind === "long" ? "research.monitor.longVideos" : "research.monitor.shorts")}
                   </button>
                 ))}
               </div>
             </div>
-            <label className="flex h-10 items-center justify-between rounded-xl border border-border/60 bg-background px-3 text-[11px]">
+            <label className="flex h-10 items-center justify-between rounded-xl border border-border/60 bg-background px-3 text-2xs">
               <span>{t("research.monitor.autoScan")}</span>
               <input type="checkbox" checked={draftConfig.autoScan} onChange={(event) => setDraftConfig((config) => ({ ...config, autoScan: event.target.checked }))} className="h-4 w-4 accent-primary" />
             </label>
           </div>
           <DialogFooter>
-            <button type="button" onClick={() => setSettingsChannel(null)} className="h-9 rounded-xl px-3 text-xs text-muted-foreground">{t("research.common.cancel")}</button>
-            <button type="button" onClick={saveChannelSettings} className="h-9 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground">{t("research.common.save")}</button>
+            <Button type="button" variant="ghost" onClick={() => setSettingsChannel(null)}>{t("research.common.cancel")}</Button>
+            <Button type="button" onClick={saveChannelSettings}>{t("research.common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -549,13 +550,13 @@ export function MonitorView() {
         <DialogContent className="flex max-h-[82vh] max-w-2xl flex-col rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-base">{t("research.monitor.chooseChannelVideos", { channel: catalogChannel?.title || "" })}</DialogTitle>
-            <DialogDescription className="text-[11px]">{t("research.monitor.chooseChannelVideosDescription")}</DialogDescription>
+            <DialogDescription className="text-2xs">{t("research.monitor.chooseChannelVideosDescription")}</DialogDescription>
           </DialogHeader>
           <label className="flex h-10 items-center gap-2 rounded-xl border border-border/60 px-3">
             <Search className="h-4 w-4 text-muted-foreground" />
             <input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder={t("research.monitor.searchVideos")} className="min-w-0 flex-1 bg-transparent text-xs outline-none" />
           </label>
-          <div className="min-h-48 flex-1 overflow-y-auto rounded-xl border border-border/50 p-2">
+          <div className="min-h-48 flex-1 overflow-y-auto rounded-xl border border-border/60 p-2">
             {catalogLoading ? (
               <div className="flex h-48 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
             ) : filteredCatalogVideos.map((video) => (
@@ -569,15 +570,15 @@ export function MonitorView() {
                 {video.thumbnailUrl ? <img src={video.thumbnailUrl} alt="" className="h-10 w-16 rounded object-cover" /> : <span className="h-10 w-16 rounded bg-muted" />}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-medium">{video.title}</span>
-                  <span className="text-[10px] text-muted-foreground">{formatAge(video.publishedAt, language)} · {formatViews(video.viewCount)} views</span>
+                  <span className="text-2xs text-muted-foreground">{formatAge(video.publishedAt, language)} · {formatViews(video.viewCount)} views</span>
                 </span>
               </label>
             ))}
           </div>
           <DialogFooter>
-            <span className="mr-auto self-center text-[11px] text-muted-foreground">{t("research.monitor.selectedVideosCount", { count: draftCustomIds.length })}</span>
-            <button type="button" onClick={() => setCatalogChannel(null)} className="h-9 rounded-xl px-3 text-xs text-muted-foreground">{t("research.common.cancel")}</button>
-            <button type="button" onClick={saveCustomSelection} className="h-9 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground">{t("research.common.save")}</button>
+            <span className="mr-auto self-center text-2xs text-muted-foreground">{t("research.monitor.selectedVideosCount", { count: draftCustomIds.length })}</span>
+            <Button type="button" variant="ghost" onClick={() => setCatalogChannel(null)}>{t("research.common.cancel")}</Button>
+            <Button type="button" onClick={saveCustomSelection}>{t("research.common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -586,20 +587,20 @@ export function MonitorView() {
         <DialogContent className="max-w-2xl rounded-xl">
           <DialogHeader>
             <DialogTitle className="pr-8 text-base">{selectedVideo?.title}</DialogTitle>
-            <DialogDescription className="text-[11px]">{t("research.monitor.videoDetailDescription")}</DialogDescription>
+            <DialogDescription className="text-2xs">{t("research.monitor.videoDetailDescription")}</DialogDescription>
           </DialogHeader>
           {selectedVideo && (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-muted/30 p-3"><p className="text-[10px] text-muted-foreground">{t("research.monitor.totalViews")}</p><p className="mt-1 text-lg font-bold">{formatViews(selectedVideo.viewCount)}</p></div>
-                <div className="rounded-xl bg-muted/30 p-3" title={selectedLatest ? t("research.monitor.measuredInterval", { count: selectedLatest.deltaViews, minutes: Math.round(selectedLatest.elapsedHours * 60) }) : undefined}><p className="text-[10px] text-muted-foreground">{t("research.monitor.latestDelta")}</p><p className="mt-1 text-lg font-bold text-emerald-500">{selectedLatest ? formatViews(selectedLatest.deltaViews) : "—"}</p></div>
-                <div className="rounded-xl bg-muted/30 p-3"><p className="text-[10px] text-muted-foreground">{t("research.monitor.views48h")}</p><p className="mt-1 text-lg font-bold">{selectedVideo.viewsLast48Hours == null ? "—" : formatViews(selectedVideo.viewsLast48Hours)}</p></div>
+                <div className="rounded-xl bg-muted/30 p-3"><p className="text-2xs text-muted-foreground">{t("research.monitor.totalViews")}</p><p className="mt-1 text-lg font-bold">{formatViews(selectedVideo.viewCount)}</p></div>
+                <div className="rounded-xl bg-muted/30 p-3" title={selectedLatest ? t("research.monitor.measuredInterval", { count: selectedLatest.deltaViews, minutes: Math.round(selectedLatest.elapsedHours * 60) }) : undefined}><p className="text-2xs text-muted-foreground">{t("research.monitor.latestDelta")}</p><p className="mt-1 text-lg font-bold text-emerald-500">{selectedLatest ? formatViews(selectedLatest.deltaViews) : "—"}</p></div>
+                <div className="rounded-xl bg-muted/30 p-3"><p className="text-2xs text-muted-foreground">{t("research.monitor.views48h")}</p><p className="mt-1 text-lg font-bold">{selectedVideo.viewsLast48Hours == null ? "—" : formatViews(selectedVideo.viewsLast48Hours)}</p></div>
               </div>
-              <div className="rounded-xl border border-border/50 p-4">
+              <div className="rounded-xl border border-border/60 p-4">
                 <HistoryChart history={selectedHistory} />
-                {!selectedHistory.length && <p className="mt-3 text-center text-[11px] text-amber-500">{t("research.monitor.measureHint")}</p>}
+                {!selectedHistory.length && <p className="mt-3 text-center text-2xs text-amber-500">{t("research.monitor.measureHint")}</p>}
               </div>
-              <a href={`https://www.youtube.com/watch?v=${selectedVideo.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-primary hover:underline">
+              <a href={`https://www.youtube.com/watch?v=${selectedVideo.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 text-2xs font-medium text-primary hover:underline">
                 {t("research.monitor.openOnYouTube")} <ExternalLink className="h-3 w-3" />
               </a>
             </>

@@ -495,7 +495,7 @@ export function DirectorContextPanel() {
       {/* Bottom actions */}
       <div className="p-3 border-t space-y-2">
         {/* Mode description */}
-        <div className="text-[10px] text-muted-foreground space-y-1">
+        <div className="text-2xs text-muted-foreground space-y-1">
           <p><span className="text-green-500">+</span> {t("director.context.addMode")}</p>
           <p><span className="text-primary">→</span> {t("director.context.sendMode")}</p>
         </div>

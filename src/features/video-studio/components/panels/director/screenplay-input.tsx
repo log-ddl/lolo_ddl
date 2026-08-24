@@ -647,7 +647,7 @@ export function ScreenplayInput({ onGenerateStoryboard }: ScreenplayInputProps) 
 
       {/* Scene count warning */}
       {!isSceneCountValid && (
-        <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+        <div className="flex items-start gap-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
           <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
           <div className="text-xs text-destructive">
             <p>{sceneValidation.message}</p>
@@ -683,9 +683,9 @@ export function ScreenplayInput({ onGenerateStoryboard }: ScreenplayInputProps) 
           {selectedCharacters.length === 0 ? (
             <Popover open={isCharacterPopoverOpen} onOpenChange={setIsCharacterPopoverOpen}>
               <PopoverTrigger asChild>
-                <button className="w-full h-[44px] flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                <Button variant="ghost" className="w-full h-[44px] flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                   <Plus className="h-6 w-6" />
-                </button>
+                </Button>
               </PopoverTrigger>
               <PopoverContent className="w-64 p-0" align="start">
                 <div className="p-2 border-b">
@@ -839,7 +839,7 @@ export function ScreenplayInput({ onGenerateStoryboard }: ScreenplayInputProps) 
               <img
                 src={imageUrls[i]}
                 alt={`Reference ${i + 1}`}
-                className="w-16 h-16 object-cover rounded-md border"
+                className="w-16 h-16 object-cover rounded-lg border"
               />
               <button
                 onClick={() => removeImage(i)}
@@ -852,7 +852,7 @@ export function ScreenplayInput({ onGenerateStoryboard }: ScreenplayInputProps) 
 
           {images.length < 3 && (
             <div
-              className={`relative w-16 h-16 border-2 border-dashed rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors ${isSubmitting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              className={`relative w-16 h-16 border-2 border-dashed rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors ${isSubmitting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
               onClick={() => {
                 if (isSubmitting) return;
                 const input = document.createElement('input');

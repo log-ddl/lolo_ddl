@@ -50,7 +50,7 @@ function BatchProgressBar({ progress }: { progress: DirectorBatchProgress | null
   const statusLabel = progress.active ? progress.label : 'Hoàn tất batch';
 
   return (
-    <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+    <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="font-medium text-foreground">
           {statusLabel}: {progress.completed}/{progress.total}
@@ -151,6 +151,7 @@ function BatchActions({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              variant="outline"
               onClick={onGenerateAllImages}
               disabled={isGenerating || isMergedRunning || splitScenes.length === 0 || scenesNeedImage === 0}
               className="min-w-0"
@@ -178,6 +179,7 @@ function BatchActions({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              variant="outline"
               onClick={onGenerateVideos}
               disabled={isGenerating || isMergedRunning || splitScenes.length === 0 || scenesNeedVideo === 0}
               className="min-w-0"
@@ -378,7 +380,7 @@ export function SplitScenesControlPanel(props: SplitScenesControlPanelProps) {
                   >
                     <span className="flex w-full items-center justify-between gap-3">
                       <span>{t("director.refToVideoOption")}</span>
-                      <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                         {t("director.betaLabel")}
                       </span>
                     </span>
@@ -426,7 +428,7 @@ export function SplitScenesControlPanel(props: SplitScenesControlPanelProps) {
 
           <div className="flex flex-col gap-2">
             <span className="text-xs text-muted-foreground whitespace-nowrap">{t("director.aspectRatio")}</span>
-            <div className="flex rounded-md border overflow-hidden">
+            <div className="flex rounded-lg border overflow-hidden">
               <button
                 onClick={() => onAspectRatioChange('16:9')}
                 className={cn(
@@ -532,13 +534,13 @@ export function SplitScenesControlPanel(props: SplitScenesControlPanelProps) {
         <BatchProgressBar progress={batchProgress} />
 
         {completedGenerationSeconds !== null && (
-          <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             Hoàn tất trong {formatDuration(completedGenerationSeconds)}
           </div>
         )}
 
         {splitScenes.some(s => !s.videoPrompt?.trim()) && (
-          <div className="flex items-start gap-2 p-2 rounded-md bg-yellow-500/10 border border-yellow-500/20">
+          <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
             <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
             <div className="text-xs text-yellow-600 dark:text-yellow-400">
               <p>{t("director.missingPromptWarning")}</p>
@@ -546,7 +548,7 @@ export function SplitScenesControlPanel(props: SplitScenesControlPanelProps) {
           </div>
         )}
 
-        <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2">
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">
           <p>💡 {t("director.bottomHint")}</p>
         </div>
       </div>

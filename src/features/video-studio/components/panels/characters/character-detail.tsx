@@ -447,9 +447,9 @@ export function CharacterDetail({ character }: CharacterDetailProps) {
             </div>
 
             {finalImagePromptPreview && (
-              <div className="space-y-1 rounded-md border bg-muted/30 p-2">
+              <div className="space-y-1 rounded-lg border bg-muted/30 p-2">
                 <Label className="text-xs text-muted-foreground">{t("characters.finalImagePrompt")}</Label>
-                <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                <p className="text-2xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
                   {finalImagePromptPreview}
                 </p>
               </div>

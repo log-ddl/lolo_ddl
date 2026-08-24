@@ -20,7 +20,6 @@ import type { AutoVideoMediaEffect, AutoVideoTransition } from '@/features/video
 import type { RealImageAsset } from './real-media-search';
 import type {
   AutopilotAssetStatus,
-  AutopilotFlowMediaRef,
   AutopilotJob,
   AutopilotPlannedShot,
   AutopilotStage,
@@ -41,8 +40,6 @@ export interface PendingShot {
   imageMediaId?: string;
   videoMediaId?: string;
   realImageMediaId?: string;
-  /** Google Flow identity of the first frame, replayed into video generation. */
-  imageFlow?: AutopilotFlowMediaRef;
   researchStatus: AutopilotAssetStatus;
   imageStatus: AutopilotAssetStatus;
   videoStatus: AutopilotAssetStatus;
@@ -124,12 +121,6 @@ export const STAGE_BASE: Record<string, number> = {
 };
 
 export const STEP_ORDER: AutopilotStep[] = ['audio', 'shots', 'research', 'references', 'images', 'videos', 'render', 'done'];
-
-/**
- * Reference images Google Flow accepts on one image request (scene + characters
- * + researched photo combined). The runtime rejects anything above this.
- */
-export const MAX_IMAGE_REFERENCES = 10;
 
 export class StepCheckpointReached extends Error {
   constructor(readonly completedStep: AutopilotStep, readonly nextStep: AutopilotStep) {

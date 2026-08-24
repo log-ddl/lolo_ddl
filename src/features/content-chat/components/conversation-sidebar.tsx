@@ -49,11 +49,11 @@ export function ConversationSidebar({
   const { t } = useI18n();
   return (
     <aside className={cn(
-      "shrink-0 overflow-hidden border-r border-border/70 bg-sidebar/60 transition-[width,border-color] duration-200 ease-out",
+      "shrink-0 overflow-hidden border-r border-border/60 bg-sidebar/60 transition-[width,border-color] duration-200 ease-out",
       collapsed ? "w-0 border-transparent" : "w-72",
     )}>
       <div className="flex h-full w-72 flex-col">
-        <div className="flex gap-2 border-b border-border/60 p-3">
+        <div className="flex gap-1.5 border-b border-border/60 p-3">
           <Button className="min-w-0 flex-1 justify-start" onClick={onNewConversation}>
             <Plus className="size-4" />
             <span className="truncate">{t("contentChat.newConversation")}</span>
@@ -61,7 +61,7 @@ export function ConversationSidebar({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            size="icon-sm"
             className={cn("shrink-0", searchOpen && "bg-sidebar-accent")}
             onClick={onToggleSearch}
             title={t("contentChat.search")}
@@ -72,7 +72,7 @@ export function ConversationSidebar({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            size="icon-sm"
             className="shrink-0"
             onClick={onCollapse}
             title={t("contentChat.collapseSidebar")}
@@ -92,14 +92,14 @@ export function ConversationSidebar({
               className="h-9 bg-background pl-8 pr-8 text-xs"
             />
             {searchQuery && (
-              <button
+              <Button variant="ghost" size="icon-sm"
                 type="button"
                 onClick={() => onSearchQueryChange("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 size-6 -translate-y-1/2 text-muted-foreground"
                 aria-label={t("contentChat.clearSearch")}
               >
                 <X className="size-3.5" />
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -129,20 +129,20 @@ export function ConversationSidebar({
                   <Loader2 className="size-3 shrink-0 animate-spin text-primary" />
                 )}
               </span>
-              <span className="mt-0.5 block text-[10px] text-muted-foreground">
+              <span className="mt-0.5 block text-2xs text-muted-foreground">
                 {conversation.workspacePath ? workspaceLabel(conversation.workspacePath) : t("contentChat.defaultWorkspace")}
                 {" · "}{new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit" }).format(conversation.updatedAt)}
               </span>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <Button variant="ghost" size="icon-sm"
                   type="button"
                   aria-label={t("contentChat.chatActions")}
-                  className="rounded-md p-1.5 text-muted-foreground opacity-0 transition hover:bg-sidebar-accent hover:text-foreground group-hover:opacity-100 focus:opacity-100 data-[state=open]:bg-sidebar-accent data-[state=open]:opacity-100"
+                  className="opacity-0 transition group-hover:opacity-100 focus:opacity-100 data-[state=open]:bg-sidebar-accent data-[state=open]:opacity-100"
                 >
                   <Ellipsis className="size-4" />
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="right" align="start" className="w-44">
                 <DropdownMenuItem onClick={() => onTogglePinned(conversation.id)}>

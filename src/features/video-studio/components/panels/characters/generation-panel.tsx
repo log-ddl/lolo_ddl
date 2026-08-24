@@ -304,7 +304,7 @@ export function GenerationPanel({ selectedCharacter, onCharacterCreated }: Gener
                 value={aspectRatio}
                 onChange={(event) => setAspectRatio(event.target.value as Character['aspectRatio'])}
                 disabled={isGenerating}
-                className="h-9 w-full rounded-md border border-input bg-accent/50 px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[2px] disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-9 w-full rounded-lg border border-input bg-accent/50 px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[2px] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {ASPECT_RATIO_OPTIONS.map((ratio) => (
                   <option key={ratio} value={ratio}>{ratio}</option>
@@ -358,7 +358,7 @@ export function GenerationPanel({ selectedCharacter, onCharacterCreated }: Gener
                   <LocalImage
                     src={img}
                     alt={t("characters.referenceAlt", { index: i + 1 })}
-                    className="w-14 h-14 object-cover rounded-md border"
+                    className="w-14 h-14 object-cover rounded-lg border"
                   />
                   <button
                     type="button"
@@ -380,11 +380,11 @@ export function GenerationPanel({ selectedCharacter, onCharacterCreated }: Gener
                     onChange={handleImageChange}
                   />
                   <div
-                    className="w-14 h-14 border-2 border-dashed rounded-md flex flex-col items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors gap-1 cursor-pointer"
+                    className="w-14 h-14 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/50 transition-colors gap-1 cursor-pointer"
                     onClick={() => document.getElementById('gen-panel-ref-image')?.click()}
                   >
                     <ImagePlus className="h-4 w-4" />
-                    <span className="text-[10px]">{t("director.card.upload")}</span>
+                    <span className="text-2xs">{t("director.card.upload")}</span>
                   </div>
                 </>
               )}
@@ -392,9 +392,9 @@ export function GenerationPanel({ selectedCharacter, onCharacterCreated }: Gener
           </div>
 
           {finalImagePromptPreview && (
-            <div className="space-y-2 rounded-md border bg-muted/30 p-2">
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-2">
               <Label className="text-xs">{t("characters.finalImagePrompt")}</Label>
-              <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
+              <p className="text-2xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
                 {finalImagePromptPreview}
               </p>
             </div>

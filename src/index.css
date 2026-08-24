@@ -59,16 +59,22 @@
   --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
 
-  /* Font size — tiny meta/glyph sizes (Buzz) */
+  /* Font size — the UI runs on four steps and nothing else:
+     text-2xs 11px (meta, chips) · text-xs 12px (dense UI) ·
+     text-sm 14px (body, labels) · text-base 16px (section titles).
+     Headings above that use text-lg/xl/2xl. Do not add arbitrary
+     text-[Npx] values — they are what flattened the hierarchy before. */
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
-  --text-3xs: 0.5rem;
-  --text-3xs--line-height: 0.75rem;
 
-  /* Radius — compact, soft corners (12px base) */
+  /* Radius — four roles, nothing in between:
+     sm 4px   tiny controls under ~20px (checkbox, swatches)
+     lg 12px  controls: button, input, select, chip
+     xl 14px  surfaces: card, panel, section
+     2xl 16px modals and large overlays
+     --radius-md is deliberately absent; rounded-md was one step too many. */
+  --radius-sm: 0.25rem;
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
   --radius-xl: calc(var(--radius) + 2px);
   --radius-2xl: calc(var(--radius) + 4px);
 

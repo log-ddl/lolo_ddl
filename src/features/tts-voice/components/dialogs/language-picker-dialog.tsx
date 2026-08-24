@@ -92,11 +92,11 @@ export function LanguagePickerDialog({
                 type="button"
                 disabled={saved}
                 onClick={() => onAdd({ code: language.code, name: language.name })}
-                className="flex w-full items-center gap-3 border-b border-border/40 px-3 py-2.5 text-left last:border-b-0 hover:bg-muted/50 disabled:cursor-default disabled:opacity-60"
+                className="flex w-full items-center gap-3 border-b border-border/60 px-3 py-2.5 text-left last:border-b-0 hover:bg-muted/50 disabled:cursor-default disabled:opacity-60"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{language.name}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {t('tts.languagePicker.modelCode')}: {language.code}
                     {language.iso6393 !== language.code ? ` · ISO 639-3: ${language.iso6393}` : ''}
                   </p>

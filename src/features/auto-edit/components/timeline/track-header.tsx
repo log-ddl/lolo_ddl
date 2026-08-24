@@ -23,7 +23,7 @@ export function TrackHeader({ track, isMain }: { track: TimelineTrack; isMain: b
     // compact: small dot, truncating name, and icon buttons that shrink to fit.
     <div className="flex h-full items-center gap-1 px-1.5">
       <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
-      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
+      <span className="min-w-0 flex-1 truncate text-2xs font-medium text-foreground">
         {isMain ? t("autoEdit.track.main") : track.name}
       </span>
       {track.type !== "audio" && "hidden" in track && (

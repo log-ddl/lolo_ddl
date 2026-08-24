@@ -59,7 +59,7 @@ export function Ruler({ widthPx, zoomLevel, onPointerDown }: RulerProps) {
             style={{ height: major ? 10 : 5 }}
           />
           {major && (
-            <span className="absolute bottom-1 left-1 whitespace-nowrap text-[9px] font-medium text-muted-foreground">
+            <span className="absolute bottom-1 left-1 whitespace-nowrap text-2xs font-medium text-muted-foreground">
               {formatTickLabel(ms)}
             </span>
           )}

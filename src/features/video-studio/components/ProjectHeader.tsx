@@ -129,7 +129,7 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] uppercase tracking-widest transition-colors",
+        "flex items-center gap-1.5 px-2 py-0.5 rounded text-2xs uppercase tracking-widest transition-colors",
         status === "saved" && "text-success/60",
         status === "saving" && "text-warning/70",
         status === "unsaved" && "text-muted-foreground"

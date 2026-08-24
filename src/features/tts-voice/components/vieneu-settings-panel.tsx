@@ -46,7 +46,7 @@ export function VieneuSettingsPanel({ controller }: { controller: TtsController 
         </section>
 
         {mode === 'preset' ? (
-          <section className="space-y-4 border-t border-border/50 pt-5">
+          <section className="space-y-4 border-t border-border/60 pt-5">
             <div>
               <Label>{t('tts.vieneu.voice')}</Label>
               <Select value={vieneuVoice} onValueChange={setVieneuVoice}>
@@ -67,7 +67,7 @@ export function VieneuSettingsPanel({ controller }: { controller: TtsController 
             </div>
           </section>
         ) : (
-          <section className="space-y-4 border-t border-border/50 pt-5">
+          <section className="space-y-4 border-t border-border/60 pt-5">
             <div className="flex items-center justify-between gap-2">
               <Label>{t('tts.profile.title')}</Label>
               <Button variant="outline" size="sm" onClick={() => setProfileOpen(true)}><UserRoundPlus />{t('tts.profile.create')}</Button>
@@ -82,7 +82,7 @@ export function VieneuSettingsPanel({ controller }: { controller: TtsController 
           </section>
         )}
 
-        <section className="border-t border-border/50 pt-5">
+        <section className="border-t border-border/60 pt-5">
           <Label>{t('tts.splitMode.title')}</Label>
           <Select value={splitMode} onValueChange={(value) => setSplitMode(value as typeof splitMode)}>
             <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>

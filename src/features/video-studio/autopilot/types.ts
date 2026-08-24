@@ -1,4 +1,5 @@
 import type { GenerationStatus } from '@/features/video-studio/lib/ai/generation-status';
+import type { VideoLength } from '@/features/video-studio/types/script';
 
 export type AutopilotStage =
   | 'queued'
@@ -185,7 +186,7 @@ export interface AutopilotPlannedShot {
   transitionToNext?: string;
   realImageQuery?: string;
   voiceOver: string;
-  videoLength: 4 | 6 | 8;
+  videoLength: VideoLength;
   startMs: number;
   endMs: number;
   hasCharacters: boolean;
@@ -229,18 +230,6 @@ export interface AutopilotChapterCheckpoint {
   outputVideoPath?: string;
 }
 
-/**
- * Google Flow identity of an asset we already uploaded or generated, recorded
- * per account. Replaying it on the next call lets the runtime skip re-uploading
- * the same file (see resolveMedia in electron/.../google-flow/runtime.ts).
- */
-export interface AutopilotFlowMediaRef {
-  mediaId?: string;
-  ownerScopeId?: string;
-  flowProjectId?: string;
-  credentialId?: string;
-}
-
 export interface AutopilotMediaOutput {
   index: number;
   startMs: number;
@@ -257,12 +246,6 @@ export interface AutopilotMediaOutput {
   imageMediaId?: string;
   videoMediaId?: string;
   realImageMediaId?: string;
-  /**
-   * Google Flow identity of the generated first frame. Passing it back into
-   * video generation lets the runtime reuse the frame it already holds instead
-   * of uploading the PNG again for every shot.
-   */
-  imageFlow?: AutopilotFlowMediaRef;
   realImageSourceUrl?: string;
   realImageTitle?: string;
   realImageQuery?: string;

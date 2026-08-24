@@ -9,5 +9,5 @@ export function GoogleFlowActiveBadge() {
   useEffect(() => initialize(), [initialize]);
   if (!status?.readyCredentialCount) return null;
   const active = Object.values(tasks).filter((task) => !['completed', 'failed', 'cancelled'].includes(task.status)).length;
-  return <Badge variant="secondary" className="text-[10px] font-medium">Google Flow {active ? `đang chạy ${active}` : `sẵn sàng ${status.readyCredentialCount}`}</Badge>;
+  return <Badge variant="secondary" className="text-2xs font-medium">Google Flow {active ? `đang chạy ${active}` : `sẵn sàng ${status.readyCredentialCount}`}</Badge>;
 }

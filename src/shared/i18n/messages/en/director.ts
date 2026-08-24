@@ -64,7 +64,6 @@ const director = {
   "director.card.regenerate": "Regenerate",
   "director.card.generateImage": "Generate Image",
   "director.card.generateVideo": "Generate Video",
-  "director.card.dragTimeline": "Drag to timeline",
   "director.card.moderationSkipped": "Skipped by moderation",
   "director.card.prompts": "Prompts",
   "director.card.startFrame": "Start Frame",

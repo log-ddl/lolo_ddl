@@ -15,7 +15,7 @@ import {
   assertString,
   isUuid,
 } from './protocol';
-import { GOOGLE_FLOW_IMAGE_MODELS, flowImageRatio, flowVideoRatio, resolveFlowVideoModel } from './models';
+import { GOOGLE_FLOW_IMAGE_MODELS, flowImageRatio, flowVideoEndpoint, flowVideoRatio, isOmniFlashRequest, resolveFlowVideoModel } from './models';
 import {
   extractFlowMediaId,
   extractFlowOperations,
@@ -443,16 +443,22 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         const endId = input.endImage ? await this.resolveMedia(input.endImage, binding.flowProjectId, slot, signal, reportUpload, forceReupload) : undefined;
         if (!refs.length && !startId) throw new Error('Google Flow requires a start image or reference images for video generation');
         this.emitLaneTask(taskId, 'video', 'uploading', slot, lane, 18, undefined, 'media_ready');
+        // The mode follows the inputs: the start+end route rejects a body with
+        // no endImage, so a lone start image goes to the start-image route for
+        // every model, Omni Flash included.
         const mode = refs.length ? 'reference' : endId ? 'startEnd' : 'frame';
         const resolvedVideoModel = resolveFlowVideoModel(slot.tier, mode, input.aspectRatio, input.model, input.duration);
+        const endpoint = flowVideoEndpoint(mode);
         console.log('[GoogleFlow] Resolved video model', {
           requestedModel: input.model,
           resolvedVideoModel,
           mode,
+          endpoint,
           aspectRatio: input.aspectRatio,
           duration: input.duration,
           accountTier: slot.tier,
         });
+        const isOmniFlash = isOmniFlashRequest(input.model);
         const request: Record<string, unknown> = {
           aspectRatio: flowVideoRatio(input.aspectRatio),
           seed: Math.floor(Date.now() / 1000) % 10_000,
@@ -460,19 +466,21 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           videoModelKey: resolvedVideoModel,
           metadata: { sceneId: input.sceneId },
         };
+        // Flow always sends an output spec for Omni Flash. Veo has worked
+        // without one for a long time, so it keeps the leaner body.
+        if (isOmniFlash) request.outputSpec = { resolution: 'VIDEO_RESOLUTION_720P' };
         if (refs.length) request.referenceImages = refs.map((mediaId) => ({ mediaId, imageUsageType: 'IMAGE_USAGE_TYPE_ASSET' }));
         else request.startImage = { mediaId: startId };
         if (endId) request.endImage = { mediaId: endId };
-        const endpoint = refs.length
-          ? '/v1/video:batchAsyncGenerateVideoReferenceImages'
-          : endId ? '/v1/video:batchAsyncGenerateVideoStartAndEndImage' : '/v1/video:batchAsyncGenerateVideoStartImage';
         await this.reserveSubmitWindow(slot.credentialId, 'video', signal);
         this.emitLaneTask(taskId, 'video', 'submitting', slot, lane, 20);
         try {
           submit = await this.apiRequest(slot, {
             url: this.apiUrl(endpoint), method: 'POST', captchaAction: 'VIDEO_GENERATION', activityId: taskId, activityKind: 'video',
             body: {
-              mediaGenerationContext: { batchId: randomUUID() },
+              mediaGenerationContext: isOmniFlash
+                ? { batchId: randomUUID(), audioFailurePreference: 'BLOCK_SILENCED_VIDEOS' }
+                : { batchId: randomUUID() },
               clientContext: this.clientContext(binding.flowProjectId, slot.tier),
               requests: [request], useV2ModelConfig: true,
             },

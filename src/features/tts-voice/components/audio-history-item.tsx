@@ -67,7 +67,7 @@ export function AudioHistoryItem({ item, onRename, onRemove }: AudioHistoryItemP
               <h3 className="min-w-0 flex-1 truncate text-sm font-medium" title={displayName}>{displayName}</h3>
             </div>
           )}
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-2xs text-muted-foreground">
             {t('tts.history.voice', { voice: item.voiceLabel })} · {t('tts.history.model', { model: modelName })} · {new Date(item.createdAt).toLocaleString(locale)}
           </p>
         </div>

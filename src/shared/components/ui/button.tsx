@@ -9,10 +9,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // The implicit variant is the screen's main action, so it carries the
+        // brand colour. Anything that should not compete for attention has to
+        // opt out with outline/secondary/ghost.
         default:
-          "bg-foreground text-background shadow-xs hover:bg-foreground/90",
-        primary:
-          "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
         "primary-gradient":
           "bg-brand-gradient text-white shadow hover:brightness-110",
         destructive:
@@ -25,12 +26,15 @@ const buttonVariants = cva(
         text: "bg-transparent p-0 rounded-none opacity-100 hover:opacity-50 transition-opacity",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // 28/32/36/40 — one 4px step apart, with the default matching the 36px
+      // height of Input and SelectTrigger so mixed rows line up.
       size: {
-        default: "h-8 px-3",
-        xs: "h-6 px-2 text-xs",
-        sm: "h-7 px-2.5 text-xs",
-        lg: "h-9 px-4",
-        icon: "h-8 w-8",
+        default: "h-9 px-3",
+        xs: "h-7 px-2 text-xs",
+        sm: "h-8 px-2.5 text-xs",
+        lg: "h-10 px-4",
+        icon: "h-9 w-9",
+        "icon-sm": "h-8 w-8",
       },
     },
     defaultVariants: {

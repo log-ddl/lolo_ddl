@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import {
   Blend,
   Check,
@@ -66,7 +67,7 @@ export function AssetsPanel() {
 
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <div className="flex h-9 shrink-0 items-center border-b border-border/60 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="flex h-9 shrink-0 items-center border-b border-border/60 px-3 text-xs font-semibold text-muted-foreground">
         {t("autoEdit.panels.assets")}
       </div>
 
@@ -80,7 +81,7 @@ export function AssetsPanel() {
               type="button"
               onClick={() => setAssetsTab(tab.key)}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground",
+                "flex flex-1 flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground",
                 active && "bg-sidebar-accent text-foreground",
               )}
             >
@@ -131,15 +132,15 @@ function MediaTab() {
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="p-2">
-        <button
+        <Button variant="outline"
           type="button"
           onClick={onImport}
           disabled={importing}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground disabled:opacity-50"
+          className="w-full border-dashed py-2.5 text-muted-foreground"
         >
           {importing ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
           {importing ? "…" : t("autoEdit.importMedia")}
-        </button>
+        </Button>
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto px-2 pb-2">
@@ -164,7 +165,7 @@ function AssetRow({ asset }: { asset: MediaAsset }) {
         e.dataTransfer.setData(DND_MEDIA, asset.path);
         e.dataTransfer.effectAllowed = "copy";
       }}
-      className="flex cursor-grab items-center gap-2 rounded-lg border border-border/50 bg-background/40 p-1.5 active:cursor-grabbing"
+      className="flex cursor-grab items-center gap-2 rounded-lg border border-border/60 bg-background/40 p-1.5 active:cursor-grabbing"
     >
       <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded bg-panel">
         {asset.kind === "image" ? (
@@ -175,7 +176,7 @@ function AssetRow({ asset }: { asset: MediaAsset }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium text-foreground">{asset.name}</div>
-        <div className="text-[10px] text-muted-foreground">
+        <div className="text-2xs text-muted-foreground">
           {asset.kind} · {formatTimecodeCompact(asset.durationMs)}
         </div>
       </div>
@@ -204,14 +205,14 @@ function TextTab() {
 
   return (
     <div className="p-2">
-      <button
+      <Button variant="outline"
         type="button"
         onClick={addText}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
+        className="w-full border-dashed py-2.5 text-muted-foreground"
       >
         <Type className="size-4" />
         {t("autoEdit.addText")}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -250,7 +251,7 @@ function LibraryRow({
         "flex cursor-grab items-center gap-2 rounded-lg border p-2 transition-colors active:cursor-grabbing",
         active
           ? "border-primary/60 bg-primary/10"
-          : "border-border/50 bg-background/40 hover:border-primary/50 hover:bg-primary/5",
+          : "border-border/60 bg-background/40 hover:border-primary/50 hover:bg-primary/5",
       )}
       onClick={() => {
         if (!disabled) onClick();
@@ -261,7 +262,7 @@ function LibraryRow({
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium text-foreground">{label}</div>
-        <div className="truncate text-[10px] text-muted-foreground">{hint}</div>
+        <div className="truncate text-2xs text-muted-foreground">{hint}</div>
       </div>
       {active ? (
         <Check className="size-3.5 shrink-0 text-primary" />
@@ -293,7 +294,7 @@ function EffectsTab() {
 
   return (
     <div className="flex-1 min-h-0 overflow-auto p-2">
-      <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="px-1 pb-1.5 text-2xs font-semibold text-muted-foreground">
         {t("autoEdit.motion")}
       </div>
       <ul className="mb-3 space-y-1">
@@ -316,7 +317,7 @@ function EffectsTab() {
         ))}
       </ul>
 
-      <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="px-1 pb-1.5 text-2xs font-semibold text-muted-foreground">
         {t("autoEdit.effects")}
       </div>
       <ul className="space-y-1">
@@ -370,7 +371,7 @@ function TransitionsTab() {
 
   return (
     <div className="flex-1 min-h-0 overflow-auto p-2">
-      <p className="px-1 pb-2 text-[10px] leading-relaxed text-muted-foreground">
+      <p className="px-1 pb-2 text-2xs leading-relaxed text-muted-foreground">
         {t("autoEdit.transitions.hint")}
       </p>
       <ul className="space-y-1">
@@ -449,38 +450,38 @@ function AutoTab() {
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="p-2">
-        <button
+        <Button variant="outline"
           type="button"
           onClick={onImport}
           disabled={busy}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground disabled:opacity-50"
+          className="w-full border-dashed py-2.5 text-muted-foreground"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
           {busy ? "…" : t("autoEdit.auto.import")}
-        </button>
-        <p className="mt-2 px-1 text-[10px] leading-relaxed text-muted-foreground">
+        </Button>
+        <p className="mt-2 px-1 text-2xs leading-relaxed text-muted-foreground">
           {t("autoEdit.auto.hint")}
         </p>
       </div>
 
       {summary && (
         <div className="min-h-0 flex-1 overflow-auto border-t border-border/60 px-3 py-2">
-          <p className="text-[11px] text-foreground">
+          <p className="text-2xs text-foreground">
             {t("autoEdit.auto.shots")}: <span className="font-medium">{summary.shots}</span>
           </p>
           {summary.skipped > 0 && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-2xs text-muted-foreground">
               {t("autoEdit.auto.skipped")}: {summary.skipped}
             </p>
           )}
           {summary.missing.length > 0 && (
             <div className="mt-2">
-              <p className="text-[11px] font-medium text-destructive">
+              <p className="text-2xs font-medium text-destructive">
                 {t("autoEdit.auto.missing")} ({summary.missing.length})
               </p>
               <ul className="mt-1 space-y-0.5">
                 {summary.missing.slice(0, 20).map((name) => (
-                  <li key={name} className="truncate text-[10px] text-muted-foreground" title={name}>
+                  <li key={name} className="truncate text-2xs text-muted-foreground" title={name}>
                     {name}
                   </li>
                 ))}
@@ -604,17 +605,17 @@ function CaptionsTab() {
             return (
               <li
                 key={key}
-                className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/40 p-1.5"
+                className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/40 p-1.5"
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-medium text-foreground">{clip.name}</div>
-                  <div className="text-[10px] text-muted-foreground">{clip.kind}</div>
+                  <div className="text-2xs text-muted-foreground">{clip.kind}</div>
                 </div>
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => transcribe(clip)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 disabled:opacity-50"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-2xs font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 disabled:opacity-50"
                 >
                   {busy ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -632,12 +633,12 @@ function CaptionsTab() {
       {(progress || error) && (
         <div className="shrink-0 border-t border-border/60 px-3 py-2">
           {progress && (
-            <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+            <div className="mb-1 flex items-center justify-between gap-2 text-2xs text-muted-foreground">
               <span className="truncate">{progress.message}</span>
               <span className="font-mono tabular-nums">{progress.percent}%</span>
             </div>
           )}
-          {error && <p className="text-[11px] text-destructive">{error}</p>}
+          {error && <p className="text-2xs text-destructive">{error}</p>}
         </div>
       )}
     </div>

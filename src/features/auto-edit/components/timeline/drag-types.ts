@@ -6,7 +6,7 @@
 import type { ElementRef } from "../../types";
 
 export const TOOLBAR_BTN =
-  "flex h-7 items-center justify-center rounded-md px-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground";
+  "flex h-7 items-center justify-center rounded-lg px-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground";
 
 /** Pixel distance within which the dragged edge snaps to a clip edge / playhead. */
 export const SNAP_THRESHOLD_PX = 12;

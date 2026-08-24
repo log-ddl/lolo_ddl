@@ -77,7 +77,7 @@ export function ScenesMenu() {
             >
               <span className="flex-1 truncate">{scene.name}</span>
               {scene.isMain && (
-                <span className="rounded bg-sidebar-accent px-1 py-0.5 text-[9px] font-medium uppercase text-muted-foreground">
+                <span className="rounded bg-sidebar-accent px-1 py-0.5 text-2xs font-medium uppercase text-muted-foreground">
                   {t("autoEdit.scenes.main")}
                 </span>
               )}

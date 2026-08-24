@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { HardDrive, Key, Plus, Settings, Shield, Upload } from "lucide-react";
+import { HardDrive, Key, Plus, Shield, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/shared/i18n";
 import { Button } from "@/shared/components/ui/button";
@@ -116,31 +116,11 @@ export function SettingsPanel() {
 
   return (
     <div className="relative flex flex-col h-full bg-background overflow-hidden">
-      {/* Header */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/50 bg-panel/70 px-5">
-        <div className="flex items-center gap-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Settings className="size-4 text-primary" />
-            {t("settings.title")}
-          </h2>
-        </div>
-        <div className="flex items-center gap-3">
-          {activeTab === "api" && (
-            <>
-            <span className="text-xs text-muted-foreground font-mono bg-muted border border-border px-2 py-1 rounded">
-              {t("settings.configured", { count: configuredCount, total: providers.length })}
-            </span>
-            <Button onClick={() => setAddDialogOpen(true)} size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              {t("settings.addProvider")}
-            </Button>
-            </>
-          )}
-        </div>
-      </div>
-
+      {/* The tab strip doubles as the panel header: the rail and the project
+          breadcrumb already say "Settings", so a separate title row was a
+          third stacked bar saying the same thing. */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-        <div className="border-b border-border px-6">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-6">
           <TabsList className="h-12 bg-transparent p-0 gap-4">
             <TabsTrigger
               value="api"
@@ -167,6 +147,17 @@ export function SettingsPanel() {
               {t("settings.tab.storage")}
             </TabsTrigger>
           </TabsList>
+          {activeTab === "api" && (
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="text-xs text-muted-foreground font-mono bg-muted border border-border px-2 py-1 rounded">
+                {t("settings.configured", { count: configuredCount, total: providers.length })}
+              </span>
+              <Button onClick={() => setAddDialogOpen(true)} size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                {t("settings.addProvider")}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* API Management Tab */}
@@ -272,7 +263,7 @@ export function SettingsPanel() {
           setAvailableUpdate(null);
         }}
       />
-      <div className="pointer-events-none absolute bottom-2 right-4 text-[11px] font-mono text-muted-foreground/70">
+      <div className="pointer-events-none absolute bottom-2 right-4 text-2xs font-mono text-muted-foreground/70">
         v{appVersion}
       </div>
     </div>

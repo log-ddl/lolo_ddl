@@ -47,7 +47,7 @@ export function VoiceProfileDialog({ controller }: { controller: TtsController }
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setProfileOpen(false)}>{t('tts.action.cancel')}</Button>
-          <Button variant="primary" onClick={saveProfile}><CheckCircle2 /> {t('tts.profile.save')}</Button>
+          <Button onClick={saveProfile}><CheckCircle2 /> {t('tts.profile.save')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

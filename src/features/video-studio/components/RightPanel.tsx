@@ -27,8 +27,8 @@ export function RightPanel() {
 
   return (
     <div className="h-full min-w-0 flex flex-col overflow-hidden bg-panel">
-      <div className="px-3 py-2.5 border-b border-border/40">
-        <h3 className="font-semibold text-xs tracking-wider uppercase text-muted-foreground">{t("rightPanel.properties")}</h3>
+      <div className="px-3 py-2.5 border-b border-border/60">
+        <h3 className="font-semibold text-xs text-muted-foreground">{t("rightPanel.properties")}</h3>
       </div>
       {renderContent()}
     </div>

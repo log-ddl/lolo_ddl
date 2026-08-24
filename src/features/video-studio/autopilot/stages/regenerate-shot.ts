@@ -12,7 +12,7 @@ import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/vide
 import { saveImageToLocal, saveVideoToLocal } from '@/features/video-studio/lib/image-storage';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prompts';
 import type { AutopilotJob } from '../types';
-import { MAX_IMAGE_REFERENCES, runGenerationWithRetries, type CharacterReference, type EngineContext } from '../engine-shared';
+import { runGenerationWithRetries, type CharacterReference, type EngineContext } from '../engine-shared';
 
 export async function runSingleShotRegeneration(
   ctx: EngineContext,
@@ -67,7 +67,7 @@ export async function runSingleShotRegeneration(
       const characterRefs = (shot.characterNames || [])
         .map((name) => characterByName.get(name.toLocaleLowerCase()))
         .filter((c): c is CharacterReference => !!c?.imagePath)
-        .slice(0, Math.max(0, MAX_IMAGE_REFERENCES - reservedReferenceSlots));
+        .slice(0, Math.max(0, 4 - reservedReferenceSlots));
       const references: Array<{ source: string; provider: 'googleflow' }> = [];
       if (sceneRef?.imagePath) references.push({ source: sceneRef.imagePath, provider: 'googleflow' });
       references.push(...characterRefs.map((c) => ({ source: c.imagePath, provider: 'googleflow' as const })));
@@ -101,13 +101,6 @@ export async function runSingleShotRegeneration(
       if (!source) throw new Error('Google Flow không trả về ảnh');
       mediaOutput.imagePath = await saveImageToLocal(source, 'shots', `${safeFileName(job.title)}_shot_${shot.index}_${Date.now()}.png`);
       mediaOutput.imageStatus = 'completed';
-      // New frame, new Flow media: record it so a later video pass skips the upload.
-      mediaOutput.imageFlow = {
-        mediaId: imageResult.mediaId,
-        ownerScopeId: imageResult.ownerScopeId,
-        flowProjectId: imageResult.flowProjectId,
-        credentialId: imageResult.credentialId,
-      };
       const mediaStore = useMediaStore.getState();
       mediaOutput.imageMediaId = mediaStore.addMediaFromUrl({
         url: mediaOutput.imagePath, name: `${job.title} — Shot ${shot.index}`,
@@ -127,14 +120,7 @@ export async function runSingleShotRegeneration(
           sceneId: `autopilot-${job.id}-${shot.index - 1}`,
           prompt: `${shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
           model: videoModel, aspectRatio, duration: shot.videoLength,
-          startImage: {
-            source: mediaOutput.imagePath,
-            provider: 'googleflow',
-            flowProjectId: mediaOutput.imageFlow?.flowProjectId || flowProjectId,
-            ownerScopeId: mediaOutput.imageFlow?.ownerScopeId,
-            mediaId: mediaOutput.imageFlow?.mediaId,
-          },
-          preferredCredentialId: mediaOutput.imageFlow?.credentialId,
+          startImage: { source: mediaOutput.imagePath, provider: 'googleflow', flowProjectId },
           taskId: `ap-vid-${job.id}-${shot.index - 1}-regen-${attempt}`,
           onSubmitted: () => { mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
           signal,

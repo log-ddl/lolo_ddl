@@ -70,7 +70,7 @@ export function SubtitleTrackPicker({
             <button
               key={track.language}
               type="button"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
               onClick={() => {
                 onChange(track.language);
                 setOpen(false);

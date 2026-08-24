@@ -71,7 +71,7 @@ export function FileReferenceCards({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-xs font-medium">{filePath.split(/[\\/]/).pop()}</span>
-            <span className="block text-[10px] text-muted-foreground">{fileTypeLabel(filePath)}</span>
+            <span className="block text-2xs text-muted-foreground">{fileTypeLabel(filePath)}</span>
           </span>
           <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
         </button>
@@ -99,7 +99,7 @@ export function FilePreviewPanel({
         <FileCode2 className="size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold" title={preview.path || preview.requestedPath}>{displayName}</p>
-          <p className="truncate text-[10px] text-muted-foreground">{preview.path || preview.requestedPath}</p>
+          <p className="truncate text-2xs text-muted-foreground">{preview.path || preview.requestedPath}</p>
         </div>
         {preview.path && (
           <>
@@ -149,7 +149,7 @@ export function FilePreviewPanel({
         )}
       </div>
       {!preview.loading && preview.path && (
-        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-4 py-2 text-[10px] text-muted-foreground">
+        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-4 py-2 text-2xs text-muted-foreground">
           <span>{fileTypeLabel(displayName)}{typeof preview.size === 'number' ? ` · ${formatFileSize(preview.size)}` : ''}</span>
           {preview.truncated && <span>{t("contentChat.previewTruncated")}</span>}
         </footer>

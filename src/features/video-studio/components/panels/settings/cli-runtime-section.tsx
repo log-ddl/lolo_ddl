@@ -211,7 +211,7 @@ export function CliRuntimeSection() {
         <p className="text-xs text-muted-foreground font-mono break-all">
           {cliStatus?.opencode.version || cliStatus?.opencode.error || t("settings.cliStatusUnknown")}
         </p>
-        <p className="text-[11px] text-muted-foreground font-mono break-all">
+        <p className="text-2xs text-muted-foreground font-mono break-all">
           {cliStatus?.opencode.path || t("settings.cliPathUnknown")}
         </p>
 
@@ -224,7 +224,7 @@ export function CliRuntimeSection() {
         <p className="text-xs text-muted-foreground font-mono break-all">
           {cliStatus?.claude.version || cliStatus?.claude.error || t("settings.cliStatusUnknown")}
         </p>
-        <p className="text-[11px] text-muted-foreground font-mono break-all">
+        <p className="text-2xs text-muted-foreground font-mono break-all">
           {cliStatus?.claude.path || t("settings.cliPathUnknown")}
         </p>
 

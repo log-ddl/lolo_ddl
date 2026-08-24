@@ -52,7 +52,7 @@ export function BuzzGraphEdge({ id, sourceX, sourceY, targetX, targetY, sourcePo
       {(selected || data?.branchLabel) && (
         <EdgeLabelRenderer>
           {data?.branchLabel && <span className={cn(
-            "pointer-events-none absolute rounded-md border bg-card px-1.5 py-0.5 text-[8px] font-semibold shadow-sm",
+            "pointer-events-none absolute rounded-lg border bg-card px-1.5 py-0.5 text-2xs font-semibold shadow-sm",
             data.branchTone === "success" ? "border-emerald-500/40 text-emerald-500"
               : data.branchTone === "danger" ? "border-rose-500/40 text-rose-500"
                 : data.branchTone === "loop" ? "border-cyan-500/40 text-cyan-500"
@@ -120,18 +120,18 @@ export function BuzzGraphNode({ data, selected }: NodeProps<Node<CanvasNodeData>
       </div>
       <div className="-ml-6 mt-2 w-36">
         <span className="block truncate text-xs font-semibold">{data.title}</span>
-        <span className={cn("mt-0.5 block truncate text-[9px]", running ? "font-medium text-primary" : "text-muted-foreground")}>{running ? data.runningLabel : data.subtitle}</span>
+        <span className={cn("mt-0.5 block truncate text-2xs", running ? "font-medium text-primary" : "text-muted-foreground")}>{running ? data.runningLabel : data.subtitle}</span>
       </div>
       {data.kind === "condition" ? <>
         <Handle id="true" type="source" position={Position.Right} className="!top-8 !size-3 !border-2 !border-background !bg-emerald-500" />
         <Handle id="false" type="source" position={Position.Right} className="!top-16 !size-3 !border-2 !border-background !bg-rose-500" />
-        <span className="pointer-events-none absolute -right-8 top-[27px] text-[8px] font-medium text-emerald-500">{trueLabel}</span>
-        <span className="pointer-events-none absolute -right-7 top-[59px] text-[8px] font-medium text-rose-500">{falseLabel}</span>
+        <span className="pointer-events-none absolute -right-8 top-[27px] text-2xs font-medium text-emerald-500">{trueLabel}</span>
+        <span className="pointer-events-none absolute -right-7 top-[59px] text-2xs font-medium text-rose-500">{falseLabel}</span>
       </> : data.kind === "loop" ? <>
         <Handle id="loop" type="source" position={Position.Right} className="!top-8 !size-3 !border-2 !border-background !bg-cyan-500" />
         <Handle id="done" type="source" position={Position.Right} className="!top-16 !size-3 !border-2 !border-background !bg-blue-500" />
-        <span className="pointer-events-none absolute -right-7 top-[27px] text-[8px] font-medium text-cyan-500">{loopLabel}</span>
-        <span className="pointer-events-none absolute -right-8 top-[59px] text-[8px] font-medium text-blue-500">{doneLabel}</span>
+        <span className="pointer-events-none absolute -right-7 top-[27px] text-2xs font-medium text-cyan-500">{loopLabel}</span>
+        <span className="pointer-events-none absolute -right-8 top-[59px] text-2xs font-medium text-blue-500">{doneLabel}</span>
       </> : <Handle type="source" position={Position.Right} className={cn("!top-12 !size-3 !border-2 !border-background", data.family === "input" ? "!bg-blue-500" : data.family === "function" ? "!bg-amber-500" : "!bg-primary")} />}
       {selected && data.kind !== "condition" && data.kind !== "loop" && (
         <>
@@ -160,7 +160,7 @@ export function BuzzGraphNode({ data, selected }: NodeProps<Node<CanvasNodeData>
 }
 
 export function BranchAddButton({ className, label, onClick }: { className?: string; label: string; onClick: () => void }) {
-  return <button type="button" title={`Thêm nhánh ${label}`} aria-label={`Thêm nhánh ${label}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onClick(); }} className={cn("nodrag nopan absolute z-10 flex size-6 -translate-y-1/2 items-center justify-center rounded-md border bg-card shadow-sm transition hover:bg-accent", className)}><Plus className="size-3" /></button>;
+  return <button type="button" title={`Thêm nhánh ${label}`} aria-label={`Thêm nhánh ${label}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onClick(); }} className={cn("nodrag nopan absolute z-10 flex size-6 -translate-y-1/2 items-center justify-center rounded-lg border bg-card shadow-sm transition hover:bg-accent", className)}><Plus className="size-3" /></button>;
 }
 
 /**
@@ -192,7 +192,7 @@ export function ConditionDataPreview({ node, inputSources, onPickField }: {
 
   if (!rawInput.trim()) {
     return (
-      <div className="rounded-xl border border-border bg-muted/25 p-3 text-[11px] leading-5 text-muted-foreground">
+      <div className="rounded-xl border border-border bg-muted/25 p-3 text-2xs leading-5 text-muted-foreground">
         Chưa có dữ liệu từ node trước. Chạy node phía trước một lần để xem field và thử điều kiện ngay tại đây.
       </div>
     );
@@ -213,26 +213,26 @@ export function ConditionDataPreview({ node, inputSources, onPickField }: {
                   (node.field ?? "").trim() === field.path && "bg-primary/10",
                 )}
               >
-                <span className="shrink-0 font-mono text-[10px] font-semibold text-primary">{field.path}</span>
-                <span className="min-w-0 flex-1 truncate text-right font-mono text-[10px] text-muted-foreground" title={field.preview}>{field.preview}</span>
+                <span className="shrink-0 font-mono text-2xs font-semibold text-primary">{field.path}</span>
+                <span className="min-w-0 flex-1 truncate text-right font-mono text-2xs text-muted-foreground" title={field.preview}>{field.preview}</span>
               </button>
             ))}
           </div>
         </div>
       ) : parsed !== undefined ? (
-        <div className="rounded-xl border border-border bg-muted/25 p-3 text-[11px] leading-5 text-muted-foreground">
+        <div className="rounded-xl border border-border bg-muted/25 p-3 text-2xs leading-5 text-muted-foreground">
           JSON nhận được không có field con (mảng hoặc giá trị đơn). Với mảng có thể điền chỉ số, ví dụ <code className="font-mono">0.title</code>.
         </div>
       ) : (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-[11px] leading-5 text-muted-foreground">
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-2xs leading-5 text-muted-foreground">
           <p className="font-medium text-amber-600 dark:text-amber-400">Output của node trước không đọc được thành JSON.</p>
           <p className="mt-1">Điền "Trường JSON" sẽ luôn ra rỗng — hãy yêu cầu agent trả JSON thuần, hoặc để trống field để so sánh trên toàn bộ text.</p>
-          <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded-md bg-background/70 p-2 font-mono text-[9px] leading-4">{rawInput.slice(0, 400)}</pre>
+          <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-background/70 p-2 font-mono text-2xs leading-4">{rawInput.slice(0, 400)}</pre>
         </div>
       )}
       {verdict && (
         <div className={cn(
-          "rounded-xl border p-3 text-[11px] leading-5",
+          "rounded-xl border p-3 text-2xs leading-5",
           verdict.error ? "border-destructive/40 bg-destructive/5 text-destructive"
             : verdict.passed ? "border-emerald-500/40 bg-emerald-500/5" : "border-rose-500/40 bg-rose-500/5",
         )}>
@@ -242,7 +242,7 @@ export function ConditionDataPreview({ node, inputSources, onPickField }: {
               {verdict.passed ? "rẽ nhánh Đúng" : "rẽ nhánh Sai"}
             </span>
             <span className="text-muted-foreground"> · giá trị đọc được: </span>
-            <code className="font-mono text-[10px]">{previewJsonValue(verdict.value)}</code>
+            <code className="font-mono text-2xs">{previewJsonValue(verdict.value)}</code>
           </>}
         </div>
       )}

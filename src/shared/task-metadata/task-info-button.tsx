@@ -100,7 +100,7 @@ export function TaskInfoButton({ taskId, outputUrl, prompt, kind, className, tit
               <pre className="max-h-64 whitespace-pre-wrap break-words rounded-lg border bg-muted/30 p-3 font-sans text-xs leading-relaxed">{record.prompt || record.instruction}</pre>
             </section>
           )}
-          {details.length > 0 && <details className="rounded-lg border px-3 py-2"><summary className="cursor-pointer text-xs font-semibold">{t('taskInfo.technical')}</summary><div className="mt-2 border-t pt-1">{details.map(([label, value]) => <Row key={label} label={label} value={String(value)} />)}<Row label="Task ID" value={<span className="font-mono text-[10px]">{record.id}</span>} /></div></details>}
+          {details.length > 0 && <details className="rounded-lg border px-3 py-2"><summary className="cursor-pointer text-xs font-semibold">{t('taskInfo.technical')}</summary><div className="mt-2 border-t pt-1">{details.map(([label, value]) => <Row key={label} label={label} value={String(value)} />)}<Row label="Task ID" value={<span className="font-mono text-2xs">{record.id}</span>} /></div></details>}
           {record.error && <section className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">{record.error}</section>}
             </>
           )}

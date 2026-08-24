@@ -68,7 +68,7 @@ export function ParamControl({ param, value, onChange, keyframe, dense }: ParamC
         return (
           <div className="flex min-w-0 items-center gap-1" title={param.label}>
             {keyframeButton}
-            <Label className="w-7 shrink-0 truncate text-[10px] text-muted-foreground">
+            <Label className="w-7 shrink-0 truncate text-2xs text-muted-foreground">
               {param.shortLabel ?? param.label}
             </Label>
             {input}
@@ -104,7 +104,7 @@ export function ParamControl({ param, value, onChange, keyframe, dense }: ParamC
               onChange={(e) => onChange(param.key, e.target.value)}
               className="h-7 w-9 cursor-pointer rounded border border-border bg-transparent p-0.5"
             />
-            <span className="font-mono text-[10px] text-muted-foreground">
+            <span className="font-mono text-2xs text-muted-foreground">
               {typeof current === "string" ? current : param.default}
             </span>
           </div>
@@ -153,7 +153,7 @@ export function ParamControl({ param, value, onChange, keyframe, dense }: ParamC
     case "text":
       return (
         <div className="space-y-1">
-          <Label className="text-[11px] font-medium text-muted-foreground">{param.label}</Label>
+          <Label className="text-2xs font-medium text-muted-foreground">{param.label}</Label>
           <Textarea
             value={typeof current === "string" ? current : param.default}
             rows={3}

@@ -32,7 +32,7 @@ import {
 import { ScriptInput } from "./script-input";
 import { EpisodeTree } from "./episode-tree";
 import { PropertyPanel } from "./property-panel";
-import { Download, FileText, ListChecks, WandSparkles } from "lucide-react";
+import { Download, ListChecks, WandSparkles } from "lucide-react";
 import { hasPlanAccess } from "@/shared/lib/license-client";
 import { useLicenseStore } from "@/shared/stores/license-store";
 import { toast } from "sonner";
@@ -624,16 +624,13 @@ export function ScriptView() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-3 pb-2 bg-panel border-b">
+      {/* Action bar, not a title bar — the project breadcrumb above already
+          names this panel, so repeating it cost a whole row. */}
+      <div className="px-3 py-1.5 bg-panel border-b">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h2 className="font-semibold text-sm flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            {t("scriptView.title")}
-            </h2>
             {activeScriptRuntimeLabel && (
-              <span className={`text-[10px] px-2 py-1 rounded-full border ${usingCliForScriptAnalysis ? 'bg-primary/10 text-primary border-primary/20' : 'bg-muted text-muted-foreground border-border'}`}>
+              <span className={`text-2xs px-2 py-1 rounded-full border ${usingCliForScriptAnalysis ? 'bg-primary/10 text-primary border-primary/20' : 'bg-muted text-muted-foreground border-border'}`}>
                 {usingCliForScriptAnalysis ? `CLI: ${activeScriptRuntimeLabel}` : `API: ${activeScriptRuntimeLabel}`}
               </span>
             )}
@@ -683,7 +680,7 @@ export function ScriptView() {
           </div>
         </div>
         {showProcessLog && (
-          <div className="mt-2 rounded-md border bg-muted/30 p-2 text-xs">
+          <div className="mt-2 rounded-lg border bg-muted/30 p-2 text-xs">
             <div className="mb-1 flex items-center justify-between text-muted-foreground">
               <span>Log xử lý kịch bản</span>
               <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setProcessLogs([])}>
@@ -826,7 +823,7 @@ export function ScriptView() {
               ).map((scene) => {
                 const checked = selectedSceneImportIds.includes(scene.id);
                 return (
-                  <label key={scene.id} className="flex items-start gap-3 rounded-md px-3 py-2 hover:bg-muted/50">
+                  <label key={scene.id} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-muted/50">
                     <Checkbox
                       checked={checked}
                       onCheckedChange={(value) => {
@@ -838,8 +835,8 @@ export function ScriptView() {
                         <div className="text-sm font-medium truncate">{scene.name || t("scenes.untitled")}</div>
                         <span className={
                           scene.scenePrompt
-                            ? "shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                            : "shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                            ? "shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-2xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                            : "shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-2xs text-amber-700 dark:bg-amber-950 dark:text-amber-300"
                         }>
                           {scene.scenePrompt ? "Có prompt cảnh" : "Thiếu prompt cảnh"}
                         </span>

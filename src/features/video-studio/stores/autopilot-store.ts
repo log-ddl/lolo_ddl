@@ -4,6 +4,7 @@ import { useProjectStore } from '@/features/video-studio/stores/project-store';
 import { useLicenseStore } from '@/shared/stores/license-store';
 import { hasPlanAccess } from '@/shared/lib/license-client';
 import type { AutopilotEvent } from '@/features/video-studio/autopilot/types';
+import type { VideoLength } from '@/features/video-studio/types/script';
 import type {
   AutopilotEngineStatus,
   AutopilotJob,
@@ -105,7 +106,7 @@ interface AutopilotState {
   updateShotPrompts: (jobId: string, shotIndex: number, patch: { imagePrompt?: string; videoPrompt?: string }) => boolean;
   updateShotImagePath: (jobId: string, shotIndex: number, newImagePath: string) => boolean;
   updateShotReferences: (jobId: string, shotIndex: number, patch: { characterNames?: string[]; sceneRefId?: string }) => boolean;
-  updateShotVideoLength: (jobId: string, shotIndex: number, videoLength: 4 | 6 | 8) => boolean;
+  updateShotVideoLength: (jobId: string, shotIndex: number, videoLength: VideoLength) => boolean;
   removeShotImage: (jobId: string, shotIndex: number) => boolean;
   regenerateShotMedia: (jobId: string, shotIndex: number, kind: 'image' | 'video') => boolean;
   importShotImage: (jobId: string, shotIndex: number, source: string) => Promise<boolean>;

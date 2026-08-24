@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { getMediaRoot } from './storage-paths'
 import { getAutoEditMediaPath } from './ipc/auto-edit'
+import { serveFile } from './media-file-response'
 
 /**
  * Custom schemes the renderer loads media through. `registerPrivilegedSchemes`
@@ -97,33 +98,13 @@ function handleLocalImage() {
       const url = new URL(request.url)
       const category = url.hostname
       const filename = decodeURIComponent(url.pathname.slice(1)) // Remove leading / and decode
-      const filePath = path.join(getMediaRoot(), category, filename)
-
-      // Read file directly
-      const data = fs.readFileSync(filePath)
-
-      // Determine MIME type based on extension
-      const ext = path.extname(filename).toLowerCase()
-      const mimeTypes: Record<string, string> = {
-        // Images
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.webp': 'image/webp',
-        '.svg': 'image/svg+xml',
-        // Videos
-        '.mp4': 'video/mp4',
-        '.webm': 'video/webm',
-        '.mov': 'video/quicktime',
-        '.avi': 'video/x-msvideo',
-        '.mkv': 'video/x-matroska',
+      const mediaRoot = getMediaRoot()
+      const filePath = path.resolve(mediaRoot, category, filename)
+      if (!filePath.startsWith(path.resolve(mediaRoot) + path.sep)) {
+        return new Response('Invalid path', { status: 400 })
       }
-      const mimeType = mimeTypes[ext] || 'application/octet-stream'
 
-      return new Response(data, {
-        headers: { 'Content-Type': mimeType }
-      })
+      return await serveFile(filePath, request)
     } catch (error) {
       console.error('Failed to load local image:', error)
       return new Response('Image not found', { status: 404 })

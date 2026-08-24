@@ -420,7 +420,7 @@ export function FeatureBindingPanel() {
               
               {/* Expanded: searchable model selection */}
               {isExpanded && (
-                <div className="px-4 pb-4 pt-0 border-t border-border/50">
+                <div className="px-4 pb-4 pt-0 border-t border-border/60">
                   {options.length === 0 ? (
                     <p className="text-xs text-muted-foreground py-2">
                       {t("featureBindings.noModels")}
@@ -433,7 +433,7 @@ export function FeatureBindingPanel() {
 
                       {/* Recommended model hint */}
                       {feature.recommendationKey && (
-                        <div className="flex items-start gap-2 px-3 py-2.5 rounded-md bg-red-500/10 border border-red-500/30">
+                        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/30">
                           <span className="text-sm font-bold text-red-600 dark:text-red-400 leading-relaxed">
                             {t(feature.recommendationKey)}
                           </span>
@@ -448,7 +448,7 @@ export function FeatureBindingPanel() {
                           placeholder={t("featureBindings.searchPlaceholder")}
                           value={searchQuery[feature.key] || ''}
                           onChange={(e) => setSearchQuery(prev => ({ ...prev, [feature.key]: e.target.value }))}
-                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
                         />
                       </div>
 
@@ -478,7 +478,7 @@ export function FeatureBindingPanel() {
                                   <label
                                     key={optionKey}
                                     className={cn(
-                                      "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
+                                      "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
                                       isSelected
                                         ? "bg-primary/10 border border-primary/30"
                                         : "hover:bg-accent/50 border border-transparent",
@@ -493,7 +493,7 @@ export function FeatureBindingPanel() {
                                     <span className="text-xs font-mono text-foreground break-all">
                                       {getModelDisplayName(option.model)}
                                     </span>
-                                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                                    <span className="text-2xs text-muted-foreground ml-auto shrink-0">
                                       {getProviderDisplayName(option)}
                                     </span>
                                   </label>
