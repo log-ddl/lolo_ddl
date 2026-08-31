@@ -3,6 +3,8 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/shared/lib/utils";
 
+import { DiffReviewCard } from "./diff-review-card";
+
 /**
  * Dựng một lần ở module. Nếu để inline trong component thì mỗi lần render là một
  * object `components` mới, ReactMarkdown coi đó là cấu hình khác và dựng lại toàn
@@ -24,11 +26,15 @@ const MARKDOWN_COMPONENTS: Components = {
     </a>
   ),
   code: ({ children, className }) => {
+    const isDiff = className?.includes("language-diff") || className?.includes("diff");
+    if (isDiff && typeof children === "string") {
+      return <DiffReviewCard rawDiff={children} />;
+    }
     return className
       ? <code className={cn(className, "font-mono text-xs")}>{children}</code>
       : <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]">{children}</code>;
   },
-  pre: ({ children }) => <pre className="my-3 max-w-full overflow-x-auto rounded-xl bg-muted p-3 leading-5">{children}</pre>,
+  pre: ({ children }) => <div className="my-3 max-w-full overflow-x-auto">{children}</div>,
   table: ({ children }) => <div className="my-3 max-w-full overflow-x-auto"><table className="w-full border-collapse text-left text-xs">{children}</table></div>,
   th: ({ children }) => <th className="border border-border bg-muted px-3 py-2 font-semibold">{children}</th>,
   td: ({ children }) => <td className="border border-border px-3 py-2 align-top">{children}</td>,

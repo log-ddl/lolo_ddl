@@ -196,8 +196,13 @@ contextBridge.exposeInMainWorld('contentWorkspace', {
   revealFile: (workspacePath: string | null | undefined, filePath: string) =>
     ipcRenderer.invoke('content-workspace-reveal-file', { workspacePath, filePath }),
   readMemory: (workspacePath?: string | null) => ipcRenderer.invoke('content-workspace-read-memory', workspacePath),
-  writeMemory: (workspacePath: string | null | undefined, content: string) =>
-    ipcRenderer.invoke('content-workspace-write-memory', { workspacePath, content }),
+  listTree: (workspacePath?: string | null) => ipcRenderer.invoke('content-workspace-list-tree', workspacePath),
+  createFile: (workspacePath: string | null | undefined, relativePath: string, initialContent?: string) =>
+    ipcRenderer.invoke('content-workspace-create-file', { workspacePath, relativePath, initialContent }),
+  createFolder: (workspacePath: string | null | undefined, relativePath: string) =>
+    ipcRenderer.invoke('content-workspace-create-folder', { workspacePath, relativePath }),
+  deleteEntry: (workspacePath: string | null | undefined, relativePath: string) =>
+    ipcRenderer.invoke('content-workspace-delete-entry', { workspacePath, relativePath }),
 })
 
 contextBridge.exposeInMainWorld('contentMcp', {
@@ -606,3 +611,14 @@ contextBridge.exposeInMainWorld('imageHostUploader', {
     }
   }) => ipcRenderer.invoke('image-host-upload', payload),
 })
+
+contextBridge.exposeInMainWorld('systemResources', {
+  getMetrics: () => ipcRenderer.invoke('system:get-resource-metrics'),
+  cancelProcess: (processId: string) => ipcRenderer.invoke('system:cancel-managed-process', processId),
+  onMetricsUpdate: (callback: (metrics: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('system:resource-metrics-update', handler)
+    return () => ipcRenderer.off('system:resource-metrics-update', handler)
+  },
+})
+

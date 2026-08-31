@@ -288,6 +288,21 @@ declare global {
       revealFile: (workspacePath: string | null | undefined, filePath: string) => Promise<{ success: boolean; error?: string }>;
       readMemory: (workspacePath?: string | null) => Promise<{ path: string; memory: string }>;
       writeMemory: (workspacePath: string | null | undefined, content: string) => Promise<{ path: string; memory: string }>;
+      listTree: (workspacePath?: string | null) => Promise<{
+        workspacePath: string;
+        tree: Array<{
+          name: string;
+          path: string;
+          relativePath: string;
+          isDirectory: boolean;
+          size?: number;
+          extension?: string;
+          children?: any[];
+        }>;
+      }>;
+      createFile: (workspacePath: string | null | undefined, relativePath: string, initialContent?: string) => Promise<{ success: boolean; path: string }>;
+      createFolder: (workspacePath: string | null | undefined, relativePath: string) => Promise<{ success: boolean; path: string }>;
+      deleteEntry: (workspacePath: string | null | undefined, relativePath: string) => Promise<{ success: boolean }>;
     };
     contentMcp?: {
       ready: () => void;

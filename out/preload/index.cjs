@@ -131,7 +131,10 @@ electron.contextBridge.exposeInMainWorld("contentWorkspace", {
   openFile: (workspacePath, filePath) => electron.ipcRenderer.invoke("content-workspace-open-file", { workspacePath, filePath }),
   revealFile: (workspacePath, filePath) => electron.ipcRenderer.invoke("content-workspace-reveal-file", { workspacePath, filePath }),
   readMemory: (workspacePath) => electron.ipcRenderer.invoke("content-workspace-read-memory", workspacePath),
-  writeMemory: (workspacePath, content) => electron.ipcRenderer.invoke("content-workspace-write-memory", { workspacePath, content })
+  listTree: (workspacePath) => electron.ipcRenderer.invoke("content-workspace-list-tree", workspacePath),
+  createFile: (workspacePath, relativePath, initialContent) => electron.ipcRenderer.invoke("content-workspace-create-file", { workspacePath, relativePath, initialContent }),
+  createFolder: (workspacePath, relativePath) => electron.ipcRenderer.invoke("content-workspace-create-folder", { workspacePath, relativePath }),
+  deleteEntry: (workspacePath, relativePath) => electron.ipcRenderer.invoke("content-workspace-delete-entry", { workspacePath, relativePath })
 });
 electron.contextBridge.exposeInMainWorld("contentMcp", {
   ready: () => electron.ipcRenderer.send("content-mcp-ready"),
@@ -312,4 +315,13 @@ electron.contextBridge.exposeInMainWorld("autopilotBridge", {
 });
 electron.contextBridge.exposeInMainWorld("imageHostUploader", {
   upload: (payload) => electron.ipcRenderer.invoke("image-host-upload", payload)
+});
+electron.contextBridge.exposeInMainWorld("systemResources", {
+  getMetrics: () => electron.ipcRenderer.invoke("system:get-resource-metrics"),
+  cancelProcess: (processId) => electron.ipcRenderer.invoke("system:cancel-managed-process", processId),
+  onMetricsUpdate: (callback) => {
+    const handler = (_event, data) => callback(data);
+    electron.ipcRenderer.on("system:resource-metrics-update", handler);
+    return () => electron.ipcRenderer.off("system:resource-metrics-update", handler);
+  }
 });

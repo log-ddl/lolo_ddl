@@ -2990,8 +2990,202 @@ const CONTENT_MCP_TOOLS = [
       required: ["video"],
       additionalProperties: false
     }
+  },
+  {
+    name: "create_tts_audio",
+    description: "Synthesize speech from text using the local OmniVoice TTS engine inside logdd. Returns the generated audio file path and duration.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "The text script or narration to speak." },
+        voiceProfileId: { type: "string", description: "Optional ID of an existing voice clone profile." },
+        voiceDesignDescription: { type: "string", description: "Optional natural language description of voice character if using Voice Design." },
+        speed: { type: "number", minimum: 0.5, maximum: 2, description: "Speech speed multiplier. Defaults to 1.0." }
+      },
+      required: ["text"],
+      additionalProperties: false
+    }
+  },
+  {
+    name: "list_voice_profiles",
+    description: "List all available voice clone profiles and built-in voices in logdd.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false
+    }
+  },
+  {
+    name: "create_video_project",
+    description: "Create a new video project in Video AI Studio with title, aspect ratio, scenes, image prompts, and narration lines.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Title of the new video project." },
+        aspectRatio: { type: "string", enum: ["16:9", "9:16", "1:1"], description: "Video aspect ratio. Defaults to 16:9." },
+        scenes: {
+          type: "array",
+          description: "List of video scenes with visual prompts and narration scripts.",
+          items: {
+            type: "object",
+            properties: {
+              sceneNumber: { type: "integer", description: "Scene index." },
+              imagePrompt: { type: "string", description: "Detailed prompt for visual image generation." },
+              narration: { type: "string", description: "Voice narration script for this scene." },
+              durationSec: { type: "number", description: "Estimated scene duration in seconds." }
+            },
+            required: ["sceneNumber", "imagePrompt", "narration"]
+          }
+        }
+      },
+      required: ["title", "scenes"],
+      additionalProperties: false
+    }
+  },
+  {
+    name: "get_system_resource_metrics",
+    description: "Check current system CPU usage %, RAM memory, and running background media/AI processes.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false
+    }
   }
 ];
+const activeProcesses = /* @__PURE__ */ new Map();
+function spawnManagedProcess(id, name, command, args = [], options = {}) {
+  if (activeProcesses.has(id)) {
+    terminateManagedProcess(id);
+  }
+  const child = node_child_process.spawn(command, args, {
+    ...options,
+    // Detach on Unix so process.kill(-pid) terminates all descendants
+    detached: process.platform !== "win32"
+  });
+  if (child.pid) {
+    const record = {
+      id,
+      name,
+      pid: child.pid,
+      startTime: Date.now(),
+      process: child
+    };
+    activeProcesses.set(id, record);
+    const cleanup = () => {
+      activeProcesses.delete(id);
+    };
+    child.on("exit", cleanup);
+    child.on("error", cleanup);
+  }
+  return child;
+}
+function terminateManagedProcess(id, signal = "SIGTERM") {
+  const record = activeProcesses.get(id);
+  if (!record || !record.pid) return false;
+  const pid = record.pid;
+  activeProcesses.delete(id);
+  if (process.platform === "win32") {
+    try {
+      const killer = node_child_process.spawn("taskkill", ["/pid", String(pid), "/t", "/f"], {
+        stdio: "ignore",
+        windowsHide: true
+      });
+      killer.unref();
+    } catch {
+      try {
+        record.process.kill();
+      } catch {
+      }
+    }
+    return true;
+  }
+  try {
+    process.kill(-pid, signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") {
+      try {
+        record.process.kill(signal);
+      } catch {
+      }
+    }
+  }
+  return true;
+}
+function terminateAllManagedProcesses() {
+  for (const id of Array.from(activeProcesses.keys())) {
+    terminateManagedProcess(id, "SIGKILL");
+  }
+  activeProcesses.clear();
+}
+function getActiveProcessList() {
+  const now = Date.now();
+  return Array.from(activeProcesses.values()).map((proc) => ({
+    id: proc.id,
+    name: proc.name,
+    pid: proc.pid,
+    runtimeMs: now - proc.startTime
+  }));
+}
+let previousCpus = os.cpus();
+let monitorTimer = null;
+function calculateCpuUsage() {
+  const currentCpus = os.cpus();
+  let idleDelta = 0;
+  let totalDelta = 0;
+  for (let i = 0; i < currentCpus.length; i++) {
+    const prev = previousCpus[i]?.times;
+    const curr = currentCpus[i]?.times;
+    if (!prev || !curr) continue;
+    const prevTotal = prev.user + prev.nice + prev.sys + prev.idle + prev.irq;
+    const currTotal = curr.user + curr.nice + curr.sys + curr.idle + curr.irq;
+    totalDelta += currTotal - prevTotal;
+    idleDelta += curr.idle - prev.idle;
+  }
+  previousCpus = currentCpus;
+  if (totalDelta === 0) return 0;
+  const usage = Math.round((1 - idleDelta / totalDelta) * 100);
+  return Math.max(0, Math.min(100, usage));
+}
+function getSystemResourceMetrics() {
+  const totalBytes = os.totalmem();
+  const freeBytes = os.freemem();
+  const usedBytes = totalBytes - freeBytes;
+  const totalMemMb = Math.round(totalBytes / (1024 * 1024));
+  const freeMemMb = Math.round(freeBytes / (1024 * 1024));
+  const usedMemMb = Math.round(usedBytes / (1024 * 1024));
+  const memUsagePercent = Math.round(usedBytes / totalBytes * 100);
+  return {
+    cpuUsagePercent: calculateCpuUsage(),
+    totalMemMb,
+    usedMemMb,
+    freeMemMb,
+    memUsagePercent,
+    activeProcesses: getActiveProcessList()
+  };
+}
+function registerResourceMonitorIpc() {
+  electron.ipcMain.handle("system:get-resource-metrics", () => {
+    return getSystemResourceMetrics();
+  });
+  electron.ipcMain.handle("system:cancel-managed-process", (_event, processId) => {
+    return terminateManagedProcess(processId, "SIGKILL");
+  });
+  if (!monitorTimer) {
+    monitorTimer = setInterval(() => {
+      try {
+        const metrics = getSystemResourceMetrics();
+        broadcastToWindows("system:resource-metrics-update", metrics);
+      } catch {
+      }
+    }, 3e3);
+  }
+}
+function stopResourceMonitor() {
+  if (monitorTimer) {
+    clearInterval(monitorTimer);
+    monitorTimer = null;
+  }
+}
 let server = null;
 let connectionPromise = null;
 let renderer = null;
@@ -3043,9 +3237,14 @@ async function handleRpc(message) {
         return jsonRpcError(id, -32602, `Unknown tool: ${name}`);
       }
       try {
-        const result = await callRenderer(name, message?.params?.arguments);
+        let result;
+        if (name === "get_system_resource_metrics") {
+          result = getSystemResourceMetrics();
+        } else {
+          result = await callRenderer(name, message?.params?.arguments);
+        }
         return jsonRpcResult(id, {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result, null, 2) }],
           isError: false
         });
       } catch (error) {
@@ -3956,7 +4155,7 @@ function runFFmpeg(opts) {
     const ffmpegPath = getFFmpegPath();
     let stderrBuf = "";
     let canceled = false;
-    const child = node_child_process.spawn(ffmpegPath, opts.args, {
+    const child = spawnManagedProcess(`ffmpeg-${opts.jobId}`, `FFmpeg Job (${opts.jobId})`, ffmpegPath, opts.args, {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true
     });
@@ -4007,6 +4206,7 @@ function runFFmpeg(opts) {
   });
 }
 function cancelFFmpeg(jobId) {
+  terminateManagedProcess(`ffmpeg-${jobId}`);
   const child = activeJobs$2.get(jobId);
   if (!child) return false;
   if (child._markCanceled) child._markCanceled();
@@ -4016,6 +4216,7 @@ function cancelFFmpeg(jobId) {
 }
 function cancelAllFFmpeg() {
   for (const [jobId, child] of activeJobs$2.entries()) {
+    terminateManagedProcess(`ffmpeg-${jobId}`);
     const c = child;
     if (c._markCanceled) c._markCanceled();
     else child.kill("SIGKILL");
@@ -10386,8 +10587,59 @@ function verifyBuzzOutput(workspaceCandidate, kind, outputPath, text) {
     return { valid: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
+function scanWorkspaceDirectory(dirPath, rootPath, maxDepth = 4, currentDepth = 0) {
+  if (currentDepth > maxDepth || !fs.existsSync(dirPath)) return [];
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    const nodes = [];
+    const sorted = entries.sort((a, b) => {
+      if (a.isDirectory() === b.isDirectory()) return a.name.localeCompare(b.name);
+      return a.isDirectory() ? -1 : 1;
+    });
+    for (const entry of sorted) {
+      if (entry.name.startsWith(".") && entry.name !== ".env") continue;
+      if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "out" || entry.name === ".git") continue;
+      const fullPath = path.join(dirPath, entry.name);
+      const relPath = path.relative(rootPath, fullPath);
+      const isDir = entry.isDirectory();
+      if (isDir) {
+        nodes.push({
+          name: entry.name,
+          path: fullPath,
+          relativePath: relPath,
+          isDirectory: true,
+          children: scanWorkspaceDirectory(fullPath, rootPath, maxDepth, currentDepth + 1)
+        });
+      } else {
+        let size = 0;
+        try {
+          size = fs.statSync(fullPath).size;
+        } catch {
+        }
+        nodes.push({
+          name: entry.name,
+          path: fullPath,
+          relativePath: relPath,
+          isDirectory: false,
+          size,
+          extension: path.extname(entry.name).toLowerCase()
+        });
+      }
+    }
+    return nodes;
+  } catch {
+    return [];
+  }
+}
 function registerContentWorkspaceIpc() {
   electron.ipcMain.handle("content-workspace-get-default", () => ensureWorkspace());
+  electron.ipcMain.handle("content-workspace-list-tree", (_event, candidate) => {
+    const workspace = ensureWorkspace(candidate);
+    return {
+      workspacePath: workspace.path,
+      tree: scanWorkspaceDirectory(workspace.path, workspace.path)
+    };
+  });
   electron.ipcMain.handle("content-workspace-ensure", (_event, candidate) => {
     return ensureWorkspace(candidate);
   });
@@ -10526,6 +10778,32 @@ function registerContentWorkspaceIpc() {
     electron.shell.showItemInFolder(resolved.filePath);
     return { success: true };
   });
+  electron.ipcMain.handle("content-workspace-create-file", (_event, payload) => {
+    const workspace = ensureWorkspace(payload?.workspacePath);
+    const targetPath = path.resolve(workspace.path, payload.relativePath);
+    if (!targetPath.startsWith(workspace.path)) throw new Error("Invalid file path outside workspace");
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    if (!fs.existsSync(targetPath)) {
+      fs.writeFileSync(targetPath, payload.initialContent ?? "", "utf8");
+    }
+    return { success: true, path: targetPath };
+  });
+  electron.ipcMain.handle("content-workspace-create-folder", (_event, payload) => {
+    const workspace = ensureWorkspace(payload?.workspacePath);
+    const targetPath = path.resolve(workspace.path, payload.relativePath);
+    if (!targetPath.startsWith(workspace.path)) throw new Error("Invalid directory path outside workspace");
+    fs.mkdirSync(targetPath, { recursive: true });
+    return { success: true, path: targetPath };
+  });
+  electron.ipcMain.handle("content-workspace-delete-entry", (_event, payload) => {
+    const workspace = ensureWorkspace(payload?.workspacePath);
+    const targetPath = path.resolve(workspace.path, payload.relativePath);
+    if (!targetPath.startsWith(workspace.path)) throw new Error("Invalid path outside workspace");
+    if (fs.existsSync(targetPath)) {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+    }
+    return { success: true };
+  });
   electron.ipcMain.handle("content-workspace-write-memory", (_event, payload) => {
     const content = String(payload?.content ?? "");
     if (Buffer.byteLength(content, "utf8") > MAX_MEMORY_BYTES) {
@@ -10551,6 +10829,7 @@ electron.app.on("open-url", (event, url) => {
   event.preventDefault();
   deliverAuthCallback(url);
 });
+registerResourceMonitorIpc();
 registerResearchDatabaseIpc();
 registerMediaToolkitIpc();
 registerWatermarkIpc(getMediaRoot);
@@ -10575,6 +10854,8 @@ electron.app.on("before-quit", (event) => {
   quitCleanupStarted = true;
   event.preventDefault();
   broadcastToWindows("app-flush-storage");
+  stopResourceMonitor();
+  terminateAllManagedProcesses();
   const sessionManager = stopBrowserRuntimes();
   cancelAllFFmpeg();
   cancelAllTranscribes();

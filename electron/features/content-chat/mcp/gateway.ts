@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, type WebContents } from 'electron'
 import crypto from 'node:crypto'
 import http from 'node:http'
 import { CONTENT_MCP_TOOLS } from './tool-definitions'
+import { getSystemResourceMetrics } from '../../../resource-monitor'
 
 type JsonRpcId = string | number | null
 
@@ -68,9 +69,14 @@ async function handleRpc(message: any): Promise<unknown | null> {
         return jsonRpcError(id, -32602, `Unknown tool: ${name}`)
       }
       try {
-        const result = await callRenderer(name, message?.params?.arguments)
+        let result: unknown
+        if (name === 'get_system_resource_metrics') {
+          result = getSystemResourceMetrics()
+        } else {
+          result = await callRenderer(name, message?.params?.arguments)
+        }
         return jsonRpcResult(id, {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }],
           isError: false,
         })
       } catch (error) {

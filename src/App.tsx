@@ -5,6 +5,7 @@ import { Toaster } from "@/shared/components/ui/sonner";
 import { LicenseGate } from "@/shared/components/LicenseGate";
 import { StartupUpdateGuard } from "@/shared/components/StartupUpdateGuard";
 import { GlobalSettingsDialog } from "@/shared/components/GlobalSettingsDialog";
+import { CommandPalette } from "@/shared/components/CommandPalette";
 import { useThemeStore } from "@/shared/stores/theme-store";
 import { useI18n } from "@/shared/i18n";
 import { migrateUIPreferencesFromLegacy } from "@/shared/stores/ui-preferences-store";
@@ -41,12 +42,13 @@ function App() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden">
+    <div className="h-screen w-screen overflow-hidden relative">
       <StartupUpdateGuard>
         <LicenseGate>
           <AppShell />
         </LicenseGate>
         <GlobalSettingsDialog />
+        <CommandPalette />
       </StartupUpdateGuard>
       <Toaster richColors position="top-center" />
     </div>

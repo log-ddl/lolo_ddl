@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import ffmpegStaticPath from 'ffmpeg-static'
+import { spawnManagedProcess, terminateManagedProcess } from './process-supervisor'
 
 export interface FFmpegRunOptions {
   jobId: string
@@ -50,7 +51,7 @@ export function runFFmpeg(opts: FFmpegRunOptions): Promise<FFmpegRunResult> {
     let stderrBuf = ''
     let canceled = false
 
-    const child = spawn(ffmpegPath, opts.args, {
+    const child = spawnManagedProcess(`ffmpeg-${opts.jobId}`, `FFmpeg Job (${opts.jobId})`, ffmpegPath, opts.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
@@ -112,6 +113,7 @@ export function runFFmpeg(opts: FFmpegRunOptions): Promise<FFmpegRunResult> {
 }
 
 export function cancelFFmpeg(jobId: string): boolean {
+  terminateManagedProcess(`ffmpeg-${jobId}`)
   const child = activeJobs.get(jobId) as (ChildProcess & { _markCanceled?: () => void }) | undefined
   if (!child) return false
   if (child._markCanceled) child._markCanceled()
@@ -122,6 +124,7 @@ export function cancelFFmpeg(jobId: string): boolean {
 
 export function cancelAllFFmpeg(): void {
   for (const [jobId, child] of activeJobs.entries()) {
+    terminateManagedProcess(`ffmpeg-${jobId}`)
     const c = child as ChildProcess & { _markCanceled?: () => void }
     if (c._markCanceled) c._markCanceled()
     else child.kill('SIGKILL')

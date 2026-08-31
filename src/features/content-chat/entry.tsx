@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
+  Columns2,
+  FolderTree,
   LockKeyhole,
   MessageSquareText,
   PanelLeftOpen,
@@ -42,6 +44,8 @@ import { SlashCommandMenu, type SlashMenuItem } from "./components/slash-command
 import { ComposerToolbar } from "./components/composer-toolbar";
 import { MemoryDialog, RenameConversationDialog, SystemPromptDialog } from "./components/chat-dialogs";
 import { FilePreviewPanel, type FilePreviewState } from "./components/file-preview";
+import { ModelComparisonView } from "./components/model-comparison-view";
+import { WorkspaceFileTree } from "./components/workspace-file-tree";
 
 /** Nhịp vẽ tối đa khi đang stream. ~12 khung hình/giây là đủ mượt để đọc. */
 const STREAM_PAINT_INTERVAL_MS = 80;
@@ -105,6 +109,22 @@ export default function ContentChatFeature() {
   const [activeTab, setActiveTab] = useState<"ai" | "buzz">("ai");
   const licensePlan = useLicenseStore((state) => state.plan);
   const canUseBuzz = hasPlanAccess(licensePlan, "dev");
+
+  // File Tree Explorer state
+  const [showFileTree, setShowFileTree] = useState(false);
+
+  // Split comparison mode states
+  const [splitCompareMode, setSplitCompareMode] = useState(false);
+  const [compareAdapterA, setCompareAdapterA] = useState<ContentCliAdapter>("claude");
+  const [compareAdapterB, setCompareAdapterB] = useState<ContentCliAdapter>("opencode");
+  const [compareModelA, setCompareModelA] = useState("");
+  const [compareModelB, setCompareModelB] = useState("");
+  const [compareResponseA, setCompareResponseA] = useState("");
+  const [compareResponseB, setCompareResponseB] = useState("");
+  const [isStreamingA, setIsStreamingA] = useState(false);
+  const [isStreamingB, setIsStreamingB] = useState(false);
+  const [comparedPrompt, setComparedPrompt] = useState("");
+
   /** Một controller cho mỗi hội thoại đang chạy, để dừng được đúng cái mình muốn. */
   const abortControllersRef = useRef(new Map<string, AbortController>());
   const openedWithFreshConversationRef = useRef(false);
@@ -291,9 +311,68 @@ export default function ContentChatFeature() {
     };
   }, []);
 
+  async function sendCompareMessage(prompt: string) {
+    if (!prompt || isStreamingA || isStreamingB) return;
+    setComparedPrompt(prompt);
+    setCompareResponseA("");
+    setCompareResponseB("");
+    setIsStreamingA(true);
+    setIsStreamingB(true);
+    setDraft("");
+
+    let workspace: { path: string; memory: string };
+    try {
+      workspace = await loadWorkspace(activeConversation?.workspacePath ?? null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+      setIsStreamingA(false);
+      setIsStreamingB(false);
+      return;
+    }
+
+    const runModel = async (
+      modelAdapter: ContentCliAdapter,
+      modelName: string,
+      setStream: React.Dispatch<React.SetStateAction<string>>,
+      setEnd: React.Dispatch<React.SetStateAction<boolean>>
+    ) => {
+      let acc = "";
+      try {
+        const output = await runCliTextTask({
+          adapter: modelAdapter,
+          prompt,
+          model: modelName || undefined,
+          sessionKey: `compare:${modelAdapter}:${Date.now()}`,
+          timeoutMs: 10 * 60 * 1000,
+          workingDirectory: workspace.path,
+          enableContentMcp: true,
+          onChunk: (chunk) => {
+            acc += chunk;
+            setStream(acc);
+          },
+        });
+        setStream(acc || output);
+      } catch (err: any) {
+        if (acc) setStream(acc);
+        else setStream(`[Lỗi khi chạy ${modelAdapter}: ${err.message || String(err)}]`);
+      } finally {
+        setEnd(false);
+      }
+    };
+
+    void runModel(compareAdapterA, compareModelA, setCompareResponseA, setIsStreamingA);
+    void runModel(compareAdapterB, compareModelB, setCompareResponseB, setIsStreamingB);
+  }
+
   async function sendMessage() {
     const prompt = draft.trim();
     if (!prompt || activeIsRunning) return;
+
+    if (splitCompareMode) {
+      await sendCompareMessage(prompt);
+      return;
+    }
+
     if (!adapterStatus?.available) {
       toast.error(t("contentChat.cliUnavailable", { cli: cliLabel(activeAdapter) }));
       return;
@@ -613,6 +692,26 @@ export default function ContentChatFeature() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant={showFileTree ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowFileTree((prev) => !prev)}
+              className={cn("h-8 gap-1.5 text-2xs font-semibold", showFileTree && "bg-primary text-primary-foreground")}
+              title="Bật/Tắt Cây thư mục File Explorer của dự án"
+            >
+              <FolderTree className="size-3.5" />
+              <span className="hidden sm:inline">Files</span>
+            </Button>
+            <Button
+              variant={splitCompareMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSplitCompareMode((prev) => !prev)}
+              className={cn("h-8 gap-1.5 text-2xs font-semibold", splitCompareMode && "bg-primary text-primary-foreground")}
+              title="Bật/Tắt chế độ so sánh 2 Model song song"
+            >
+              <Columns2 className="size-3.5" />
+              <span className="hidden sm:inline">So Sánh Model</span>
+            </Button>
             <span className={cn("size-2 rounded-full", adapterStatus?.available ? "bg-emerald-500" : "bg-destructive")} />
             <Select value={activeAdapter} onValueChange={(value) => setAdapter(value as ContentCliAdapter)} disabled={activeIsRunning || providerLocked}>
               <SelectTrigger className="w-auto min-w-28 max-w-52"><SelectValue /></SelectTrigger>
@@ -629,36 +728,68 @@ export default function ContentChatFeature() {
           </div>
         </header>
 
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-6 py-6">
-            {!entryReady || !activeConversation || activeConversation.messages.length === 0 ? (
-              <div className="m-auto max-w-md px-4 py-10 text-center">
-                <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <MessageSquareText className="size-5" />
-                </div>
-                <h2 className="text-lg font-semibold">{t("contentChat.emptyTitle")}</h2>
-                <p className="mt-1.5 text-sm leading-5 text-muted-foreground">{t("contentChat.emptyDescription")}</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {activeConversation.messages.map((message) => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    copied={copiedId === message.id}
-                    onCopy={copyMessage}
-                    onOpenFile={previewWorkspaceFile}
-                    workspacePath={activeConversation.workspacePath ?? null}
-                  />
-                ))}
-                {activeRunText !== undefined && (
-                  <StreamingBubble text={activeRunText} />
-                )}
-                <div ref={endRef} />
-              </div>
-            )}
+        {splitCompareMode ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <ModelComparisonView
+              prompt={comparedPrompt}
+              adapterA={compareAdapterA}
+              adapterB={compareAdapterB}
+              modelA={compareModelA}
+              modelB={compareModelB}
+              responseA={compareResponseA}
+              responseB={compareResponseB}
+              isStreamingA={isStreamingA}
+              isStreamingB={isStreamingB}
+              onSelectAdapterA={setCompareAdapterA}
+              onSelectAdapterB={setCompareAdapterB}
+              onSelectModelA={setCompareModelA}
+              onSelectModelB={setCompareModelB}
+              onPickResponse={(chosenAdapter, chosenModel, chosenContent) => {
+                const conversationId = activeConversation?.id ?? createConversation();
+                addMessage(conversationId, createMessage("user", comparedPrompt));
+                addMessage(conversationId, createMessage("assistant", chosenContent));
+                bindConversationAdapter(conversationId, chosenAdapter);
+                if (chosenModel) {
+                  setModel(chosenAdapter, chosenModel);
+                }
+                setSplitCompareMode(false);
+                toast.success(`Đã thêm câu trả lời từ ${cliLabel(chosenAdapter, true)} vào hội thoại!`);
+              }}
+              onClose={() => setSplitCompareMode(false)}
+            />
           </div>
-        </ScrollArea>
+        ) : (
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-6 py-6">
+              {!entryReady || !activeConversation || activeConversation.messages.length === 0 ? (
+                <div className="m-auto max-w-md px-4 py-10 text-center">
+                  <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <MessageSquareText className="size-5" />
+                  </div>
+                  <h2 className="text-lg font-semibold">{t("contentChat.emptyTitle")}</h2>
+                  <p className="mt-1.5 text-sm leading-5 text-muted-foreground">{t("contentChat.emptyDescription")}</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {activeConversation.messages.map((message) => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      copied={copiedId === message.id}
+                      onCopy={copyMessage}
+                      onOpenFile={previewWorkspaceFile}
+                      workspacePath={activeConversation.workspacePath ?? null}
+                    />
+                  ))}
+                  {activeRunText !== undefined && (
+                    <StreamingBubble text={activeRunText} />
+                  )}
+                  <div ref={endRef} />
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        )}
 
         <footer className="shrink-0 bg-background px-5 pb-3 pt-2">
           <div className="mx-auto w-full max-w-6xl">
@@ -739,6 +870,15 @@ export default function ContentChatFeature() {
           onClose={() => setFilePreview(null)}
           onOpen={() => void openPreviewedFile()}
           onReveal={() => void revealPreviewedFile()}
+        />
+      )}
+
+      {showFileTree && (
+        <WorkspaceFileTree
+          workspacePath={workspaceInfo?.path ?? activeConversationWorkspace}
+          onOpenFile={previewWorkspaceFile}
+          onOpenDirectory={openWorkspaceDirectory}
+          onClose={() => setShowFileTree(false)}
         />
       )}
 

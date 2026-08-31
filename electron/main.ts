@@ -55,7 +55,11 @@ app.on('open-url', (event, url) => {
   deliverAuthCallback(url)
 })
 
+import { registerResourceMonitorIpc, stopResourceMonitor } from './resource-monitor'
+import { terminateAllManagedProcesses } from './process-supervisor'
+
 // ==================== IPC registration ====================
+registerResourceMonitorIpc()
 registerResearchDatabaseIpc()
 registerMediaToolkitIpc()
 registerWatermarkIpc(getMediaRoot)
@@ -92,6 +96,8 @@ app.on('before-quit', (event) => {
   // trong bộ gộp ghi. Không có bước này thì thao tác trong ~400ms cuối sẽ mất.
   broadcastToWindows('app-flush-storage')
 
+  stopResourceMonitor()
+  terminateAllManagedProcesses()
   const sessionManager = stopBrowserRuntimes()
   cancelAllFFmpeg()
   cancelAllTranscribes()

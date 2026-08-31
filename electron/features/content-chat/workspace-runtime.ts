@@ -245,8 +245,74 @@ function verifyBuzzOutput(workspaceCandidate: string | null | undefined, kind: '
   }
 }
 
+export interface WorkspaceTreeNode {
+  name: string
+  path: string
+  relativePath: string
+  isDirectory: boolean
+  size?: number
+  extension?: string
+  children?: WorkspaceTreeNode[]
+}
+
+function scanWorkspaceDirectory(dirPath: string, rootPath: string, maxDepth = 4, currentDepth = 0): WorkspaceTreeNode[] {
+  if (currentDepth > maxDepth || !fs.existsSync(dirPath)) return []
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    const nodes: WorkspaceTreeNode[] = []
+
+    const sorted = entries.sort((a, b) => {
+      if (a.isDirectory() === b.isDirectory()) return a.name.localeCompare(b.name)
+      return a.isDirectory() ? -1 : 1
+    })
+
+    for (const entry of sorted) {
+      if (entry.name.startsWith('.') && entry.name !== '.env') continue
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'out' || entry.name === '.git') continue
+
+      const fullPath = path.join(dirPath, entry.name)
+      const relPath = path.relative(rootPath, fullPath)
+      const isDir = entry.isDirectory()
+
+      if (isDir) {
+        nodes.push({
+          name: entry.name,
+          path: fullPath,
+          relativePath: relPath,
+          isDirectory: true,
+          children: scanWorkspaceDirectory(fullPath, rootPath, maxDepth, currentDepth + 1),
+        })
+      } else {
+        let size = 0
+        try {
+          size = fs.statSync(fullPath).size
+        } catch {}
+        nodes.push({
+          name: entry.name,
+          path: fullPath,
+          relativePath: relPath,
+          isDirectory: false,
+          size,
+          extension: path.extname(entry.name).toLowerCase(),
+        })
+      }
+    }
+    return nodes
+  } catch {
+    return []
+  }
+}
+
 export function registerContentWorkspaceIpc(): void {
   ipcMain.handle('content-workspace-get-default', () => ensureWorkspace())
+
+  ipcMain.handle('content-workspace-list-tree', (_event, candidate?: string | null) => {
+    const workspace = ensureWorkspace(candidate)
+    return {
+      workspacePath: workspace.path,
+      tree: scanWorkspaceDirectory(workspace.path, workspace.path),
+    }
+  })
 
   ipcMain.handle('content-workspace-ensure', (_event, candidate?: string | null) => {
     return ensureWorkspace(candidate)
@@ -405,6 +471,35 @@ export function registerContentWorkspaceIpc(): void {
   ipcMain.handle('content-workspace-reveal-file', (_event, payload: { workspacePath?: string | null; filePath: string }) => {
     const resolved = resolveWorkspaceFile(payload?.workspacePath, payload?.filePath)
     shell.showItemInFolder(resolved.filePath)
+    return { success: true }
+  })
+
+  ipcMain.handle('content-workspace-create-file', (_event, payload: { workspacePath?: string | null; relativePath: string; initialContent?: string }) => {
+    const workspace = ensureWorkspace(payload?.workspacePath)
+    const targetPath = path.resolve(workspace.path, payload.relativePath)
+    if (!targetPath.startsWith(workspace.path)) throw new Error('Invalid file path outside workspace')
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+    if (!fs.existsSync(targetPath)) {
+      fs.writeFileSync(targetPath, payload.initialContent ?? '', 'utf8')
+    }
+    return { success: true, path: targetPath }
+  })
+
+  ipcMain.handle('content-workspace-create-folder', (_event, payload: { workspacePath?: string | null; relativePath: string }) => {
+    const workspace = ensureWorkspace(payload?.workspacePath)
+    const targetPath = path.resolve(workspace.path, payload.relativePath)
+    if (!targetPath.startsWith(workspace.path)) throw new Error('Invalid directory path outside workspace')
+    fs.mkdirSync(targetPath, { recursive: true })
+    return { success: true, path: targetPath }
+  })
+
+  ipcMain.handle('content-workspace-delete-entry', (_event, payload: { workspacePath?: string | null; relativePath: string }) => {
+    const workspace = ensureWorkspace(payload?.workspacePath)
+    const targetPath = path.resolve(workspace.path, payload.relativePath)
+    if (!targetPath.startsWith(workspace.path)) throw new Error('Invalid path outside workspace')
+    if (fs.existsSync(targetPath)) {
+      fs.rmSync(targetPath, { recursive: true, force: true })
+    }
     return { success: true }
   })
 
