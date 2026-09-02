@@ -518,18 +518,21 @@ export function StorageTab({ appVersion, onUpdateAvailable }: StorageTabProps) {
             </Button>
           </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium">{t("settings.autoCheckUpdates")}</p>
-              <p className="text-xs text-muted-foreground">
-                {t("settings.autoCheckUpdatesHelp")}
-              </p>
+          {/* Ẩn khỏi UI theo yêu cầu, giữ nguyên logic code */}
+          <div className="hidden" style={{ display: "none" }} hidden>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">{t("settings.autoCheckUpdates")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("settings.autoCheckUpdatesHelp")}
+                </p>
+              </div>
+              <Switch
+                checked={updateSettings.autoCheckEnabled}
+                onCheckedChange={(checked) => setUpdateSettings({ autoCheckEnabled: checked })}
+                disabled={!hasAppUpdater}
+              />
             </div>
-            <Switch
-              checked={updateSettings.autoCheckEnabled}
-              onCheckedChange={(checked) => setUpdateSettings({ autoCheckEnabled: checked })}
-              disabled={!hasAppUpdater}
-            />
           </div>
 
           {updateSettings.ignoredVersion && (

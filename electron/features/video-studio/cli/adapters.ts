@@ -54,6 +54,11 @@ export async function executeClaude(ctx: AdapterExecutionContext): Promise<Adapt
   let outputTokens = 0
   let costUsd = 0
   const stderrLines: string[] = []
+  // A failed turn usually reports the real reason on stdout as a stream-json
+  // result event (errors / is_error / api_error_status), which this adapter
+  // would otherwise drop — leaving only startup warnings (e.g. the claude.ai
+  // connectors notice) in stderr as the whole error message.
+  let resultError = ''
 
   try {
     const { exitCode, timedOut, canceled } = await spawnAndStream({
@@ -97,12 +102,30 @@ export async function executeClaude(ctx: AdapterExecutionContext): Promise<Adapt
           inputTokens = (event.usage?.input_tokens ?? 0) + (event.usage?.cache_read_input_tokens ?? 0)
           outputTokens = event.usage?.output_tokens ?? 0
           costUsd = event.total_cost_usd ?? 0
+          if (event.errors?.length) resultError = String(event.errors[0])
+          else if (event.error) resultError = String(event.error)
+          else if (event.is_error || event.subtype === 'error') {
+            resultError = event.error_text || event.api_error_status || event.message || 'claude reported an error'
+          }
         }
       },
       onStderrLine: (line) => {
         stderrLines.push(line)
       },
     })
+
+    const stderrText = stderrLines.join('\n').trim()
+    let error: string | undefined
+    if (canceled) {
+      error = 'Cancelled by user'
+    } else if (exitCode !== 0 && !outputText) {
+      // Surface the real reason, not the incidental startup warning on stderr.
+      if (timedOut) {
+        error = `CLI timed out after ${Math.round((ctx.timeoutMs ?? 120000) / 1000)}s before producing any output${stderrText ? ` — ${stderrText}` : ''}`
+      } else {
+        error = resultError || stderrText || `claude exited with code ${exitCode}`
+      }
+    }
 
     return {
       sessionId: resultSessionId,
@@ -113,7 +136,7 @@ export async function executeClaude(ctx: AdapterExecutionContext): Promise<Adapt
       exitCode,
       timedOut,
       canceled,
-      error: canceled ? 'Cancelled by user' : exitCode !== 0 && !outputText ? stderrLines.join('\n').trim() || `claude exited with code ${exitCode}` : undefined,
+      error,
     }
   } finally {
     if (promptFilePath) {

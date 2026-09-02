@@ -16,7 +16,7 @@
 import { useAPIConfigStore, type AIFeature, type IProvider, AI_FEATURES } from '@/features/video-studio/stores/api-config-store';
 import { parseApiKeys, getProviderKeyManager, ApiKeyManager, getRuntimeProviderModels } from '@/features/video-studio/lib/api-key-manager';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
-import { getCliProviderPlatform, isCliFeatureEnabled, isCliProvider, runCliTextCompletion } from '@/features/video-studio/lib/cli-runtime';
+import { CLI_TEXT_TIMEOUT_MS, getCliProviderPlatform, isCliFeatureEnabled, isCliProvider, runCliTextCompletion } from '@/features/video-studio/lib/cli-runtime';
 
 function formatCliLogBlock(label: string, value: string, max = 4000): string {
   const text = value || '';
@@ -35,6 +35,10 @@ export interface FeatureConfig {
   baseUrl: string;
   models: string[];
   model: string; // Currently selected model
+  /** Local-CLI adapter to run (reuses ContentChat's wiring when no HTTP config exists). */
+  cliAdapter?: 'claude' | 'opencode' | 'codex';
+  /** CLI timeout override for heavy text requests backed by the local CLI. */
+  cliTimeoutMs?: number;
 }
 
 // Round-robin scheduler for multi-model features.
@@ -113,6 +117,11 @@ function getCliFeatureConfig(feature: AIFeature): FeatureConfig | null {
     baseUrl: provider.baseUrl,
     models: provider.model,
     model,
+    cliAdapter: cliRuntime.adapter,
+    // Text features go through the same slow local-CLI path ContentChat uses;
+    // give them its generous timeout so heavy script/chapter planning is not
+    // SIGTERM'd before the first token arrives.
+    cliTimeoutMs: CLI_TEXT_TIMEOUT_MS,
   };
 }
 

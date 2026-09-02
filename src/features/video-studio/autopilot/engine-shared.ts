@@ -7,7 +7,11 @@
  * can live in its own file without the engine class growing to match.
  */
 
-import { getFeatureConfig } from '@/features/video-studio/lib/ai/feature-router';
+import { getFeatureConfig, type FeatureConfig } from '@/features/video-studio/lib/ai/feature-router';
+import { CLI_TEXT_TIMEOUT_MS, getCliProviderPlatform } from '@/features/video-studio/lib/cli-runtime';
+import { ApiKeyManager } from '@/features/video-studio/lib/api-key-manager';
+import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
+import { useContentChatStore } from '@/features/content-chat/store';
 import {
   buildLaneWorkers,
   resolveLaneCount,
@@ -165,12 +169,62 @@ export function randomKenBurns(): AutoVideoMediaEffect {
   return KEN_BURNS_EFFECTS[Math.floor(Math.random() * KEN_BURNS_EFFECTS.length)];
 }
 
+/**
+ * Build a CLI-backed text config mirroring exactly what ContentChat uses — its
+ * adapter and its selected model — so AutoPilot text (script + shot planning)
+ * keeps working out of the box even when the Settings "Local CLI runtime" toggle
+ * is off. ContentChat itself never consults that toggle, so neither do we here.
+ */
+function buildCliTextConfig(): FeatureConfig {
+  const contentChat = useContentChatStore.getState();
+  const cliSettings = useVideoStudioSettingsStore.getState().cliRuntime;
+  // ContentChat defaults to the claude adapter; fall back to opencode for any
+  // other adapter (codex is carried via cliAdapter below for the actual spawn).
+  const adapter = contentChat.adapter;
+  const platform = getCliProviderPlatform(adapter === 'claude' ? 'claude' : 'opencode');
+  const model = contentChat.models[adapter]?.trim() || cliSettings.model?.trim() || '';
+  return {
+    feature: 'script_analysis',
+    featureName: 'Script Analysis',
+    provider: {
+      id: `__${platform}`,
+      platform,
+      name: 'ContentChat CLI',
+      baseUrl: 'cli://local',
+      apiKey: '',
+      model: model ? [model] : [],
+      capabilities: ['text'],
+    },
+    apiKey: '',
+    allApiKeys: [],
+    keyManager: new ApiKeyManager(''),
+    platform,
+    baseUrl: 'cli://local',
+    models: model ? [model] : [],
+    model,
+    cliAdapter: adapter,
+    cliTimeoutMs: CLI_TEXT_TIMEOUT_MS,
+  };
+}
+
 export function getTextAiConfig(): NonNullable<ReturnType<typeof getFeatureConfig>> {
   const config = getFeatureConfig('script_analysis') || getFeatureConfig('chat');
-  if (!config?.apiKey && config?.baseUrl !== 'cli://local') {
-    throw new Error('Chưa cấu hình AI cho viết kịch bản và lập visual plan');
+  if (config?.apiKey) return config;
+  if (config?.baseUrl === 'cli://local') {
+    // The Settings "Local CLI runtime" toggle is ON, so feature-router served its
+    // CLI config. That config already carries cliAdapter/cliTimeoutMs now, but
+    // pin them defensively anyway: chapter planning through a slow proxy takes
+    // ~2 minutes and must never fall back to the generic 120s Settings timeout.
+    const cliSettings = useVideoStudioSettingsStore.getState().cliRuntime;
+    return {
+      ...config,
+      cliAdapter: config.cliAdapter ?? cliSettings.adapter,
+      cliTimeoutMs: config.cliTimeoutMs ?? CLI_TEXT_TIMEOUT_MS,
+    };
   }
-  return config;
+  // No usable HTTP provider bound for text and the CLI toggle is off — reuse the
+  // same local CLI ContentChat runs so AutoPilot text never dies on a missing key.
+  return buildCliTextConfig();
 }
 
 /**

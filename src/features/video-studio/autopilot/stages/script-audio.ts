@@ -30,6 +30,9 @@ export async function runScriptStage(ctx: EngineContext, job: AutopilotJob, sign
         maxTokens: 8_000,
         signal,
         onCliLog: (message) => ctx.log(job.id, 'script', message),
+        cliAdapter: config.cliAdapter,
+        cliTimeoutMs: config.cliTimeoutMs,
+        sessionKey: `autopilot-script:${crypto.randomUUID()}`,
       },
     );
     ctx.updateJob(job.id, { scriptText });

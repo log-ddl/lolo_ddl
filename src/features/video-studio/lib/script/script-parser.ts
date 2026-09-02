@@ -23,6 +23,10 @@ export interface ParseOptions {
   maxTokens?: number; // Custom max output token count, default 4096
   /** Disable deep reasoning on reasoning models (e.g. GLM-4.7 / 4.5) to avoid exhausting output tokens */
   disableThinking?: boolean;
+  /** Explicit local-CLI adapter override (reuses ContentChat's wiring for text features). */
+  cliAdapter?: 'claude' | 'opencode' | 'codex';
+  /** Longer CLI timeout for heavy text requests (scripts, shot planning). */
+  cliTimeoutMs?: number;
   onChunk?: (chunk: string) => void;
   sessionKey?: string;
   onCliLog?: (message: string) => void;
@@ -58,6 +62,12 @@ export async function callChatAPI(
         systemPrompt,
         userPrompt,
         model,
+        // A cli://local base URL is an explicit CLI routing decision (either the
+        // Settings toggle is on, or getTextAiConfig fell back to ContentChat's CLI),
+        // so the enabled toggle is not consulted again here — matching ContentChat.
+        adapter: options.cliAdapter,
+        allowDisabled: true,
+        timeoutMs: options.cliTimeoutMs,
         sessionKey,
         onChunk: options.onChunk,
         signal: options.signal,

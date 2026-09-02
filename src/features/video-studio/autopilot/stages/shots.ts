@@ -71,6 +71,12 @@ export async function runShotsStage(
     maxTokens: 10_000,
     signal,
     onCliLog: (message: string) => ctx.log(job.id, 'shots', message),
+    cliAdapter: config.cliAdapter,
+    cliTimeoutMs: config.cliTimeoutMs,
+    // One-shot planner: never resume another call's CLI session. Long-form runs
+    // many chapters with the same provider:model sessionKey, which made later
+    // chapters --resume earlier chapters and drag their transcript into context.
+    sessionKey: `autopilot-shots:${crypto.randomUUID()}`,
   };
   let response = await callChatAPI(AUTOPILOT_SHOT_PLANNER_SYSTEM_PROMPT, userPrompt, chatOptions);
   let plan = parsePlannerResponse(response);
@@ -218,6 +224,9 @@ export async function runLongFormShotsStage(
         maxTokens: 2_500,
         signal,
         onCliLog: (message) => ctx.log(job.id, 'shots', message),
+        cliAdapter: config.cliAdapter,
+        cliTimeoutMs: config.cliTimeoutMs,
+        sessionKey: `autopilot-bible:${crypto.randomUUID()}`,
       },
     );
     bible = normalizeLongFormBible(safeParseJson<unknown>(cleanJsonString(response), {}));

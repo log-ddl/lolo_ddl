@@ -3,6 +3,16 @@ import type { AIFeature } from '@/features/video-studio/stores/api-config-store'
 
 export const CLI_TEXT_FEATURES = new Set<AIFeature>(['script_analysis', 'chat'])
 
+/**
+ * Heavy text tasks (script writing, shot/chapter planning) run against a local
+ * CLI that often proxies to a slow model — DeepSeek-backed chapter planning has
+ * measured ~120s for a single call. ContentChat hard-codes a 10-minute timeout
+ * for exactly this reason. Text features must inherit the same budget instead of
+ * the generic Settings CLI timeout (120s default), or spawnAndStream kills the
+ * claude process before the first token arrives and surfaces only stderr.
+ */
+export const CLI_TEXT_TIMEOUT_MS = 600_000
+
 const DEV_CLI_BASE_PATH = '/__cli'
 
 export interface CliStatusInfo {
@@ -306,6 +316,12 @@ export async function runCliTextCompletion(params: {
   userPrompt: string
   model?: string
   effort?: string
+  /** Override the globally configured CLI adapter (e.g. reuse ContentChat's adapter). */
+  adapter?: 'claude' | 'opencode' | 'codex'
+  /** Run even when the Settings CLI-runtime toggle is off (ContentChat never gates on it). */
+  allowDisabled?: boolean
+  /** Override the globally configured CLI timeout for heavy text requests. */
+  timeoutMs?: number
   sessionKey?: string
   onChunk?: (chunk: string) => void
   onCommands?: (commands: CliSlashCommand[]) => void
@@ -313,18 +329,18 @@ export async function runCliTextCompletion(params: {
 }): Promise<string> {
   const settings = useVideoStudioSettingsStore.getState().cliRuntime
 
-  if (!settings.enabled) {
+  if (!settings.enabled && !params.allowDisabled) {
     throw new Error('CLI runtime is disabled')
   }
 
   return runCliTextTask({
-    adapter: settings.adapter,
+    adapter: params.adapter || settings.adapter,
     prompt: params.userPrompt,
     systemPrompt: params.systemPrompt,
     model: params.model || settings.model,
     effort: params.effort,
     sessionKey: params.sessionKey || params.feature || 'chat',
-    timeoutMs: settings.timeoutMs,
+    timeoutMs: params.timeoutMs ?? settings.timeoutMs,
     onChunk: params.onChunk,
     onCommands: params.onCommands,
     signal: params.signal,
