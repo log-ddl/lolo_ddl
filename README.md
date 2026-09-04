@@ -199,20 +199,6 @@ Ví dụ registry:
 - Avatar tài khoản được resize tối đa 256px và chỉ lưu local trên thiết bị.
 - Metadata `requiredPlan` quyết định nhãn quyền của card. Thứ tự quyền là `free < pro < unlimited < dev`; Dev là gói nội bộ cao nhất và được dùng toàn bộ chức năng. Buzz trong Content Chat chỉ hiển thị cho Dev.
 
-## Max Studio trong Video Studio
-
-Max Studio hỗ trợ hai luồng:
-
-- **V1:** dùng X-API-Key, JWT và mediaId.
-- **V2:** chỉ dùng X-API-Key; không dùng JWT hoặc luồng upload mediaId của V1.
-
-Dialog cấu hình cho phép lưu V1 khi chưa có JWT. JWT chỉ được kiểm tra khi bắt đầu tạo ảnh hoặc video:
-
-- Thiếu JWT: dừng sớm và yêu cầu bổ sung.
-- JWT đã biết hết hạn: dừng sớm và báo token cần thay hoặc xóa.
-- JWT hợp lệ: tiếp tục scheduler, lane, upload mediaId và generation như bình thường.
-
-V2 đi qua nhánh riêng trước bước kiểm tra JWT.
 
 ## Dữ liệu local
 
@@ -248,8 +234,6 @@ Sau đó kiểm tra thủ công tối thiểu:
 - Mở/đóng popup Tài khoản, đổi và xóa avatar.
 - Điều hướng qua bốn card và quay về trang chủ bằng nút `L`.
 - Tạo, mở, đổi và xóa project Video Studio.
-- Max Studio V1 với JWT hợp lệ, thiếu JWT và JWT hết hạn.
-- Max Studio V2 tạo ảnh/video mà không cần JWT.
 - Build và khởi động bản Electron đóng gói.
 
 Hiện dự án chưa có test suite tự động được khai báo trong `package.json`; lint, production build và kiểm thử Electron thủ công là các bước xác minh bắt buộc.
