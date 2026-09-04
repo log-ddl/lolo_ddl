@@ -206,7 +206,10 @@ const defaultState: VideoStudioSettingsState = {
     enabled: false,
     adapter: "opencode",
     model: "",
-    timeoutMs: 120000,
+    // Kịch bản dài / lập kế hoạch shot qua CLI proxy có thể chạy vài phút, nên
+    // mặc định bằng đúng ngân sách ContentChat dùng: 10 phút. Đây là nguồn duy
+    // nhất cho mọi lời gọi text qua CLI (AutoPilot, script panel, Settings test).
+    timeoutMs: 600000,
   },
   maxStudioLanes: defaultMaxStudioLaneSettings,
   scriptImport: {

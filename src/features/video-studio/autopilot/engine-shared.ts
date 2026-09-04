@@ -8,7 +8,7 @@
  */
 
 import { getFeatureConfig, type FeatureConfig } from '@/features/video-studio/lib/ai/feature-router';
-import { CLI_TEXT_TIMEOUT_MS, getCliProviderPlatform } from '@/features/video-studio/lib/cli-runtime';
+import { getCliProviderPlatform } from '@/features/video-studio/lib/cli-runtime';
 import { ApiKeyManager } from '@/features/video-studio/lib/api-key-manager';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { useContentChatStore } from '@/features/content-chat/store';
@@ -33,6 +33,13 @@ import type {
 export type PlannedShot = AutopilotPlannedShot & Shot & {
   transitionToNext?: AutoVideoTransition;
 };
+
+/**
+ * How many reference images one shot frame may carry. The scene reference and
+ * the researched real image reserve a slot each; characters share the rest.
+ * The Flow runtime itself accepts up to 10 per image request.
+ */
+export const MAX_IMAGE_REFERENCE_SLOTS = 8;
 
 export interface PendingShot {
   shot: PlannedShot;
@@ -164,7 +171,7 @@ export function normalizeRestoredAssetStatus(status: AutopilotAssetStatus | unde
 
 /**
  * Build a CLI-backed text config mirroring exactly what ContentChat uses — its
- * adapter and its selected model — so AutoPilot text (script + shot planning)
+ * adapter, selected model and effort — so AutoPilot text (script + shot planning)
  * keeps working out of the box even when the Settings "Local CLI runtime" toggle
  * is off. ContentChat itself never consults that toggle, so neither do we here.
  */
@@ -196,28 +203,45 @@ function buildCliTextConfig(): FeatureConfig {
     models: model ? [model] : [],
     model,
     cliAdapter: adapter,
-    cliTimeoutMs: CLI_TEXT_TIMEOUT_MS,
+    cliTimeoutMs: cliSettings.timeoutMs,
+    cliEffort: contentChat.efforts[adapter]?.trim() || undefined,
   };
 }
 
-export function getTextAiConfig(): NonNullable<ReturnType<typeof getFeatureConfig>> {
+/**
+ * Resolve the ContentChat workspace so an AutoPilot CLI turn is spawned the same
+ * way a chat turn is: inside the active conversation's workspace, with the
+ * ContentChat MCP tools available. Returns nothing outside the desktop app.
+ */
+async function resolveContentWorkspacePath(): Promise<string | undefined> {
+  if (!window.contentWorkspace) return undefined;
+  try {
+    const contentChat = useContentChatStore.getState();
+    const active = contentChat.conversations.find((item) => item.id === contentChat.activeConversationId);
+    const workspace = await window.contentWorkspace.ensure(active?.workspacePath ?? null);
+    return workspace?.path;
+  } catch {
+    // A missing/unreadable workspace must not kill a render: the CLI simply runs
+    // in its default directory, as it did before workspaces existed.
+    return undefined;
+  }
+}
+
+export async function getTextAiConfig(): Promise<NonNullable<ReturnType<typeof getFeatureConfig>>> {
   const config = getFeatureConfig('script_analysis') || getFeatureConfig('chat');
   if (config?.apiKey) return config;
-  if (config?.baseUrl === 'cli://local') {
-    // The Settings "Local CLI runtime" toggle is ON, so feature-router served its
-    // CLI config. That config already carries cliAdapter/cliTimeoutMs now, but
-    // pin them defensively anyway: chapter planning through a slow proxy takes
-    // ~2 minutes and must never fall back to the generic 120s Settings timeout.
-    const cliSettings = useVideoStudioSettingsStore.getState().cliRuntime;
-    return {
-      ...config,
-      cliAdapter: config.cliAdapter ?? cliSettings.adapter,
-      cliTimeoutMs: config.cliTimeoutMs ?? CLI_TEXT_TIMEOUT_MS,
-    };
-  }
-  // No usable HTTP provider bound for text and the CLI toggle is off — reuse the
-  // same local CLI ContentChat runs so AutoPilot text never dies on a missing key.
-  return buildCliTextConfig();
+  const cliSettings = useVideoStudioSettingsStore.getState().cliRuntime;
+  // Either the Settings "Local CLI runtime" toggle is ON and feature-router served
+  // its CLI config, or no usable HTTP provider is bound and we reuse the exact CLI
+  // ContentChat runs, so AutoPilot text never dies on a missing key.
+  const cliConfig = config?.baseUrl === 'cli://local'
+    ? { ...config, cliAdapter: config.cliAdapter ?? cliSettings.adapter, cliTimeoutMs: config.cliTimeoutMs ?? cliSettings.timeoutMs }
+    : buildCliTextConfig();
+  return {
+    ...cliConfig,
+    cliWorkingDirectory: await resolveContentWorkspacePath(),
+    cliEnableContentMcp: true,
+  };
 }
 
 /**

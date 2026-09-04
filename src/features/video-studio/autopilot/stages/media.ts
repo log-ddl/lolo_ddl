@@ -19,6 +19,7 @@ import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName, skillAllowsRea
 import { downloadRealImage } from '../real-media-search';
 import type { AutopilotJob } from '../types';
 import {
+  MAX_IMAGE_REFERENCE_SLOTS,
   runGenerationWithRetries,
   runGoogleFlowQueueOrdered,
   type CharacterReference,
@@ -193,7 +194,7 @@ export async function runMediaStage(
     const characterRefs = (item.shot.characterNames || [])
       .map((name) => characterByName.get(name.toLocaleLowerCase()))
       .filter((character): character is CharacterReference => !!character?.imagePath)
-      .slice(0, Math.max(0, 4 - reservedReferenceSlots));
+      .slice(0, Math.max(0, MAX_IMAGE_REFERENCE_SLOTS - reservedReferenceSlots));
     const references: Array<{ source: string; provider: 'googleflow' }> = [];
     if (sceneRef?.imagePath) references.push({ source: sceneRef.imagePath, provider: 'googleflow' });
     references.push(...characterRefs.map((character) => ({ source: character.imagePath, provider: 'googleflow' as const })));
@@ -202,7 +203,9 @@ export async function runMediaStage(
       ? `Use the first supplied reference as the authoritative environment for scene "${sceneRef.name}". Preserve its architecture, layout, palette and recurring props while applying the shot composition and camera angle. `
       : '';
     const identityLine = characterRefs.length > 0
-      ? `Preserve the supplied character identities exactly. Visible characters: ${characterRefs.map((character) => character.name).join(', ')}. `
+      ? `Preserve the supplied character identities exactly. Visible characters: ${characterRefs
+          .map((character) => `${character.name}: ${character.characterPrompt || character.description}`)
+          .join('; ')}. Use each description only for identity traits — ignore any pose, framing or background it mentions; the shot composition below wins. `
       : '';
     const researchLine = item.realImage
       ? 'Use the final supplied reference as factual source imagery. Integrate it naturally into the composition where it best supports the visual hierarchy and story. Keep it clearly recognizable and preserve its factual content and identity. '

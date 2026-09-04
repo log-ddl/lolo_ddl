@@ -19,10 +19,23 @@ function hashSeed(seed: string): number {
   return hash >>> 0;
 }
 
+/**
+ * A move shorter than this reads as a twitch rather than a drift: the same zoom
+ * travel has to be covered in a fraction of the time, and the shot is cut before
+ * the eye settles. Such shots stay frozen whatever the percentage says.
+ */
+export const KEN_BURNS_MIN_DURATION_MS = 1_500;
+
+export interface KenBurnsShot {
+  index: number;
+  /** On-screen time of the shot; drives the too-short-to-move rule. */
+  durationMs: number;
+}
+
 export interface KenBurnsPlanOptions {
   /** Off freezes every still shot. */
   enabled: boolean;
-  /** Share of still shots that move (0-100). */
+  /** Share of eligible still shots that move (0-100). */
   percent: number;
   /** Stable per-job seed. */
   seed: string;
@@ -31,22 +44,26 @@ export interface KenBurnsPlanOptions {
 /**
  * Decides which still shots get a Ken Burns move.
  *
- * Two properties matter beyond the raw percentage:
- * 1. the moving shots are spread evenly over the whole film — picking each shot
+ * Three properties matter beyond the raw percentage:
+ * 1. shots under KEN_BURNS_MIN_DURATION_MS never move, and are not counted in the
+ *    percentage either — they are not candidates, so "10%" means 10% of the shots
+ *    that are actually long enough to carry a move;
+ * 2. the moving shots are spread evenly over the whole film — picking each shot
  *    independently at 10% clusters three moves together and then leaves forty
  *    frozen shots in a row;
- * 2. the choice is derived from the job seed instead of Math.random(), so a
+ * 3. the choice is derived from the job seed instead of Math.random(), so a
  *    resumed or re-rendered job reproduces exactly the same edit.
  *
  * Callers must plan over the entire film at once — planning per chapter would
  * apply the percentage to each chapter separately.
  */
 export function planKenBurnsEffects(
-  shotIndexes: number[],
+  shots: KenBurnsShot[],
   options: KenBurnsPlanOptions,
 ): Map<number, AutoVideoMediaEffect> {
-  const plan = new Map<number, AutoVideoMediaEffect>(shotIndexes.map((index) => [index, 'none' as AutoVideoMediaEffect]));
+  const plan = new Map<number, AutoVideoMediaEffect>(shots.map((shot) => [shot.index, 'none' as AutoVideoMediaEffect]));
   const percent = Math.min(100, Math.max(0, options.percent));
+  const shotIndexes = shots.filter((shot) => shot.durationMs >= KEN_BURNS_MIN_DURATION_MS).map((shot) => shot.index);
   if (!options.enabled || percent <= 0 || shotIndexes.length === 0) return plan;
 
   // A non-zero percentage always moves at least one shot, so "1% of 20 shots"

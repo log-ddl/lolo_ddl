@@ -49,7 +49,7 @@ export async function runShotsStage(
 ): Promise<ShotPlan> {
   ctx.log(job.id, 'shots', `AI viết visual prompt cho ${beats.length} beat đã khóa timing...`);
   if (options.progress !== false) ctx.stageProgress(job.id, 'shots', 10);
-  const config = getTextAiConfig();
+  const config = await getTextAiConfig();
   const skill = [job.input.skill, job.input.style].filter(Boolean).join('\n\n').slice(0, 40_000);
   const allowRealImageResearch = skillAllowsRealImageResearch(job.input.skill);
   const beatPayload = beats.map((beat) => ({
@@ -79,6 +79,9 @@ export async function runShotsStage(
     onCliLog: (message: string) => ctx.log(job.id, 'shots', message),
     cliAdapter: config.cliAdapter,
     cliTimeoutMs: config.cliTimeoutMs,
+    cliEffort: config.cliEffort,
+    cliWorkingDirectory: config.cliWorkingDirectory,
+    cliEnableContentMcp: config.cliEnableContentMcp,
     // One-shot planner: never resume another call's CLI session. Long-form runs
     // many chapters with the same provider:model sessionKey, which made later
     // chapters --resume earlier chapters and drag their transcript into context.
@@ -230,7 +233,7 @@ export async function runLongFormShotsStage(
   let bible = job.longFormBible;
   if (!bible) {
     ctx.log(job.id, 'shots', 'AI khóa story/visual bible dùng chung cho toàn bộ phim...');
-    const config = getTextAiConfig();
+    const config = await getTextAiConfig();
     const narration = beats.map((beat) => `[${beat.index}] ${beat.text}`).join('\n').slice(0, 48_000);
     const response = await callChatAPI(
       AUTOPILOT_LONG_FORM_BIBLE_SYSTEM_PROMPT,
@@ -245,6 +248,9 @@ export async function runLongFormShotsStage(
         onCliLog: (message) => ctx.log(job.id, 'shots', message),
         cliAdapter: config.cliAdapter,
         cliTimeoutMs: config.cliTimeoutMs,
+        cliEffort: config.cliEffort,
+        cliWorkingDirectory: config.cliWorkingDirectory,
+        cliEnableContentMcp: config.cliEnableContentMcp,
         sessionKey: `autopilot-bible:${crypto.randomUUID()}`,
       },
     );

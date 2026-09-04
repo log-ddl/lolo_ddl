@@ -207,7 +207,7 @@ const media = {
   "autopilot.panel.longFormThreshold": "Chia phim dài từ (phút)",
   "autopilot.panel.longFormThresholdHint": "Dưới ngưỡng chạy pipeline thường; mặc định 8 phút.",
   "autopilot.panel.kenBurns": "Ken Burns cho shot ảnh tĩnh",
-  "autopilot.panel.kenBurnsHint": "Để trống = 100% shot tĩnh có chuyển động. Điền 10 thì chỉ 10% shot chuyển động, rải đều cả phim, số còn lại giữ khung đứng yên.",
+  "autopilot.panel.kenBurnsHint": "Để trống = 100% shot tĩnh có chuyển động. Điền 10 thì chỉ 10% shot chuyển động, rải đều cả phim, số còn lại giữ khung đứng yên. Shot dưới 1,5s luôn đứng yên và không tính vào tỉ lệ.",
   "autopilot.panel.aspectRatio": "Tỷ lệ khung hình",
   "autopilot.panel.voice": "Nhà cung cấp giọng đọc",
   "autopilot.panel.language": "Ngôn ngữ",

@@ -3819,6 +3819,7 @@ async function executeClaude(ctx) {
   let outputTokens = 0;
   let costUsd = 0;
   const stderrLines = [];
+  let resultError = "";
   try {
     const { exitCode, timedOut, canceled } = await spawnAndStream({
       command: resolveCliCommand("claude"),
@@ -3858,12 +3859,28 @@ async function executeClaude(ctx) {
           inputTokens = (event.usage?.input_tokens ?? 0) + (event.usage?.cache_read_input_tokens ?? 0);
           outputTokens = event.usage?.output_tokens ?? 0;
           costUsd = event.total_cost_usd ?? 0;
+          if (event.errors?.length) resultError = String(event.errors[0]);
+          else if (event.error) resultError = String(event.error);
+          else if (event.is_error || event.subtype === "error") {
+            resultError = event.error_text || event.api_error_status || event.message || "claude reported an error";
+          }
         }
       },
       onStderrLine: (line) => {
         stderrLines.push(line);
       }
     });
+    const stderrText = stderrLines.join("\n").trim();
+    let error;
+    if (canceled) {
+      error = "Cancelled by user";
+    } else if (exitCode !== 0 && !outputText) {
+      if (timedOut) {
+        error = `CLI timed out after ${Math.round((ctx.timeoutMs ?? 12e4) / 1e3)}s before producing any output${stderrText ? ` — ${stderrText}` : ""}`;
+      } else {
+        error = resultError || stderrText || `claude exited with code ${exitCode}`;
+      }
+    }
     return {
       sessionId: resultSessionId,
       outputText,
@@ -3873,7 +3890,7 @@ async function executeClaude(ctx) {
       exitCode,
       timedOut,
       canceled,
-      error: canceled ? "Cancelled by user" : exitCode !== 0 && !outputText ? stderrLines.join("\n").trim() || `claude exited with code ${exitCode}` : void 0
+      error
     };
   } finally {
     if (promptFilePath) {

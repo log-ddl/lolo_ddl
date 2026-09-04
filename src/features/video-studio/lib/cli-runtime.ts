@@ -3,16 +3,6 @@ import type { AIFeature } from '@/features/video-studio/stores/api-config-store'
 
 export const CLI_TEXT_FEATURES = new Set<AIFeature>(['script_analysis', 'chat'])
 
-/**
- * Heavy text tasks (script writing, shot/chapter planning) run against a local
- * CLI that often proxies to a slow model — DeepSeek-backed chapter planning has
- * measured ~120s for a single call. ContentChat hard-codes a 10-minute timeout
- * for exactly this reason. Text features must inherit the same budget instead of
- * the generic Settings CLI timeout (120s default), or spawnAndStream kills the
- * claude process before the first token arrives and surfaces only stderr.
- */
-export const CLI_TEXT_TIMEOUT_MS = 600_000
-
 const DEV_CLI_BASE_PATH = '/__cli'
 
 export interface CliStatusInfo {
@@ -322,6 +312,10 @@ export async function runCliTextCompletion(params: {
   allowDisabled?: boolean
   /** Override the globally configured CLI timeout for heavy text requests. */
   timeoutMs?: number
+  /** Workspace the CLI runs in, exactly like a ContentChat conversation. */
+  workingDirectory?: string
+  /** Expose the ContentChat MCP tools to this turn, exactly like ContentChat. */
+  enableContentMcp?: boolean
   sessionKey?: string
   onChunk?: (chunk: string) => void
   onCommands?: (commands: CliSlashCommand[]) => void
@@ -341,6 +335,8 @@ export async function runCliTextCompletion(params: {
     effort: params.effort,
     sessionKey: params.sessionKey || params.feature || 'chat',
     timeoutMs: params.timeoutMs ?? settings.timeoutMs,
+    workingDirectory: params.workingDirectory,
+    enableContentMcp: params.enableContentMcp,
     onChunk: params.onChunk,
     onCommands: params.onCommands,
     signal: params.signal,

@@ -25,8 +25,14 @@ export interface ParseOptions {
   disableThinking?: boolean;
   /** Explicit local-CLI adapter override (reuses ContentChat's wiring for text features). */
   cliAdapter?: 'claude' | 'opencode' | 'codex';
-  /** Longer CLI timeout for heavy text requests (scripts, shot planning). */
+  /** CLI timeout for this text request (comes from Settings → CLI runtime). */
   cliTimeoutMs?: number;
+  /** Reasoning effort for the local CLI, mirroring ContentChat's selection. */
+  cliEffort?: string;
+  /** Workspace directory the CLI turn runs in, exactly like a ContentChat conversation. */
+  cliWorkingDirectory?: string;
+  /** Expose the ContentChat MCP tools to this CLI turn. */
+  cliEnableContentMcp?: boolean;
   onChunk?: (chunk: string) => void;
   sessionKey?: string;
   onCliLog?: (message: string) => void;
@@ -68,6 +74,9 @@ export async function callChatAPI(
         adapter: options.cliAdapter,
         allowDisabled: true,
         timeoutMs: options.cliTimeoutMs,
+        effort: options.cliEffort,
+        workingDirectory: options.cliWorkingDirectory,
+        enableContentMcp: options.cliEnableContentMcp,
         sessionKey,
         onChunk: options.onChunk,
         signal: options.signal,

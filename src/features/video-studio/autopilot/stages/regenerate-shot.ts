@@ -12,7 +12,7 @@ import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/vide
 import { saveImageToLocal, saveVideoToLocal } from '@/features/video-studio/lib/image-storage';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prompts';
 import type { AutopilotJob } from '../types';
-import { runGenerationWithRetries, type CharacterReference, type EngineContext } from '../engine-shared';
+import { MAX_IMAGE_REFERENCE_SLOTS, runGenerationWithRetries, type CharacterReference, type EngineContext } from '../engine-shared';
 
 export async function runSingleShotRegeneration(
   ctx: EngineContext,
@@ -67,7 +67,7 @@ export async function runSingleShotRegeneration(
       const characterRefs = (shot.characterNames || [])
         .map((name) => characterByName.get(name.toLocaleLowerCase()))
         .filter((c): c is CharacterReference => !!c?.imagePath)
-        .slice(0, Math.max(0, 4 - reservedReferenceSlots));
+        .slice(0, Math.max(0, MAX_IMAGE_REFERENCE_SLOTS - reservedReferenceSlots));
       const references: Array<{ source: string; provider: 'googleflow' }> = [];
       if (sceneRef?.imagePath) references.push({ source: sceneRef.imagePath, provider: 'googleflow' });
       references.push(...characterRefs.map((c) => ({ source: c.imagePath, provider: 'googleflow' as const })));
@@ -76,7 +76,9 @@ export async function runSingleShotRegeneration(
         ? `Use the first supplied reference as the authoritative environment for scene "${sceneRef.name}". Preserve its architecture, layout, palette and recurring props while applying the shot composition and camera angle. `
         : '';
       const identityLine = characterRefs.length > 0
-        ? `Preserve the supplied character identities exactly. Visible characters: ${characterRefs.map((c) => c.name).join(', ')}. `
+        ? `Preserve the supplied character identities exactly. Visible characters: ${characterRefs
+            .map((c) => `${c.name}: ${c.characterPrompt || c.description}`)
+            .join('; ')}. Use each description only for identity traits — ignore any pose, framing or background it mentions; the shot composition below wins. `
         : '';
       const researchLine = mediaOutput.realImagePath
         ? 'Use the final supplied reference as factual source imagery. Integrate it naturally into the composition where it best supports the visual hierarchy and story. Keep it clearly recognizable and preserve its factual content and identity. '

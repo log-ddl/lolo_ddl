@@ -7,7 +7,7 @@
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { safeFileName } from '../prompts';
 import type { AutopilotJob, AutopilotSrtSegment } from '../types';
-import { planKenBurnsEffects } from '../ken-burns';
+import { KEN_BURNS_MIN_DURATION_MS, planKenBurnsEffects } from '../ken-burns';
 import type { EngineContext, PendingShot } from '../engine-shared';
 
 export async function runRenderStage(
@@ -28,22 +28,24 @@ export async function runRenderStage(
   const kenBurnsDefaults = useVideoStudioSettingsStore.getState().autopilot;
   const kenBurnsEnabled = job.input.kenBurnsEnabled ?? kenBurnsDefaults.kenBurnsEnabled;
   const kenBurnsPercent = job.input.kenBurnsPercent ?? kenBurnsDefaults.kenBurnsPercent;
-  const stillShotIndexes = pending
+  const stillShots = pending
     .filter((item) => !item.videoPath)
-    .map((item) => item.shot.index)
-    .sort((a, b) => a - b);
-  const kenBurnsPlan = planKenBurnsEffects(stillShotIndexes, {
+    .map((item) => ({ index: item.shot.index, durationMs: item.shot.endMs - item.shot.startMs }))
+    .sort((a, b) => a.index - b.index);
+  const kenBurnsPlan = planKenBurnsEffects(stillShots, {
     enabled: kenBurnsEnabled,
     percent: kenBurnsPercent,
     seed: job.id,
   });
   const mediaEffectFor = (item: PendingShot) =>
     item.videoPath ? 'none' as const : kenBurnsPlan.get(item.shot.index) || 'none';
-  const movingStills = stillShotIndexes.filter((index) => (kenBurnsPlan.get(index) || 'none') !== 'none').length;
-  if (stillShotIndexes.length > 0) {
+  const movingStills = stillShots.filter((shot) => (kenBurnsPlan.get(shot.index) || 'none') !== 'none').length;
+  const tooShortStills = stillShots.filter((shot) => shot.durationMs < KEN_BURNS_MIN_DURATION_MS).length;
+  if (stillShots.length > 0) {
+    const tooShortNote = tooShortStills > 0 ? `; ${tooShortStills} shot dưới ${KEN_BURNS_MIN_DURATION_MS / 1000}s luôn đứng yên` : '';
     ctx.log(job.id, 'render', kenBurnsEnabled
-      ? `Ken Burns: ${movingStills}/${stillShotIndexes.length} shot tĩnh có chuyển động (cài đặt ${kenBurnsPercent}%)`
-      : `Ken Burns tắt: ${stillShotIndexes.length} shot tĩnh giữ nguyên khung`);
+      ? `Ken Burns: ${movingStills}/${stillShots.length} shot tĩnh có chuyển động (cài đặt ${kenBurnsPercent}%)${tooShortNote}`
+      : `Ken Burns tắt: ${stillShots.length} shot tĩnh giữ nguyên khung`);
   }
   if (chapters.length > 0) {
     ctx.log(job.id, 'render', `Long-form render: checkpoint ${chapters.length} chương trước khi ghép bản cuối`);

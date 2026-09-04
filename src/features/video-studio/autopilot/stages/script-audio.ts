@@ -18,7 +18,7 @@ export async function runScriptStage(ctx: EngineContext, job: AutopilotJob, sign
   if (!scriptText && job.input.topic?.trim()) {
     ctx.log(job.id, 'script', 'Viết kịch bản từ chủ đề...');
     ctx.stageProgress(job.id, 'script', 10);
-    const config = getTextAiConfig();
+    const config = await getTextAiConfig();
     scriptText = await callChatAPI(
       AUTOPILOT_WRITER_SYSTEM_PROMPT,
       buildAutopilotWriterUserPrompt(job.input.topic.trim(), job.input.style, job.input.skill),
@@ -32,6 +32,9 @@ export async function runScriptStage(ctx: EngineContext, job: AutopilotJob, sign
         onCliLog: (message) => ctx.log(job.id, 'script', message),
         cliAdapter: config.cliAdapter,
         cliTimeoutMs: config.cliTimeoutMs,
+        cliEffort: config.cliEffort,
+        cliWorkingDirectory: config.cliWorkingDirectory,
+        cliEnableContentMcp: config.cliEnableContentMcp,
         sessionKey: `autopilot-script:${crypto.randomUUID()}`,
       },
     );

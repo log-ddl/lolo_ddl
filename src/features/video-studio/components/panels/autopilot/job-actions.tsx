@@ -244,7 +244,7 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
             />
             <span className="text-2xs text-muted-foreground">%</span>
           </div>
-          <p className="text-2xs text-muted-foreground">Để trống = 100%. Chỉ áp cho shot giữ ảnh tĩnh, shot đã có video không đổi.</p>
+          <p className="text-2xs text-muted-foreground">Để trống = 100%. Chỉ áp cho shot giữ ảnh tĩnh, shot đã có video không đổi. Shot dưới 1,5s luôn đứng yên.</p>
         </div>
 
         <div className="flex items-center justify-between gap-2">
