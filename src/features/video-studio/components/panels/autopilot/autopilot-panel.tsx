@@ -15,6 +15,7 @@ import { useAutopilotStore } from "@/features/video-studio/stores/autopilot-stor
 import { useBatchQueueStore } from "@/features/video-studio/stores/batch-queue-store";
 import { useProjectStore } from "@/features/video-studio/stores/project-store";
 import {
+  normalizeAutopilotKenBurnsPercent,
   normalizeAutopilotLongFormThresholdMinutes,
   useVideoStudioSettingsStore,
 } from "@/features/video-studio/stores/video-studio-settings-store";
@@ -58,6 +59,8 @@ export function AutopilotPanel() {
   const resumeJob = useAutopilotStore((s) => s.resumeJob);
   const removeJob = useAutopilotStore((s) => s.removeJob);
   const longFormThresholdMinutes = useVideoStudioSettingsStore((s) => s.autopilot.longFormThresholdMinutes);
+  const kenBurnsEnabled = useVideoStudioSettingsStore((s) => s.autopilot.kenBurnsEnabled);
+  const kenBurnsPercent = useVideoStudioSettingsStore((s) => s.autopilot.kenBurnsPercent);
   const setAutopilotSettings = useVideoStudioSettingsStore((s) => s.setAutopilot);
   const visualStyleId = useProjectVisualStyleId();
   const savedSkills = useAutopilotSkillStore((s) => s.skills);
@@ -68,6 +71,8 @@ export function AutopilotPanel() {
   const selectSkill = useAutopilotSkillStore((s) => s.selectSkill);
 
   const [script, setScript] = useState("");
+  // Kept as text so the field can be left empty, which means 100%.
+  const [kenBurnsPercentInput, setKenBurnsPercentInput] = useState(kenBurnsPercent === 100 ? "" : String(kenBurnsPercent));
   const [skillName, setSkillName] = useState("");
   const [skillText, setSkillText] = useState("");
   const [skillExpanded, setSkillExpanded] = useState(false);
@@ -179,6 +184,8 @@ export function AutopilotPanel() {
       codec,
       audioNormalize: audioNormalize || undefined,
       videoAudioVolume: videoAudioVolume > 0 ? videoAudioVolume : undefined,
+      kenBurnsEnabled,
+      kenBurnsPercent,
       resolution: "1920x1080",
       executionMode,
       stopAfterStep: mergeAfterCreate ? undefined : "videos",
@@ -188,7 +195,7 @@ export function AutopilotPanel() {
       return null;
     }
     return input;
-  }, [t, importedPlan, script, skillText, maxShots, longFormThresholdMinutes, aspectRatio, voiceSource, importedAudioPath, importedSrtRaw, voice, subtitles, bgmPath, codec, audioNormalize, videoAudioVolume, mergeAfterCreate]);
+  }, [t, importedPlan, script, skillText, maxShots, longFormThresholdMinutes, aspectRatio, voiceSource, importedAudioPath, importedSrtRaw, voice, subtitles, bgmPath, codec, audioNormalize, videoAudioVolume, kenBurnsEnabled, kenBurnsPercent, mergeAfterCreate]);
 
   const handleCreate = useCallback((executionMode: "all" | "step") => {
     const input = buildInput(executionMode);
@@ -419,6 +426,30 @@ export function AutopilotPanel() {
                   </div>
                   <div className="flex h-8 items-center gap-2 whitespace-nowrap"><Switch checked={subtitles} onCheckedChange={setSubtitles} /><Label>{t("autopilot.panel.addSubtitles")}</Label></div>
                   <div className="flex h-8 items-center gap-2 whitespace-nowrap"><Switch checked={audioNormalize} onCheckedChange={setAudioNormalize} /><Label>Chuẩn hóa âm thanh (-14 LUFS YouTube)</Label></div>
+                </div>
+                <div>
+                  <div className="flex h-8 items-center gap-2 whitespace-nowrap">
+                    <Switch
+                      checked={kenBurnsEnabled}
+                      onCheckedChange={(value) => setAutopilotSettings({ kenBurnsEnabled: value })}
+                    />
+                    <Label>{t("autopilot.panel.kenBurns")}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      disabled={!kenBurnsEnabled}
+                      value={kenBurnsPercentInput}
+                      placeholder="100"
+                      onChange={(event) => {
+                        setKenBurnsPercentInput(event.target.value);
+                        setAutopilotSettings({ kenBurnsPercent: normalizeAutopilotKenBurnsPercent(event.target.value) });
+                      }}
+                      className="h-7 w-20 text-xs"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                  <p className="text-2xs text-muted-foreground mt-0.5">{t("autopilot.panel.kenBurnsHint")}</p>
                 </div>
                 <div>
                   <Label className="mb-1.5 block text-xs">Âm thanh gốc video ({Math.round(videoAudioVolume * 100)}%)</Label>

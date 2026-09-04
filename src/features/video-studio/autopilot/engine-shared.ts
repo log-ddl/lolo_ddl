@@ -20,7 +20,7 @@ import {
   withRetry,
 } from '@/features/video-studio/lib/ai/lane-manager';
 import type { Shot } from '@/features/video-studio/types/script';
-import type { AutoVideoMediaEffect, AutoVideoTransition } from '@/features/video-studio/lib/auto-video/types';
+import type { AutoVideoTransition } from '@/features/video-studio/lib/auto-video/types';
 import type { RealImageAsset } from './real-media-search';
 import type {
   AutopilotAssetStatus,
@@ -160,13 +160,6 @@ export function normalizeRestoredAssetStatus(status: AutopilotAssetStatus | unde
   if (raw === 'running' || raw === 'queued' || raw === 'uploading' || raw === 'generating') return 'idle';
   if (raw === 'done') return 'completed';
   return (status as AutopilotAssetStatus) || 'idle';
-}
-
-/** Ken Burns effects to randomly apply when a shot falls back to a still image (no video). */
-const KEN_BURNS_EFFECTS: AutoVideoMediaEffect[] = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down', 'zoom_pan_left', 'zoom_pan_right'];
-
-export function randomKenBurns(): AutoVideoMediaEffect {
-  return KEN_BURNS_EFFECTS[Math.floor(Math.random() * KEN_BURNS_EFFECTS.length)];
 }
 
 /**

@@ -61,6 +61,10 @@ export interface AutopilotSettings {
   longFormThresholdMinutes: number;
   /** Max chapters planned in parallel during long-form planning. */
   planningConcurrency: number;
+  /** Animate still shots with a Ken Burns move. Off keeps every still frozen. */
+  kenBurnsEnabled: boolean;
+  /** Share of still shots that get a Ken Burns move (0-100); the rest stay frozen. */
+  kenBurnsPercent: number;
 }
 
 interface VideoStudioSettingsState {
@@ -103,6 +107,9 @@ export const MAX_AUTOPILOT_LONG_FORM_THRESHOLD_MINUTES = 120;
 export const DEFAULT_AUTOPILOT_PLANNING_CONCURRENCY = 2;
 export const MIN_AUTOPILOT_PLANNING_CONCURRENCY = 1;
 export const MAX_AUTOPILOT_PLANNING_CONCURRENCY = 8;
+export const DEFAULT_AUTOPILOT_KEN_BURNS_PERCENT = 100;
+export const MIN_AUTOPILOT_KEN_BURNS_PERCENT = 0;
+export const MAX_AUTOPILOT_KEN_BURNS_PERCENT = 100;
 export const DEFAULT_TEXT_API_BATCH_CONCURRENCY = 1;
 export const MIN_TEXT_API_BATCH_CONCURRENCY = 1;
 export const MAX_TEXT_API_BATCH_CONCURRENCY = 8;
@@ -161,6 +168,16 @@ export function normalizeAutopilotPlanningConcurrency(value: unknown): number {
   return Math.round(Math.min(MAX_AUTOPILOT_PLANNING_CONCURRENCY, Math.max(MIN_AUTOPILOT_PLANNING_CONCURRENCY, parsed)));
 }
 
+/** An empty or unreadable field means "every still shot moves". */
+export function normalizeAutopilotKenBurnsPercent(value: unknown): number {
+  const raw = typeof value === 'number' ? value : String(value ?? '').trim();
+  // An empty field means "leave it at 100%", not "0%".
+  if (raw === '') return DEFAULT_AUTOPILOT_KEN_BURNS_PERCENT;
+  const parsed = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(parsed)) return DEFAULT_AUTOPILOT_KEN_BURNS_PERCENT;
+  return Math.round(Math.min(MAX_AUTOPILOT_KEN_BURNS_PERCENT, Math.max(MIN_AUTOPILOT_KEN_BURNS_PERCENT, parsed)));
+}
+
 function mergeScriptImportSettings(settings?: Partial<ScriptImportSettings>): ScriptImportSettings {
   return {
     longScriptSkillWordThreshold: normalizeLongScriptSkillWordThreshold(settings?.longScriptSkillWordThreshold),
@@ -199,6 +216,8 @@ const defaultState: VideoStudioSettingsState = {
   autopilot: {
     longFormThresholdMinutes: DEFAULT_AUTOPILOT_LONG_FORM_THRESHOLD_MINUTES,
     planningConcurrency: DEFAULT_AUTOPILOT_PLANNING_CONCURRENCY,
+    kenBurnsEnabled: true,
+    kenBurnsPercent: DEFAULT_AUTOPILOT_KEN_BURNS_PERCENT,
   },
   hideLoginBrowser: false,
   watermarkRemovalEnabled: false,
@@ -252,6 +271,10 @@ export const useVideoStudioSettingsStore = create<VideoStudioSettingsState & Vid
             ),
             planningConcurrency: normalizeAutopilotPlanningConcurrency(
               settings.planningConcurrency ?? state.autopilot.planningConcurrency,
+            ),
+            kenBurnsEnabled: settings.kenBurnsEnabled ?? state.autopilot.kenBurnsEnabled,
+            kenBurnsPercent: normalizeAutopilotKenBurnsPercent(
+              settings.kenBurnsPercent ?? state.autopilot.kenBurnsPercent,
             ),
           },
         })),
@@ -312,6 +335,10 @@ export const useVideoStudioSettingsStore = create<VideoStudioSettingsState & Vid
             ),
             planningConcurrency: normalizeAutopilotPlanningConcurrency(
               (typedPersisted as any)?.autopilot?.planningConcurrency,
+            ),
+            kenBurnsEnabled: (typedPersisted as any)?.autopilot?.kenBurnsEnabled ?? defaultState.autopilot.kenBurnsEnabled,
+            kenBurnsPercent: normalizeAutopilotKenBurnsPercent(
+              (typedPersisted as any)?.autopilot?.kenBurnsPercent,
             ),
           },
           hideLoginBrowser: typedPersisted?.hideLoginBrowser ?? defaultState.hideLoginBrowser,

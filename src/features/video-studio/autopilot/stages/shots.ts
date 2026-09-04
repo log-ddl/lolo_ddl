@@ -62,7 +62,13 @@ export async function runShotsStage(
   const appStyleContext = job.visualStylePrompt
     ? `\n\nAPP IMAGE STYLE (mandatory for every character reference and shot frame):\n${job.visualStylePrompt}`
     : '';
-  const userPrompt = `REAL IMAGE RESEARCH POLICY: ${allowRealImageResearch ? 'ENABLED — follow only the creative skill research rules.' : 'DISABLED — realImageQuery must be empty for every shot.'}\n\nCREATIVE SKILL:\n${skill || 'Cinematic editorial documentary, visually coherent across the film.'}${appStyleContext}${options.extraContext ? `\n\n${options.extraContext}` : ''}\n\nLOCKED AUDIO BEATS:\n${JSON.stringify(beatPayload)}`;
+  // The creative skill IS the planner's system prompt. AutoPilot no longer layers
+  // its own creative direction on top: the skill owns the JSON contract, the shot
+  // language, transitions and research rules, so nothing silently overrides it.
+  // The built-in prompt is only the safety net for a job that ships no skill at all.
+  const systemPrompt = skill || AUTOPILOT_SHOT_PLANNER_SYSTEM_PROMPT;
+  if (!skill) ctx.log(job.id, 'shots', 'Job không có skill — dùng contract planner mặc định');
+  const userPrompt = `REAL IMAGE RESEARCH POLICY: ${allowRealImageResearch ? 'ENABLED — follow only the creative skill research rules.' : 'DISABLED — realImageQuery must be empty for every shot.'}${appStyleContext}${options.extraContext ? `\n\n${options.extraContext}` : ''}\n\nLOCKED AUDIO BEATS (never rewrite, merge, omit or re-time; return one plan item per beatIndex):\n${JSON.stringify(beatPayload)}`;
   const chatOptions = {
     apiKey: config.apiKey,
     provider: config.platform,
@@ -78,12 +84,12 @@ export async function runShotsStage(
     // chapters --resume earlier chapters and drag their transcript into context.
     sessionKey: `autopilot-shots:${crypto.randomUUID()}`,
   };
-  let response = await callChatAPI(AUTOPILOT_SHOT_PLANNER_SYSTEM_PROMPT, userPrompt, chatOptions);
+  let response = await callChatAPI(systemPrompt, userPrompt, chatOptions);
   let plan = parsePlannerResponse(response);
   if (plan.shots.length === 0) {
     ctx.log(job.id, 'shots', 'JSON visual plan không hợp lệ — retry bằng contract rút gọn');
     response = await callChatAPI(
-      `${AUTOPILOT_SHOT_PLANNER_SYSTEM_PROMPT}\nYour previous response was invalid. Keep strings concise and verify every JSON quote and comma.`,
+      `${systemPrompt}\n\nYour previous response was invalid. Return only the JSON object your instructions define, with one shots[] item per beatIndex. Keep strings concise and verify every JSON quote and comma.`,
       userPrompt,
       chatOptions,
     );
@@ -102,10 +108,17 @@ export async function runShotsStage(
     // to dump the entire skill text into imagePrompt — which tripped Google Flow's
     // PUBLIC_ERROR_UNSAFE_GENERATION. The real visual style is appended separately
     // at generation time (visualStyleLine), so the fallback only needs the voice.
-    const planned = itemByBeat.get(beat.index) || fallbackPlannerItem(beat, aspectRatio, job.input.style);
-    if (!itemByBeat.has(beat.index)) fallbackCount += 1;
+    const fallback = itemByBeat.has(beat.index) ? null : fallbackPlannerItem(beat, aspectRatio, job.input.style);
+    const planned = itemByBeat.get(beat.index) || fallback!;
+    if (fallback) fallbackCount += 1;
     const imagePrompt = planned.imagePrompt?.trim() || fallbackPlannerItem(beat, aspectRatio, job.input.style).imagePrompt || '';
-    const videoPrompt = planned.videoPrompt?.trim() || fallbackPlannerItem(beat, aspectRatio, job.input.style).videoPrompt || '';
+    // An empty videoPrompt is a deliberate choice ("keep this shot a still"), not a
+    // missing field: only a beat the planner never answered may take the fallback
+    // motion. Coercing '' to the fallback used to force AI video on every shot and
+    // made the Ken Burns path in the media stage unreachable.
+    const videoPrompt = typeof planned.videoPrompt === 'string'
+      ? planned.videoPrompt.trim()
+      : (fallback?.videoPrompt || '');
     const requestedRealImageQuery = planned.realImageQuery?.trim() || '';
     const canUseRealImage = allowRealImageResearch && requestedRealImageQuery.length > 0 && researchedImageCount < maxResearchedImages;
     if (canUseRealImage) researchedImageCount += 1;
@@ -131,6 +144,12 @@ export async function runShotsStage(
       videoProgress: 0,
     };
   });
+  // With the skill acting as the planner contract, a skill that never states the
+  // JSON shape fails on every beat. Fail loudly instead of shipping a whole film of
+  // generic fallback prompts that ignore the skill entirely.
+  if (fallbackCount === beats.length && beats.length > 1) {
+    throw new Error(`Planner không trả được shot nào cho ${beats.length} beat. Skill phải mô tả JSON output (shots[] với beatIndex, imagePrompt, videoPrompt, transitionToNext).`);
+  }
   if (fallbackCount > 0) ctx.log(job.id, 'shots', `${fallbackCount} beat thiếu JSON hợp lệ — dùng prompt fallback, narration vẫn được giữ nguyên`);
   ctx.log(job.id, 'shots', allowRealImageResearch
     ? `Skill bật ảnh tư liệu: AI chọn ${researchedImageCount}/${shots.length} shot (giới hạn an toàn 25%)`

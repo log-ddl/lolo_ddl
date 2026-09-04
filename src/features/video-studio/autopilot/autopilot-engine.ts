@@ -433,7 +433,7 @@ export class AutopilotEngine {
    */
   rerenderJob(
     jobId: string,
-    renderPatch: Partial<Pick<AutopilotJobInput, 'subtitles' | 'bgmPath' | 'bgmVolume' | 'bgmDuckVoice' | 'resolution' | 'fps' | 'codec' | 'audioNormalize' | 'videoAudioVolume'>> = {},
+    renderPatch: Partial<Pick<AutopilotJobInput, 'subtitles' | 'bgmPath' | 'bgmVolume' | 'bgmDuckVoice' | 'resolution' | 'fps' | 'codec' | 'audioNormalize' | 'videoAudioVolume' | 'kenBurnsEnabled' | 'kenBurnsPercent'>> = {},
   ): boolean {
     const job = this.jobs.get(jobId);
     if (!job || ['running', 'queued'].includes(job.status) || this.activeControllers.has(jobId)) return false;

@@ -4,7 +4,7 @@ import { cn } from "@/shared/lib/utils";
 import { useI18n } from "@/shared/i18n";
 import { useNow } from "@/shared/lib/use-now";
 import { TaskInfoButton } from "@/shared/task-metadata";
-import { ChevronRight, Mic } from "lucide-react";
+import { ChevronRight, Mic, Plus } from "lucide-react";
 import { SplitSceneCard } from "@/features/video-studio/components/panels/director/split-scene-card";
 import { useAutopilotStore } from "@/features/video-studio/stores/autopilot-store";
 import type { SplitScene } from "@/features/video-studio/stores/director-types";
@@ -217,6 +217,7 @@ function AutopilotReferenceSelector({
   disabled: boolean;
 }) {
   const updateShotReferences = useAutopilotStore((s) => s.updateShotReferences);
+  const [addingCharacter, setAddingCharacter] = useState(false);
   const characters = job.plannedCharacters || [];
   const scenes = job.plannedScenes || [];
   const selectedNames = shot.characterNames || [];
@@ -229,39 +230,74 @@ function AutopilotReferenceSelector({
     updateShotReferences(job.id, shot.index, { characterNames: next });
   };
 
+  // A shot only shows the characters it actually references. Everyone else lives
+  // behind the + button, so a cast of ten does not print ten chips on every card.
+  // An imported plan can reference a name the job never planned, so the roster is
+  // the planned cast plus whatever this shot already points at.
+  const promptByName = new Map(characters.map((character) => [character.name.toLocaleLowerCase(), character.characterPrompt]));
+  const roster = [
+    ...characters.map((character) => character.name),
+    ...selectedNames.filter((name) => !promptByName.has(name.toLocaleLowerCase())),
+  ];
+  const referenced = roster.filter((name) => selectedSet.has(name.toLocaleLowerCase()));
+  const unreferenced = roster.filter((name) => !selectedSet.has(name.toLocaleLowerCase()));
+
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1.5 justify-end">
       <div className="text-2xs font-semibold text-muted-foreground">Tham chiếu</div>
 
-      <div className="space-y-1">
-        <div className="text-2xs text-muted-foreground">Nhân vật</div>
-        {characters.length === 0 ? (
-          <div className="text-2xs italic text-muted-foreground/60">Không có nhân vật</div>
-        ) : (
-          <div className="flex flex-wrap gap-1">
-            {characters.map((character) => {
-              const active = selectedSet.has(character.name.toLocaleLowerCase());
-              return (
+      {roster.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-2xs text-muted-foreground">Nhân vật</div>
+          <div className="flex min-h-[1.25rem] flex-wrap items-center gap-1">
+            {referenced.map((name) => (
+              <button
+                key={name}
+                type="button"
+                disabled={disabled}
+                onClick={() => toggleCharacter(name)}
+                className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-2xs text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+                title={promptByName.get(name.toLocaleLowerCase()) || "Bấm để bỏ tham chiếu"}
+              >
+                {name}
+              </button>
+            ))}
+            {unreferenced.length > 0 && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setAddingCharacter((open) => !open)}
+                className={cn(
+                  "flex h-[1.125rem] w-[1.125rem] items-center justify-center rounded-full border border-dashed text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50",
+                  addingCharacter ? "border-primary/40 bg-muted" : "border-border",
+                )}
+                title="Thêm nhân vật tham chiếu"
+              >
+                <Plus className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+          {addingCharacter && unreferenced.length > 0 && (
+            <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted/30 p-1">
+              {unreferenced.map((name) => (
                 <button
-                  key={character.name}
+                  key={name}
                   type="button"
                   disabled={disabled}
-                  onClick={() => toggleCharacter(character.name)}
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 text-2xs transition-colors disabled:opacity-50",
-                    active
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted",
-                  )}
-                  title={character.characterPrompt}
+                  onClick={() => {
+                    toggleCharacter(name);
+                    setAddingCharacter(false);
+                  }}
+                  className="rounded-full border border-border bg-background px-2 py-0.5 text-2xs text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                  title={promptByName.get(name.toLocaleLowerCase())}
                 >
-                  {character.name}
+                  {name}
                 </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-1">
         <div className="text-2xs text-muted-foreground">Cảnh</div>

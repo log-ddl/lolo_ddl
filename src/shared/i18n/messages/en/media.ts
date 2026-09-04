@@ -206,6 +206,8 @@ const media = {
   "autopilot.panel.maxShotsHint": "0 = derive automatically from narration; safety cap only.",
   "autopilot.panel.longFormThreshold": "Split long video from (min)",
   "autopilot.panel.longFormThresholdHint": "Below this uses the normal pipeline; default is 8 minutes.",
+  "autopilot.panel.kenBurns": "Ken Burns on still shots",
+  "autopilot.panel.kenBurnsHint": "Empty = every still shot moves. Enter 10 and only 10% move, spread evenly across the film; the rest stay frozen.",
   "autopilot.panel.aspectRatio": "Aspect ratio",
   "autopilot.panel.voice": "Voice provider",
   "autopilot.panel.language": "Language",

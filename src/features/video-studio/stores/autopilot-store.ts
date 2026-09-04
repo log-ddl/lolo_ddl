@@ -114,7 +114,7 @@ interface AutopilotState {
   importSceneImage: (jobId: string, name: string, source: string) => Promise<boolean>;
   regenerateReferenceImage: (jobId: string, kind: 'character' | 'scene', name: string) => boolean;
   updateReferencePrompt: (jobId: string, kind: 'character' | 'scene', name: string, newPrompt: string) => boolean;
-  rerenderJob: (jobId: string, renderPatch?: { subtitles?: boolean; bgmPath?: string; bgmVolume?: number; bgmDuckVoice?: boolean; resolution?: '1280x720' | '1920x1080' | '3840x2160'; fps?: 24 | 30 | 60; codec?: 'libx264' | 'libx265' | 'h264_nvenc'; audioNormalize?: boolean; videoAudioVolume?: number }) => boolean;
+  rerenderJob: (jobId: string, renderPatch?: { subtitles?: boolean; bgmPath?: string; bgmVolume?: number; bgmDuckVoice?: boolean; resolution?: '1280x720' | '1920x1080' | '3840x2160'; fps?: 24 | 30 | 60; codec?: 'libx264' | 'libx265' | 'h264_nvenc'; audioNormalize?: boolean; videoAudioVolume?: number; kenBurnsEnabled?: boolean; kenBurnsPercent?: number }) => boolean;
   removeJob: (jobId: string) => boolean;
   refreshEngineStatus: () => Promise<void>;
 }

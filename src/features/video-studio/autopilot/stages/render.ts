@@ -4,9 +4,11 @@
  * single pass.
  */
 
+import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { safeFileName } from '../prompts';
 import type { AutopilotJob, AutopilotSrtSegment } from '../types';
-import { randomKenBurns, type EngineContext, type PendingShot } from '../engine-shared';
+import { planKenBurnsEffects } from '../ken-burns';
+import type { EngineContext, PendingShot } from '../engine-shared';
 
 export async function runRenderStage(
   ctx: EngineContext,
@@ -19,6 +21,30 @@ export async function runRenderStage(
   const chapters = job.longFormMode && (job.chapters?.length || 0) > 1
     ? [...(job.chapters || [])].sort((a, b) => a.index - b.index)
     : [];
+  // Planned over every still shot in the film at once (chapters render separately,
+  // so a per-chapter plan would apply the percentage to each chapter on its own).
+  // The job's own value wins so a re-stitch can change the motion without touching
+  // Settings; Settings is the fallback for jobs created before the option existed.
+  const kenBurnsDefaults = useVideoStudioSettingsStore.getState().autopilot;
+  const kenBurnsEnabled = job.input.kenBurnsEnabled ?? kenBurnsDefaults.kenBurnsEnabled;
+  const kenBurnsPercent = job.input.kenBurnsPercent ?? kenBurnsDefaults.kenBurnsPercent;
+  const stillShotIndexes = pending
+    .filter((item) => !item.videoPath)
+    .map((item) => item.shot.index)
+    .sort((a, b) => a - b);
+  const kenBurnsPlan = planKenBurnsEffects(stillShotIndexes, {
+    enabled: kenBurnsEnabled,
+    percent: kenBurnsPercent,
+    seed: job.id,
+  });
+  const mediaEffectFor = (item: PendingShot) =>
+    item.videoPath ? 'none' as const : kenBurnsPlan.get(item.shot.index) || 'none';
+  const movingStills = stillShotIndexes.filter((index) => (kenBurnsPlan.get(index) || 'none') !== 'none').length;
+  if (stillShotIndexes.length > 0) {
+    ctx.log(job.id, 'render', kenBurnsEnabled
+      ? `Ken Burns: ${movingStills}/${stillShotIndexes.length} shot tĩnh có chuyển động (cài đặt ${kenBurnsPercent}%)`
+      : `Ken Burns tắt: ${stillShotIndexes.length} shot tĩnh giữ nguyên khung`);
+  }
   if (chapters.length > 0) {
     ctx.log(job.id, 'render', `Long-form render: checkpoint ${chapters.length} chương trước khi ghép bản cuối`);
     for (let chapterIndex = 0; chapterIndex < chapters.length; chapterIndex += 1) {
@@ -47,7 +73,7 @@ export async function runRenderStage(
         text: item.shot.voiceOver || '',
         imagePath: item.imagePath,
         videoPath: item.videoPath,
-        mediaEffect: item.videoPath ? 'none' as const : randomKenBurns(),
+        mediaEffect: mediaEffectFor(item),
         transitionToNext: item.shot.transitionToNext || 'none',
         sfxPath: '',
       }));
@@ -103,7 +129,7 @@ export async function runRenderStage(
     text: item.shot.voiceOver || '',
     imagePath: item.imagePath,
     videoPath: item.videoPath,
-    mediaEffect: item.videoPath ? 'none' as const : randomKenBurns(),
+    mediaEffect: mediaEffectFor(item),
     transitionToNext: item.shot.transitionToNext || 'none',
     sfxPath: '',
   }));

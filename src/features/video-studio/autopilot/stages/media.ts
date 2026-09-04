@@ -266,11 +266,12 @@ export async function runMediaStage(
   if (untilPhase === 'images') return pending;
 
   // ========== Phase 3/3: animate frames into clips ==========
-  // Shots with an empty videoPrompt are intentionally static: skip AI video and render the still with a Ken Burns move.
+  // Shots with an empty videoPrompt are intentionally static: skip AI video and keep
+  // the still. The render stage decides whether that still also gets a Ken Burns move.
   pending.forEach((item) => {
     if (item.imagePath && !item.videoPath && item.videoStatus !== 'skipped' && !item.shot.videoPrompt?.trim()) {
       item.videoStatus = 'skipped';
-      ctx.log(job.id, 'media', `Shot ${item.shot.index} không có videoPrompt — giữ ảnh tĩnh (Ken Burns)`);
+      ctx.log(job.id, 'media', `Shot ${item.shot.index} không có videoPrompt — giữ ảnh tĩnh`);
     }
   });
   syncMediaOutputs();

@@ -14,6 +14,10 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Popover, PopoverTrigger, PopoverContent } from "@/shared/components/ui/popover";
 import { autopilotEngine, useAutopilotStore } from "@/features/video-studio/stores/autopilot-store";
+import {
+  normalizeAutopilotKenBurnsPercent,
+  useVideoStudioSettingsStore,
+} from "@/features/video-studio/stores/video-studio-settings-store";
 import { buildFcpxml, type FcpxmlClip } from "@/features/video-studio/lib/fcpxml-export";
 import { getAbsoluteImagePath } from "@/features/video-studio/lib/image-storage";
 import type { AutopilotJobListItem } from "@/features/video-studio/autopilot/types";
@@ -138,9 +142,16 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
   const [fps, setFps] = useState<24 | 30 | 60>(job.input?.fps ?? 30);
   const [audioNormalize, setAudioNormalize] = useState(job.input?.audioNormalize === true);
   const [videoAudioVolume, setVideoAudioVolume] = useState(job.input?.videoAudioVolume ?? 0);
+  const kenBurnsDefaults = useVideoStudioSettingsStore((s) => s.autopilot);
+  const [kenBurnsEnabled, setKenBurnsEnabled] = useState(job.input?.kenBurnsEnabled ?? kenBurnsDefaults.kenBurnsEnabled);
+  // Text so the field can be left empty, which means 100%.
+  const initialKenBurnsPercent = job.input?.kenBurnsPercent ?? kenBurnsDefaults.kenBurnsPercent;
+  const [kenBurnsPercentInput, setKenBurnsPercentInput] = useState(initialKenBurnsPercent === 100 ? "" : String(initialKenBurnsPercent));
 
   const handleRerender = () => {
     const ok = rerenderJob(job.id, {
+      kenBurnsEnabled,
+      kenBurnsPercent: normalizeAutopilotKenBurnsPercent(kenBurnsPercentInput),
       subtitles,
       bgmPath: bgmPath.trim() || undefined,
       bgmVolume,
@@ -212,6 +223,28 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
           <select value={codec} onChange={(e) => setCodec(e.target.value as RenderCodec)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">
             {CODEC_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs">Ken Burns cho shot ảnh tĩnh</Label>
+            <Switch checked={kenBurnsEnabled} onCheckedChange={setKenBurnsEnabled} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="flex-1 text-2xs text-muted-foreground">Tỉ lệ shot có chuyển động</Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              disabled={!kenBurnsEnabled}
+              value={kenBurnsPercentInput}
+              placeholder="100"
+              onChange={(e) => setKenBurnsPercentInput(e.target.value)}
+              className="h-7 w-16 text-xs"
+            />
+            <span className="text-2xs text-muted-foreground">%</span>
+          </div>
+          <p className="text-2xs text-muted-foreground">Để trống = 100%. Chỉ áp cho shot giữ ảnh tĩnh, shot đã có video không đổi.</p>
         </div>
 
         <div className="flex items-center justify-between gap-2">

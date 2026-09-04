@@ -127,6 +127,10 @@ export interface AutopilotJobInput {
   audioNormalize?: boolean;
   /** Keep original video audio at this volume 0..1. 0 = mute (default). */
   videoAudioVolume?: number;
+  /** Animate still shots with a Ken Burns move. Falls back to Settings when unset. */
+  kenBurnsEnabled?: boolean;
+  /** Share of still shots that get a Ken Burns move (0-100). Falls back to Settings when unset. */
+  kenBurnsPercent?: number;
   outputPath?: string;
   /** `step` pauses after every durable checkpoint and waits for the user. */
   executionMode?: AutopilotExecutionMode;
