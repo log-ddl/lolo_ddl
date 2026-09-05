@@ -12,6 +12,8 @@ export type GoogleFlowCredential = {
   state: GoogleFlowCredentialState;
   tier?: string;
   credits?: number;
+  /** Models this account is out of daily quota for, with their reset time. */
+  quotaLocks?: Array<{ modelKey: string; until: number }>;
 };
 
 export type GoogleFlowStatus = {

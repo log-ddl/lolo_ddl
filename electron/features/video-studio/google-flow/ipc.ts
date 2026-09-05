@@ -9,7 +9,7 @@ const CHANNELS = [
   'google-flow:get-status', 'google-flow:list-credentials', 'google-flow:get-capacity',
   'google-flow:open-flow', 'google-flow:update-settings', 'google-flow:generate-image', 'google-flow:generate-video', 'google-flow:upscale-video', 'google-flow:cancel-task',
   'google-flow:list-project-bindings', 'google-flow:create-project-binding', 'google-flow:activate-project-binding',
-  'google-flow:sync-references',
+  'google-flow:sync-references', 'google-flow:clear-quota-locks',
   'google-flow:list-inapp-accounts', 'google-flow:add-inapp-account', 'google-flow:remove-inapp-account', 'google-flow:show-inapp-account',
   'google-flow:refresh-inapp-accounts',
 ] as const;
@@ -26,6 +26,7 @@ export function registerGoogleFlowIpc(runtime: GoogleFlowRuntime, accountManager
   ipcMain.handle('google-flow:create-project-binding', (_event, payload) => runtime.createProjectBinding(payload));
   ipcMain.handle('google-flow:activate-project-binding', (_event, payload) => runtime.activateProjectBinding(payload));
   ipcMain.handle('google-flow:sync-references', (_event, payload) => runtime.syncReferences(payload));
+  ipcMain.handle('google-flow:clear-quota-locks', (_event, payload) => runtime.clearQuotaLocks(payload));
   ipcMain.handle('google-flow:refresh-inapp-accounts', async () => {
     await accountManager?.refreshAccounts();
     return { ok: true };

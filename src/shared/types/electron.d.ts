@@ -321,6 +321,7 @@ declare global {
       createProjectBinding: (payload: { longddProjectId: string; credentialId: string; title?: string }) => Promise<GoogleFlowProjectBinding>;
       activateProjectBinding: (payload: { longddProjectId: string; credentialId: string; flowProjectId: string }) => Promise<GoogleFlowProjectBinding>;
       syncReferences: (payload: { projectId: string; projectTitle?: string; sources: GoogleFlowReferenceSyncSource[] }) => Promise<GoogleFlowReferenceSyncResult>;
+      clearQuotaLocks: (payload?: { credentialId?: string; modelKey?: string }) => Promise<{ cleared: number }>;
       openFlow: () => Promise<{ ok: boolean }>;
       updateSettings: (payload: {
         imageLanesPerToken?: number;

@@ -53,6 +53,8 @@ export type ParsedOperation = {
   raw: Record<string, unknown>;
   workflowMode: boolean;
   primaryMediaId?: string;
+  /** Flow's workflow name; project polling matches media by workflowId. */
+  workflowName?: string;
 };
 
 export function extractFlowOperations(value: unknown): ParsedOperation[] {
@@ -72,6 +74,7 @@ export function extractFlowOperations(value: unknown): ParsedOperation[] {
     return [{
       workflowMode: true,
       primaryMediaId,
+      workflowName: typeof workflow.name === 'string' ? workflow.name : undefined,
       raw: {
         operation: { name: workflow.name, metadata: { video: { mediaId: primaryMediaId } } },
         status: 'MEDIA_GENERATION_STATUS_PENDING',

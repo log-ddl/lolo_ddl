@@ -168,6 +168,17 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
       toast.error(error instanceof Error ? error.message : 'Không thể chuyển Flow project.');
     } finally { setProjectBusy(null); }
   }, [activeProjectId, refreshProjectBindings]);
+
+  const clearQuotaLocks = useCallback(async (credentialId: string) => {
+    if (!window.googleFlowRuntime) return;
+    try {
+      await window.googleFlowRuntime.clearQuotaLocks({ credentialId });
+      await refresh();
+      toast.success('Đã bỏ khoá hạn mức. Tài khoản quay lại vòng luân phiên.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể bỏ khoá hạn mức.');
+    }
+  }, [refresh]);
   const taskList = Object.values(tasks);
   if (!alwaysVisible && !status?.readyCredentialCount && !taskList.length) return null;
   return (
@@ -281,6 +292,20 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
               </span>
               <span className="text-muted-foreground">{credential.tier || 'chưa rõ gói'} · {credential.credits ?? '—'} tín dụng · {credentialStateLabel[credential.state] || credential.state}</span>
             </div>
+            {credential.quotaLocks?.length ? (
+              <div className="flex items-start justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1">
+                <span className="min-w-0 text-amber-700 dark:text-amber-500">
+                  Hết hạn mức ngày: {credential.quotaLocks.map((lock) => `${lock.modelKey} (mở lại ${new Date(lock.until).toLocaleString('vi-VN')})`).join(' · ')}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 shrink-0 px-2 text-2xs"
+                  onClick={() => void clearQuotaLocks(credential.credentialId)}
+                >Bỏ khoá</Button>
+              </div>
+            ) : null}
             {alwaysVisible && activeProjectId && (
               <div className="flex items-end gap-2 rounded border bg-muted/20 p-2">
                 <label className="min-w-0 flex-1 space-y-1">

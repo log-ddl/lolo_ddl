@@ -23,6 +23,7 @@ import {
   skillAllowsRealImageResearch,
   toFlowDuration,
 } from '../prompts';
+import { mapPlannerItemsToBeats } from '../planner-beat-map';
 import type { TimedNarrationBeat } from '../narration-timeline';
 import type { AutopilotChapterCheckpoint, AutopilotImportedPlan, AutopilotJob } from '../types';
 import {
@@ -100,7 +101,11 @@ export async function runShotsStage(
   }
 
   const items = plan.shots;
-  const itemByBeat = new Map(items.map((item, index) => [Number(item.beatIndex || index + 1), item]));
+  // Long-form hands this call one chapter's beats, whose global indexes start where
+  // the previous chapter stopped. Skills that forbid beatIndex (still-image plans)
+  // or renumber it per chapter must still land on the right beat, so the mapping is
+  // positional unless the planner provably used the supplied global numbering.
+  const itemByBeat = mapPlannerItemsToBeats(items, beats);
   const aspectRatio = job.input.aspectRatio || DEFAULT_ASPECT_RATIO;
   let fallbackCount = 0;
   let researchedImageCount = 0;
@@ -151,7 +156,7 @@ export async function runShotsStage(
   // JSON shape fails on every beat. Fail loudly instead of shipping a whole film of
   // generic fallback prompts that ignore the skill entirely.
   if (fallbackCount === beats.length && beats.length > 1) {
-    throw new Error(`Planner không trả được shot nào cho ${beats.length} beat. Skill phải mô tả JSON output (shots[] với beatIndex, imagePrompt, videoPrompt, transitionToNext).`);
+    throw new Error(`Planner không trả được shot nào cho ${beats.length} beat (JSON parse ra ${items.length} shot). Skill phải mô tả JSON output: shots[] theo đúng thứ tự beat, mỗi item có imagePrompt và transitionToNext.`);
   }
   if (fallbackCount > 0) ctx.log(job.id, 'shots', `${fallbackCount} beat thiếu JSON hợp lệ — dùng prompt fallback, narration vẫn được giữ nguyên`);
   ctx.log(job.id, 'shots', allowRealImageResearch

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import {
-  GOOGLE_FLOW_TRPC_ROOT,
   type FlowCredentialSlot,
   type FlowTaskEvent,
   assertString,
@@ -32,8 +31,9 @@ export interface FlowSocketContext {
   readonly abortControllers: Map<string, AbortController>;
   videoSubmitDelayMinMs: number;
   videoSubmitDelayMaxMs: number;
+  /** Root-relative tRPC mount that last answered, shared by every caller. */
+  trpcPath: string;
   refreshCredits(slot: FlowCredentialSlot): Promise<void>;
-  selectLane(kind: 'image' | 'video', preferredCredentialId?: string): Lane;
   emitLaneTask(
     taskId: string,
     kind: 'image' | 'video',
@@ -162,21 +162,34 @@ export function attachSocket(ctx: FlowSocketContext, socket: WebSocket): void {
   });
 }
 
-export async function runOnLane<T>(ctx: FlowSocketContext, kind: 'image' | 'video', taskId: string, preferredCredentialId: string | undefined,
-  executor: (slot: FlowCredentialSlot, lane: Lane, signal: AbortSignal) => Promise<T>): Promise<T> {
-  const lane = ctx.selectLane(kind, preferredCredentialId);
+/**
+ * Runs one attempt on an already-chosen lane. Lane selection lives in the
+ * runtime because it owns the quota locks and the failover loop that retries
+ * this call on another account.
+ *
+ * `retryable` marks failures the caller will retry elsewhere (a daily-quota
+ * 429): those must not emit a `failed` task event, or the UI would flash a
+ * dead task for a shot that is about to run fine on the next account.
+ *
+ * `queuedMessage` rides along on the `queued` event so a task that moved after
+ * a quota failure says which account it left, instead of silently reappearing.
+ */
+export async function runOnLane<T>(ctx: FlowSocketContext, kind: 'image' | 'video', taskId: string, lane: Lane,
+  executor: (slot: FlowCredentialSlot, lane: Lane, signal: AbortSignal) => Promise<T>,
+  retryable: (error: unknown) => boolean = () => false, queuedMessage?: string): Promise<T> {
   const state = ctx.sockets.get(lane.credentialId);
   if (!state) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
   const controller = new AbortController();
   ctx.abortControllers.set(taskId, controller);
   lane.queued += 1;
-  ctx.emitLaneTask(taskId, kind, 'queued', state.slot, lane, 0);
+  ctx.emitLaneTask(taskId, kind, 'queued', state.slot, lane, 0, queuedMessage);
   return new Promise<T>((resolve, reject) => {
     lane.chain = lane.chain.catch(() => undefined).then(async () => {
       try { resolve(await executor(state.slot, lane, controller.signal)); }
       catch (error) {
         const cancelled = controller.signal.aborted;
-        ctx.emitLaneTask(taskId, kind, cancelled ? 'cancelled' : 'failed', state.slot, lane, undefined, safeMessage(error));
+        if (cancelled) ctx.emitLaneTask(taskId, kind, 'cancelled', state.slot, lane, undefined, safeMessage(error));
+        else if (!retryable(error)) ctx.emitLaneTask(taskId, kind, 'failed', state.slot, lane, undefined, safeMessage(error));
         reject(error);
       } finally {
         lane.queued = Math.max(0, lane.queued - 1);
@@ -250,35 +263,64 @@ export async function pollOperations(ctx: FlowSocketContext, slot: FlowCredentia
   throw new Error(`Google Flow video generation timed out${lastTemporaryError ? `. Last status response: ${lastTemporaryError}` : ''}`);
 }
 
-export async function pollWorkflowVideo(ctx: FlowSocketContext, slot: FlowCredentialSlot, operations: ReturnType<typeof extractFlowOperations>, taskId: string, lane: Lane, signal: AbortSignal): Promise<Buffer> {
+/**
+ * Reads one workflow's media entry out of Flow's authenticated project snapshot.
+ * `/v1/media/<primaryMediaId>` answers INVALID_ARGUMENT for workflow-backed
+ * media, so the old poller spent every attempt on a request that could not
+ * succeed and only ever finished through the redirect fallback below.
+ */
+async function fetchWorkflowMedia(
+  ctx: FlowSocketContext, slot: FlowCredentialSlot, projectId: string,
+  operation: { primaryMediaId?: string; workflowName?: string }, signal: AbortSignal,
+): Promise<Record<string, unknown> | undefined> {
+  const input = encodeURIComponent(JSON.stringify({ json: { projectId } }));
+  const response = await proxyRequest(ctx, slot, 'trpc_request', {
+    url: `${ctx.trpcPath}/flow.projectInitialData?input=${input}`,
+    method: 'GET', headers: { 'content-type': 'application/json' },
+  }, 30_000, signal);
+  const envelope = (response && typeof response === 'object' ? response : {}) as Record<string, unknown>;
+  const result = (envelope.result && typeof envelope.result === 'object' ? envelope.result : {}) as Record<string, unknown>;
+  const resultData = (result.data && typeof result.data === 'object' ? result.data : {}) as Record<string, unknown>;
+  const json = (resultData.json && typeof resultData.json === 'object' ? resultData.json : {}) as Record<string, unknown>;
+  const contents = (json.projectContents && typeof json.projectContents === 'object' ? json.projectContents : {}) as Record<string, unknown>;
+  const media = Array.isArray(contents.media) ? contents.media : [];
+  return media
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    .find((item) => (operation.primaryMediaId && item.name === operation.primaryMediaId)
+      || (operation.workflowName && item.workflowId === operation.workflowName));
+}
+
+export async function pollWorkflowVideo(ctx: FlowSocketContext, slot: FlowCredentialSlot, operations: ReturnType<typeof extractFlowOperations>, taskId: string, lane: Lane, signal: AbortSignal, projectId: string): Promise<Buffer> {
   for (let attempt = 0; attempt < 84; attempt += 1) {
     await sleep(5_000, signal);
     for (const operation of operations) {
       if (!operation.primaryMediaId) continue;
-      let response: unknown;
+      let data: Record<string, unknown> = {};
       try {
-        response = await ctx.apiRequest(slot, {
-          url: ctx.apiUrl(`/v1/media/${operation.primaryMediaId}`, '&clientContext.tool=PINHOLE'), method: 'GET',
-        }, 30_000, signal);
+        data = (projectId ? await fetchWorkflowMedia(ctx, slot, projectId, operation, signal) : undefined) || {};
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        // Low-priority workflow media returns 400/404 while the encoded MP4
-        // is not ready yet. This is a pending state, not a failed generation.
-        if (/HTTP (400|404)/i.test(message)) {
+        // A snapshot that is not ready yet is a pending state, not a failure.
+        if (/HTTP (400|404|409|425|429|500|502|503|504)|Failed to fetch|network|REQUEST_FAILED/i.test(message)) {
           ctx.emitLaneTask(taskId, 'video', 'polling', slot, lane, Math.min(25 + Math.round(((attempt + 1) / 84) * 68), 93), message);
-          response = undefined;
         } else {
           throw error;
         }
       }
-      const root = (response && typeof response === 'object' ? response : {}) as Record<string, unknown>;
-      const data = (root.data && typeof root.data === 'object' ? root.data : root) as Record<string, unknown>;
+      const status = typeof data.status === 'string' ? data.status : '';
+      if (/FAILED|FAILURE/i.test(status)) {
+        throw new Error(`Google Flow workflow thất bại: ${status}`);
+      }
       const video = (data.video && typeof data.video === 'object' ? data.video : {}) as Record<string, unknown>;
       const bytes = decodeVerifiedMp4(video.encodedVideo);
       if (bytes) return bytes;
+      const mediaUrl = typeof data.url === 'string' ? data.url : '';
+      if (/^https:\/\/flow-content\.google\/video\//i.test(mediaUrl)) {
+        return await downloadVideoBytes(mediaUrl, signal);
+      }
       try {
         const redirect = await proxyRequest(ctx, slot, 'trpc_request', {
-          url: `${GOOGLE_FLOW_TRPC_ROOT}/media.getMediaUrlRedirect?name=${encodeURIComponent(operation.primaryMediaId)}`,
+          url: `${ctx.trpcPath}/media.getMediaUrlRedirect?name=${encodeURIComponent(operation.primaryMediaId)}`,
           method: 'GET', headers: { accept: 'video/mp4,*/*' }, responseMode: 'final-url',
         }, 30_000, signal);
         const redirectRecord = (redirect && typeof redirect === 'object' ? redirect : {}) as Record<string, unknown>;

@@ -362,6 +362,7 @@ contextBridge.exposeInMainWorld('googleFlowRuntime', {
   createProjectBinding: (payload: unknown) => ipcRenderer.invoke('google-flow:create-project-binding', payload),
   activateProjectBinding: (payload: unknown) => ipcRenderer.invoke('google-flow:activate-project-binding', payload),
   syncReferences: (payload: unknown) => ipcRenderer.invoke('google-flow:sync-references', payload),
+  clearQuotaLocks: (payload?: unknown) => ipcRenderer.invoke('google-flow:clear-quota-locks', payload),
   openFlow: () => ipcRenderer.invoke('google-flow:open-flow'),
   updateSettings: (payload: unknown) => ipcRenderer.invoke('google-flow:update-settings', payload),
   generateImage: (payload: unknown) => ipcRenderer.invoke('google-flow:generate-image', payload),

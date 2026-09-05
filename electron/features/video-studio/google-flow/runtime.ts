@@ -8,7 +8,7 @@ import {
   GOOGLE_FLOW_BROWSER_API_KEY,
   GOOGLE_FLOW_DEFAULT_PORT,
   GOOGLE_FLOW_PROTOCOL_VERSION,
-  GOOGLE_FLOW_TRPC_ROOT,
+  GOOGLE_FLOW_TRPC_PATHS,
   type FlowCredentialSlot,
   type FlowTaskEvent,
   assertRecord,
@@ -56,6 +56,9 @@ import {
   runOnLane,
   type FlowSocketContext,
 } from './socket-transport';
+import { FlowQuotaLockStore, isDailyQuotaError } from './quota-locks';
+
+const UPSCALE_MODEL_KEY = 'veo_3_1_upsampler_4k';
 
 export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext {
   readonly protocolVersion = GOOGLE_FLOW_PROTOCOL_VERSION;
@@ -70,11 +73,15 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private readonly lanes = new Map<string, Lane[]>();
   private readonly bindingsPath: string;
   private readonly mediaCachePath: string;
+  readonly quotaLocks: FlowQuotaLockStore;
   private bindings: ProjectBinding[] = [];
   private mediaCache: Record<string, string> = {};
   private server?: WebSocketServer;
   private nextLaneCursor = 0;
   private stopped = false;
+  // Which tRPC mount the signed-in Flow app actually serves. Probed on the first
+  // project creation and reused after that; see GOOGLE_FLOW_TRPC_PATHS.
+  trpcPath: string = GOOGLE_FLOW_TRPC_PATHS[0];
   private imageLanesPerToken = 4;
   private videoLanesPerToken = 4;
   private imageSubmitDelayMinMs = 1_400;
@@ -96,6 +103,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     this.port = options.port ?? GOOGLE_FLOW_DEFAULT_PORT;
     this.bindingsPath = path.join(options.userDataPath, 'google-flow-bindings.json');
     this.mediaCachePath = path.join(options.userDataPath, 'google-flow-media-cache.json');
+    this.quotaLocks = new FlowQuotaLockStore(path.join(options.userDataPath, 'google-flow-quota-locks.json'));
     this.loadBindings();
     try { this.mediaCache = JSON.parse(fs.readFileSync(this.mediaCachePath, 'utf8')); } catch { this.mediaCache = {}; }
   }
@@ -139,6 +147,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       state: slot.state === 'ready' && tokenAgeMs && tokenAgeMs > 70 * 60_000 ? 'stale' as const : slot.state,
       tokenAgeMs,
       tokenFingerprint: undefined,
+      quotaLocks: this.quotaLocks.list(slot.ownerScopeId).map(({ modelKey, until }) => ({ modelKey, until })),
     }); });
     const ready = credentials.filter((item) => item.state === 'ready' && this.sockets.has(item.credentialId)).length;
     return {
@@ -154,6 +163,20 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   }
 
   listCredentials() { return this.getStatus().credentials; }
+
+  /**
+   * Drops daily-quota locks by hand. The lock expiry is our best guess at
+   * Google's reset boundary; if an account frees up sooner the user should not
+   * have to wait it out.
+   */
+  clearQuotaLocks(input?: { credentialId?: string; modelKey?: string }) {
+    const ownerScopeId = input?.credentialId
+      ? this.credentials.get(input.credentialId)?.ownerScopeId || input.credentialId
+      : undefined;
+    const cleared = this.quotaLocks.clear(ownerScopeId, input?.modelKey);
+    if (cleared) this.emitStatus();
+    return { cleared };
+  }
 
   listProjectBindings(longddProjectId: string): FlowProjectBindingInfo[] {
     assertString(longddProjectId, 'longddProjectId', 256);
@@ -365,6 +388,9 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   async generateImage(input: FlowImageInput): Promise<GenerationResult> {
     validateImageInput(input);
     const taskId = input.taskId || randomUUID();
+    // Same key the request below sends as imageModelName, so a daily-quota lock
+    // covers exactly the model Google rejected.
+    const imageModelName = GOOGLE_FLOW_IMAGE_MODELS[input.model] || input.model || 'GEM_PIX_2';
     return this.runOnLane('image', taskId, input.preferredCredentialId, async (slot, lane, signal) => {
       const binding = await this.ensureProject(input.projectId, slot, signal);
       const hasMediaInput = Boolean(input.baseImage || input.references?.length);
@@ -391,7 +417,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           seed: now % 1_000_000,
           structuredPrompt: { parts: [{ text: input.prompt }] },
           imageAspectRatio: flowImageRatio(input.aspectRatio),
-          imageModelName: GOOGLE_FLOW_IMAGE_MODELS[input.model] || input.model || 'GEM_PIX_2',
+          imageModelName,
         };
         if (imageInputs.length) request.imageInputs = imageInputs;
         const body: Record<string, unknown> = { clientContext: context, requests: [request] };
@@ -422,12 +448,22 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           ownerScopeId: slot.ownerScopeId, flowProjectId: binding.flowProjectId, mediaId, remoteUrl,
         };
       }
-    });
+    }, () => imageModelName);
   }
 
   async generateVideo(input: FlowVideoInput): Promise<GenerationResult> {
     validateVideoInput(input);
     const taskId = input.taskId || randomUUID();
+    // The mode follows the inputs: the start+end route rejects a body with no
+    // endImage, so a lone start image goes to the start-image route for every
+    // model, Omni Flash included. Resolved up here because the model key (and
+    // therefore the daily-quota lock key) depends on it — the executor below
+    // reuses this exact value.
+    const mode: 'frame' | 'startEnd' | 'reference' = input.references?.length ? 'reference' : input.endImage ? 'startEnd' : 'frame';
+    // The resolved key varies per account: the same request lands on a Fast key
+    // for a paid tier and a Lite/low-priority key for a free one, and Google
+    // meters each key separately.
+    const videoModelKeyFor = (slot: FlowCredentialSlot) => resolveFlowVideoModel(slot.tier, mode, input.aspectRatio, input.model, input.duration);
     return this.runOnLane('video', taskId, input.preferredCredentialId, async (slot, lane, signal) => {
       const binding = await this.ensureProject(input.projectId, slot, signal);
       const reportUpload = () => this.emitLaneTask(taskId, 'video', 'uploading', slot, lane, 12, undefined, 'uploading_media');
@@ -443,11 +479,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         const endId = input.endImage ? await this.resolveMedia(input.endImage, binding.flowProjectId, slot, signal, reportUpload, forceReupload) : undefined;
         if (!refs.length && !startId) throw new Error('Google Flow requires a start image or reference images for video generation');
         this.emitLaneTask(taskId, 'video', 'uploading', slot, lane, 18, undefined, 'media_ready');
-        // The mode follows the inputs: the start+end route rejects a body with
-        // no endImage, so a lone start image goes to the start-image route for
-        // every model, Omni Flash included.
-        const mode = refs.length ? 'reference' : endId ? 'startEnd' : 'frame';
-        const resolvedVideoModel = resolveFlowVideoModel(slot.tier, mode, input.aspectRatio, input.model, input.duration);
+        const resolvedVideoModel = videoModelKeyFor(slot);
         const endpoint = flowVideoEndpoint(mode);
         console.log('[GoogleFlow] Resolved video model', {
           requestedModel: input.model,
@@ -495,7 +527,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       if (!operations.length) throw new Error('Google Flow video response contained no operation');
       this.emitLaneTask(taskId, 'video', 'polling', slot, lane, 25);
       const result = operations.every((item) => item.workflowMode)
-        ? await this.pollWorkflowVideo(slot, operations, taskId, lane, signal)
+        ? await this.pollWorkflowVideo(slot, operations, taskId, lane, signal, binding.flowProjectId)
         : await this.pollOperations(slot, operations.map((item) => item.raw), taskId, lane, signal);
       const mediaId = extractFlowMediaId(result);
       let remoteUrl = extractFlowUrl(result);
@@ -517,7 +549,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         taskId, provider: 'googleflow', credentialId: slot.credentialId, accountId: slot.accountId,
         ownerScopeId: slot.ownerScopeId, flowProjectId: binding.flowProjectId, mediaId, remoteUrl, localUrl,
       };
-    });
+    }, videoModelKeyFor);
   }
 
   async upscaleVideo(input: { taskId?: string; projectId: string; sceneId: string; mediaId: string; aspectRatio: string; preferredCredentialId?: string }): Promise<GenerationResult> {
@@ -534,14 +566,14 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           clientContext: this.clientContext(binding.flowProjectId, slot.tier),
           requests: [{
             aspectRatio: flowVideoRatio(input.aspectRatio), resolution: 'VIDEO_RESOLUTION_4K', seed: Date.now() % 100_000,
-            metadata: { sceneId: input.sceneId }, videoInput: { mediaId: input.mediaId }, videoModelKey: 'veo_3_1_upsampler_4k',
+            metadata: { sceneId: input.sceneId }, videoInput: { mediaId: input.mediaId }, videoModelKey: UPSCALE_MODEL_KEY,
           }],
         },
       }, 90_000, signal);
       const operations = extractFlowOperations(submit);
       if (!operations.length) throw new Error('Google Flow upscale response contained no operation');
       const result = operations.every((item) => item.workflowMode)
-        ? await this.pollWorkflowVideo(slot, operations, taskId, lane, signal)
+        ? await this.pollWorkflowVideo(slot, operations, taskId, lane, signal, binding.flowProjectId)
         : await this.pollOperations(slot, operations.map((item) => item.raw), taskId, lane, signal);
       const mediaId = extractFlowMediaId(result) || input.mediaId;
       const remoteUrl = extractFlowUrl(result);
@@ -559,7 +591,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         taskId, provider: 'googleflow', credentialId: slot.credentialId, accountId: slot.accountId,
         ownerScopeId: slot.ownerScopeId, flowProjectId: binding.flowProjectId, mediaId, remoteUrl, localUrl,
       };
-    });
+    }, () => UPSCALE_MODEL_KEY);
   }
 
   // Entry point for the in-app CDP-driven Chrome login transport (see
@@ -593,17 +625,92 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     attachSocket(this.socketContext, socket);
   }
 
-  private runOnLane<T>(kind: 'image' | 'video', taskId: string, preferredCredentialId: string | undefined,
-    executor: (slot: FlowCredentialSlot, lane: Lane, signal: AbortSignal) => Promise<T>): Promise<T> {
-    return runOnLane(this.socketContext, kind, taskId, preferredCredentialId, executor);
+  /**
+   * Runs a generation, failing over to another account when Google answers
+   * PUBLIC_ERROR_PER_MODEL_DAILY_QUOTA_REACHED. The account that hit the wall is
+   * locked for that one model until the next daily reset (other models on it
+   * stay in rotation), then the same task is re-queued on the next account whose
+   * lock list does not already cover this model.
+   */
+  private async runOnLane<T>(kind: 'image' | 'video', taskId: string, preferredCredentialId: string | undefined,
+    executor: (slot: FlowCredentialSlot, lane: Lane, signal: AbortSignal) => Promise<T>,
+    modelKeyFor: (slot: FlowCredentialSlot) => string): Promise<T> {
+    const exhausted = new Set<string>();
+    let lastAttempt: { slot: FlowCredentialSlot; lane: Lane } | undefined;
+    let queuedMessage: string | undefined;
+    for (;;) {
+      let lane: Lane;
+      try {
+        lane = this.selectLane(kind, preferredCredentialId, { modelKeyFor, exclude: exhausted });
+      } catch (error) {
+        // On the first pass nothing was queued yet, so the thrown error is the
+        // caller's whole story. After a failover the UI already shows this task
+        // sitting on a lane — mark it failed now that no account is left.
+        if (lastAttempt) this.emitLaneTask(taskId, kind, 'failed', lastAttempt.slot, lastAttempt.lane, undefined, safeMessage(error));
+        throw error;
+      }
+      const slot = this.sockets.get(lane.credentialId)?.slot;
+      if (!slot) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
+      lastAttempt = { slot, lane };
+      try {
+        // A batch fills every lane up front, so when one account hits its daily
+        // wall there are already jobs sitting in that account's queue. Re-check
+        // the lock at the head of the queue instead of at lane-selection time:
+        // otherwise each of those jobs spends a real request to be told the same
+        // thing Google just told us. Throwing Google's own reason keeps this on
+        // the failover path below.
+        return await runOnLane(this.socketContext, kind, taskId, lane, (laneSlot, currentLane, signal) => {
+          const modelKey = modelKeyFor(laneSlot);
+          if (this.quotaLocks.isLocked(laneSlot.ownerScopeId, modelKey)) {
+            throw new Error(`Google Flow PER_MODEL_DAILY_QUOTA_REACHED (${modelKey}) trên tài khoản ${laneSlot.extensionInstanceId.slice(0, 8)}`);
+          }
+          return executor(laneSlot, currentLane, signal);
+        }, isDailyQuotaError, queuedMessage);
+      } catch (error) {
+        if (!isDailyQuotaError(error)) throw error;
+        const modelKey = modelKeyFor(slot);
+        // Only the first job through the wall records the lock. The rest of that
+        // account's in-flight batch lands here too, and re-locking each time
+        // would just repeat the same line dozens of times in the log.
+        if (!this.quotaLocks.isLocked(slot.ownerScopeId, modelKey)) {
+          const lock = this.quotaLocks.lock(slot.ownerScopeId, slot.credentialId, modelKey);
+          console.log('[GoogleFlow] Daily quota reached, locking account for this model', {
+            account: slot.extensionInstanceId, credentialId: slot.credentialId,
+            modelKey, until: new Date(lock.until).toISOString(),
+          });
+          this.emitStatus();
+        }
+        // The lane group stays put: it is keyed per kind+account, not per model,
+        // so other models still generating on this account keep their queue
+        // depth and chaining. selectLane's lock filter is what keeps this model
+        // off these lanes.
+        exhausted.add(lane.credentialId);
+        queuedMessage = `Tài khoản ${slot.extensionInstanceId.slice(0, 8)} hết hạn mức ngày cho ${modelKey} — đã chuyển sang tài khoản khác`;
+      }
+    }
   }
-  selectLane(kind: 'image' | 'video', preferredCredentialId?: string): Lane {
-    const ready = [...this.sockets.values()].filter(({ slot, socket }) => (
+  selectLane(kind: 'image' | 'video', preferredCredentialId?: string,
+    options?: { modelKeyFor?: (slot: FlowCredentialSlot) => string; exclude?: ReadonlySet<string> }): Lane {
+    const connected = [...this.sockets.values()].filter(({ slot, socket }) => (
       slot.state === 'ready'
       && socket.readyState === WebSocket.OPEN
       && (!slot.tokenCapturedAt || Date.now() - slot.tokenCapturedAt <= 70 * 60_000)
     ));
-    if (!ready.length) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
+    if (!connected.length) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
+    const modelKeyFor = options?.modelKeyFor;
+    const ready = connected.filter(({ slot }) => (
+      !options?.exclude?.has(slot.credentialId)
+      && !(modelKeyFor && this.quotaLocks.isLocked(slot.ownerScopeId, modelKeyFor(slot)))
+    ));
+    if (!ready.length) {
+      // Every connected account is out of daily quota for this exact model.
+      // Name the model and the reset time so the failure is actionable instead
+      // of looking like a generic "no extension" problem.
+      const modelKey = modelKeyFor ? modelKeyFor(connected[0].slot) : '';
+      const until = Math.min(...connected.map(({ slot }) => this.quotaLocks.lockedUntil(slot.ownerScopeId, modelKeyFor ? modelKeyFor(slot) : '') || Infinity));
+      const resetAt = Number.isFinite(until) ? new Date(until).toLocaleString('vi-VN') : '';
+      throw new Error(`Mọi tài khoản Google Flow đã hết hạn mức ngày cho model ${modelKey || 'này'}${resetAt ? ` (mở lại khoảng ${resetAt})` : ''}. Hãy đổi model hoặc thêm tài khoản.`);
+    }
     const preferred = preferredCredentialId ? ready.filter(({ slot }) => slot.credentialId === preferredCredentialId) : [];
     // A stored credential id can become stale after an extension reinstall. In
     // that case use another ready account; resolveMedia will reject cross-owner
@@ -636,13 +743,33 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private async createFlowProject(longddProjectId: string, slot: FlowCredentialSlot, signal?: AbortSignal, requestedTitle?: string): Promise<ProjectBinding> {
     const cleanTitle = requestedTitle?.replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, 80);
     const projectTitle = cleanTitle || `LONGDD ${longddProjectId}`;
-    const response = await this.proxyRequest(slot, 'trpc_request', {
-      url: `${GOOGLE_FLOW_TRPC_ROOT}/project.createProject`, method: 'POST',
-      headers: { 'content-type': 'application/json', accept: '*/*' },
-      body: { json: { projectTitle, toolName: 'PINHOLE' } },
-    }, 30_000, signal);
-    const flowProjectId = extractFlowProjectId(response);
-    if (!flowProjectId) throw new Error('Google Flow did not return a project ID');
+    // Try each known tRPC mount until one answers with a real project. A path the
+    // app does not serve returns its HTML shell (or a 404 page), never a project
+    // id, so a wrong guess costs one request and creates nothing. The winner is
+    // remembered so later projects go straight to it.
+    const paths = this.trpcPath ? [this.trpcPath, ...GOOGLE_FLOW_TRPC_PATHS.filter((path) => path !== this.trpcPath)] : [...GOOGLE_FLOW_TRPC_PATHS];
+    let flowProjectId: string | undefined;
+    let lastError: unknown;
+    for (const path of paths) {
+      let response: unknown;
+      try {
+        response = await this.proxyRequest(slot, 'trpc_request', {
+          url: `${path}/project.createProject`, method: 'POST',
+          headers: { 'content-type': 'application/json', accept: '*/*' },
+          body: { json: { projectTitle, toolName: 'PINHOLE' } },
+        }, 30_000, signal);
+      } catch (error) {
+        lastError = error;
+        continue;
+      }
+      flowProjectId = extractFlowProjectId(response);
+      if (flowProjectId) { this.trpcPath = path; break; }
+      lastError = response;
+    }
+    if (!flowProjectId) {
+      const detail = lastError instanceof Error ? `: ${lastError.message}` : '';
+      throw new Error(`Google Flow không trả về project ID (đã thử ${paths.join(', ')})${detail}`);
+    }
     for (const item of this.bindings) {
       if (item.longddProjectId === longddProjectId && item.ownerScopeId === slot.ownerScopeId) item.active = false;
     }
@@ -774,8 +901,8 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     return pollOperations(this.socketContext, slot, initial, taskId, lane, signal);
   }
 
-  private pollWorkflowVideo(slot: FlowCredentialSlot, operations: ReturnType<typeof extractFlowOperations>, taskId: string, lane: Lane, signal: AbortSignal): Promise<Buffer> {
-    return pollWorkflowVideo(this.socketContext, slot, operations, taskId, lane, signal);
+  private pollWorkflowVideo(slot: FlowCredentialSlot, operations: ReturnType<typeof extractFlowOperations>, taskId: string, lane: Lane, signal: AbortSignal, projectId: string): Promise<Buffer> {
+    return pollWorkflowVideo(this.socketContext, slot, operations, taskId, lane, signal, projectId);
   }
 
   refreshCredits(slot: FlowCredentialSlot): Promise<void> {
@@ -788,8 +915,21 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     };
   }
 
+  private currentApiKey: string = GOOGLE_FLOW_BROWSER_API_KEY;
+
+  getCurrentApiKey(): string {
+    return this.currentApiKey;
+  }
+
+  updateApiKey(key: string): void {
+    if (key && typeof key === 'string' && key.startsWith('AIzaSy') && key !== this.currentApiKey) {
+      console.log(`[video-studio][google-flow] API key updated to ${key}`);
+      this.currentApiKey = key;
+    }
+  }
+
   apiUrl(endpoint: string, extra = ''): string {
-    return `${GOOGLE_FLOW_API_ROOT}${endpoint}?key=${GOOGLE_FLOW_BROWSER_API_KEY}${extra}`;
+    return `${GOOGLE_FLOW_API_ROOT}${endpoint}?key=${this.currentApiKey}${extra}`;
   }
 
   emitLaneTask(taskId: string, kind: 'image' | 'video', status: FlowTaskEvent['status'], slot: FlowCredentialSlot, lane: Lane, progress?: number, message?: string, phase?: FlowTaskEvent['phase']) {

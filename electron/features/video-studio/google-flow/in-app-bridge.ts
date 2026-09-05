@@ -2,13 +2,21 @@ import type { WebSocket } from 'ws'
 import { FakeSocket } from '../browser-session/fake-socket'
 import type { AccountSessionHandle } from '../browser-session/session-manager'
 import type { GoogleFlowRuntime } from './runtime'
-import { GOOGLE_FLOW_PROTOCOL_VERSION } from './protocol'
+import {
+  GOOGLE_FLOW_APP_ORIGIN,
+  GOOGLE_FLOW_BROWSER_API_KEY,
+  GOOGLE_FLOW_LEGACY_API_KEY,
+  GOOGLE_FLOW_PROTOCOL_VERSION,
+  GOOGLE_FLOW_TRPC_ORIGIN,
+} from './protocol'
 
 // Same site key extensions/logdd/injected.js uses — it's the public,
 // browser-restricted reCAPTCHA Enterprise key Google Flow's own web app
 // ships, not a secret.
 const FLOW_SITE_KEY = '6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV'
-const TOKEN_URL_PREFIXES = ['https://aisandbox-pa.googleapis.com/', 'https://labs.google/']
+// flow.google.com is where Google moved the signed-in Flow app; without it the
+// bearer token is never captured on that origin and the account sits on "Cần làm mới".
+const TOKEN_URL_PREFIXES = ['https://aisandbox-pa.googleapis.com/', 'https://labs.google/', 'https://flow.google.com/']
 const MAX_RELOAD_RETRIES = 4
 const RELOAD_RETRY_DELAY_MS = 6000
 // The Google OAuth bearer token (ya29...) lasts ~60 min. Reload the hidden
@@ -33,6 +41,19 @@ type OutgoingMessage = {
 }
 
 type EvaluateResult<T> = { result?: { value?: T }; exceptionDetails?: { text?: string } }
+
+/**
+ * The Flow project a request belongs to, so the captcha step can park the tab on
+ * that project's page. Image generation carries it in the path, video generation
+ * only in clientContext.
+ */
+function flowProjectIdOf(url: string, body: unknown): string | undefined {
+  const fromPath = /\/v1\/projects\/([^/]+)\//.exec(url || '')
+  if (fromPath) return decodeURIComponent(fromPath[1])
+  const record = body && typeof body === 'object' ? body as Record<string, unknown> : undefined
+  const context = record?.clientContext as { projectId?: unknown } | undefined
+  return typeof context?.projectId === 'string' && context.projectId ? context.projectId : undefined
+}
 
 function findAuthHeader(headers: Record<string, string> | undefined): string | undefined {
   if (!headers) return undefined
@@ -66,7 +87,7 @@ export class GoogleFlowInAppBridge {
   private readonly requestUrlById = new Map<string, string>()
   private readonly unsubscribers: Array<() => void> = []
 
-  constructor(private readonly handle: AccountSessionHandle, runtime: GoogleFlowRuntime, private readonly onFirstReady?: () => void) {
+  constructor(private readonly handle: AccountSessionHandle, private readonly runtime: GoogleFlowRuntime, private readonly onFirstReady?: () => void) {
     this.socket = new FakeSocket((json) => { void this.handleOutgoing(json) })
     this.socket.open()
 
@@ -151,6 +172,10 @@ export class GoogleFlowInAppBridge {
   private onRequestWillBeSent(params: { requestId?: string; request?: { url?: string; headers?: Record<string, string> } }): void {
     const url = params.request?.url || ''
     if (params.requestId) this.requestUrlById.set(params.requestId, url)
+    const keyMatch = /[?&]key=(AIzaSy[A-Za-z0-9_-]+)/.exec(url)
+    if (keyMatch) {
+      this.runtime.updateApiKey(keyMatch[1])
+    }
     if (!TOKEN_URL_PREFIXES.some((prefix) => url.startsWith(prefix))) return
     this.captureToken(findAuthHeader(params.request?.headers))
   }
@@ -176,7 +201,7 @@ export class GoogleFlowInAppBridge {
   private onFrameNavigated(params: { frame?: { parentId?: string; url?: string } }): void {
     if (this.flowKey || params.frame?.parentId) return
     const url = params.frame?.url || ''
-    if (!/^https:\/\/labs\.google\/fx\/(?:[^/]+\/)?tools\/flow/.test(url)) return
+    if (!/^https:\/\/(?:labs\.google\/fx\/(?:[^/]+\/)?tools\/flow|flow\.google\.com)/.test(url)) return
     if (this.reloadTimer || this.reloadAttempts >= MAX_RELOAD_RETRIES) return
     this.reloadAttempts += 1
     const delay = this.reloadAttempts === 1 ? 2500 : RELOAD_RETRY_DELAY_MS
@@ -188,14 +213,45 @@ export class GoogleFlowInAppBridge {
     }, delay)
   }
 
-  private async solveCaptcha(action: string): Promise<string> {
-    const expression = `(async () => {
-      const start = Date.now();
-      while (!(window.grecaptcha && window.grecaptcha.enterprise && window.grecaptcha.enterprise.execute)) {
-        if (Date.now() - start > 10000) throw new Error('grecaptcha not available');
-        await new Promise((resolve) => setTimeout(resolve, 200));
+  private async extractApiKeyFromTab(): Promise<void> {
+    try {
+      const result = await this.handle.cdp.send<EvaluateResult<string>>('Runtime.evaluate', {
+        expression: 'window.WIZ_global_data?.K21R3e || ""',
+        returnByValue: true,
+      })
+      const key = result.result?.value
+      if (key && typeof key === 'string' && key.startsWith('AIzaSy')) {
+        this.runtime.updateApiKey(key)
       }
-      return await window.grecaptcha.enterprise.execute(${JSON.stringify(FLOW_SITE_KEY)}, { action: ${JSON.stringify(action)} });
+    } catch {
+      // best effort
+    }
+  }
+
+  private async solveCaptcha(action: string, projectId?: string): Promise<string> {
+    // Only ONE page loads reCAPTCHA now: flow.google.com/project/<id>. Since the
+    // signed-in app moved off labs.google the tab lands on the site root, which
+    // ships the site key in its markup but never loads the library, so every
+    // generation died on "grecaptcha not available". Injecting the library is
+    // not an option either — the page's CSP blocks script-src-elem for
+    // www.google.com/recaptcha. So park the tab on the project page instead and
+    // let Flow's own bundle load it.
+    if (projectId && !(await this.hasRecaptcha())) {
+      const target = `${GOOGLE_FLOW_APP_ORIGIN}/project/${encodeURIComponent(projectId)}`
+      console.log(`[video-studio][google-flow] điều hướng tab sang ${target} để nạp reCAPTCHA`)
+      await this.handle.cdp.send('Page.navigate', { url: target })
+    }
+    void this.extractApiKeyFromTab().catch(() => {})
+    const expression = `(async () => {
+      const key = ${JSON.stringify(FLOW_SITE_KEY)};
+      const ready = () => Boolean(window.grecaptcha && window.grecaptcha.enterprise && window.grecaptcha.enterprise.execute);
+      const start = Date.now();
+      while (!ready()) {
+        if (Date.now() - start > 30000) throw new Error('grecaptcha not available');
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      await new Promise((resolve) => window.grecaptcha.enterprise.ready(resolve));
+      return await window.grecaptcha.enterprise.execute(key, { action: ${JSON.stringify(action)} });
     })()`
     const result = await this.handle.cdp.send<EvaluateResult<string>>('Runtime.evaluate', {
       expression, awaitPromise: true, returnByValue: true,
@@ -204,6 +260,54 @@ export class GoogleFlowInAppBridge {
     const token = result.result?.value
     if (!token) throw new Error('CAPTCHA_FAILED')
     return token
+  }
+
+  /** True when the current page already exposes reCAPTCHA Enterprise. */
+  private async hasRecaptcha(): Promise<boolean> {
+    try {
+      const result = await this.handle.cdp.send<EvaluateResult<boolean>>('Runtime.evaluate', {
+        expression: 'Boolean(window.grecaptcha && window.grecaptcha.enterprise && window.grecaptcha.enterprise.execute)',
+        returnByValue: true,
+      })
+      return result.result?.value === true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Sends a tRPC call from the Electron main process instead of the Flow tab.
+   * Cookies are read from the tab's own profile over CDP and used only for this
+   * request — they are never logged or persisted.
+   */
+  private async performTrpcFetch(url: string, method: string, headers: Record<string, string>, body: unknown, responseMode?: 'json' | 'final-url'): Promise<{ status: number; data: unknown }> {
+    const absolute = url.startsWith('/') ? `${GOOGLE_FLOW_TRPC_ORIGIN}${url}` : url
+    const origin = new URL(absolute).origin
+    const { cookies } = await this.handle.cdp.send<{ cookies: Array<{ name: string; value: string }> }>(
+      'Network.getCookies', { urls: [`${origin}/`] },
+    )
+    const cookieHeader = (cookies || []).map((cookie) => `${cookie.name}=${cookie.value}`).join('; ')
+    const response = await fetch(absolute, {
+      method,
+      headers: {
+        ...headers,
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        origin,
+        referer: `${origin}/fx/tools/flow`,
+      },
+      body: method === 'GET' || body === undefined ? undefined : JSON.stringify(body),
+      redirect: 'follow',
+    })
+    if (responseMode === 'final-url') {
+      // Same contract as the in-tab path: hand back the signed URL and drop the
+      // body so a whole MP4 never buffers in the main process.
+      await response.body?.cancel().catch(() => {})
+      return { status: response.status, data: { url: response.url, contentType: response.headers.get('content-type') } }
+    }
+    const text = await response.text()
+    let data: unknown
+    try { data = JSON.parse(text) } catch { data = text }
+    return { status: response.status, data }
   }
 
   private async performFetch(url: string, method: string, headers: Record<string, string>, body: unknown, responseMode?: 'json' | 'final-url'): Promise<{ status: number; data: unknown }> {
@@ -306,7 +410,7 @@ export class GoogleFlowInAppBridge {
     this.pendingRequests += 1
     try {
       let captchaToken: string | undefined
-      if (params.captchaAction) captchaToken = await this.solveCaptcha(params.captchaAction)
+      if (params.captchaAction) captchaToken = await this.solveCaptcha(params.captchaAction, flowProjectIdOf(params.url, params.body))
 
       let body = params.body
       if (captchaToken && body && typeof body === 'object') {
@@ -325,12 +429,67 @@ export class GoogleFlowInAppBridge {
       if (!this.flowKey) throw new Error('NO_FLOW_KEY')
       const headers: Record<string, string> = { ...(params.headers || {}), authorization: `Bearer ${this.flowKey}` }
       const method = params.method || 'POST'
-      const { status, data } = await this.performFetch(params.url, method, headers, body, params.responseMode)
+      let requestUrl = params.url
+      const currentApiKey = this.runtime.getCurrentApiKey() || GOOGLE_FLOW_BROWSER_API_KEY
+      if (requestUrl.includes(GOOGLE_FLOW_LEGACY_API_KEY)) {
+        requestUrl = requestUrl.replace(GOOGLE_FLOW_LEGACY_API_KEY, currentApiKey)
+      }
+
+      // tRPC goes out from Node, everything else stays in the tab. Google moved
+      // the signed-in app to flow.google.com while tRPC stayed on labs.google,
+      // so an in-tab fetch is now cross-origin and dies as "Failed to fetch".
+      // The main process has no CORS, and the tab's own cookies + captured
+      // bearer token are all the authentication these endpoints need.
+      let { status, data } = message.type === 'trpc_request'
+        ? await this.performTrpcFetch(requestUrl, method, headers, body, params.responseMode)
+        : await this.performFetch(requestUrl, method, headers, body, params.responseMode)
+
+      if (message.type !== 'trpc_request' && this.isReferrerBlocked(status, data)) {
+        console.warn(`[video-studio][google-flow] in-tab fetch bị chặn Referer (HTTP ${status}), chuyển sang gửi từ Node main process`)
+        const fallback = await this.performNodeApiFetch(requestUrl, method, headers, body, params.responseMode)
+        status = fallback.status
+        data = fallback.data
+      }
+
       this.socket.receive(JSON.stringify({ id: requestId, status, data, sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
     } catch (error) {
       this.socket.receive(JSON.stringify({ id: requestId, error: error instanceof Error ? error.message : String(error), sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
     } finally {
       this.pendingRequests = Math.max(0, this.pendingRequests - 1)
     }
+  }
+
+  private isReferrerBlocked(status: number, data: unknown): boolean {
+    if (status !== 403 || !data) return false
+    const str = typeof data === 'string' ? data : JSON.stringify(data)
+    return str.includes('API_KEY_HTTP_REFERRER_BLOCKED') || str.includes('Requests from referer')
+  }
+
+  private async performNodeApiFetch(url: string, method: string, headers: Record<string, string>, body: unknown, responseMode?: 'json' | 'final-url'): Promise<{ status: number; data: unknown }> {
+    const origin = 'https://labs.google'
+    const { cookies } = await this.handle.cdp.send<{ cookies: Array<{ name: string; value: string }> }>(
+      'Network.getCookies', { urls: ['https://aisandbox-pa.googleapis.com/', 'https://labs.google/', 'https://flow.google.com/'] },
+    ).catch(() => ({ cookies: [] }))
+    const cookieHeader = (cookies || []).map((cookie) => `${cookie.name}=${cookie.value}`).join('; ')
+    const reqHeaders: Record<string, string> = {
+      ...headers,
+      ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      origin,
+      referer: `${origin}/fx/tools/flow`,
+    }
+    const response = await fetch(url, {
+      method,
+      headers: reqHeaders,
+      body: method === 'GET' || body === undefined ? undefined : JSON.stringify(body),
+      redirect: 'follow',
+    })
+    if (responseMode === 'final-url') {
+      await response.body?.cancel().catch(() => {})
+      return { status: response.status, data: { url: response.url, contentType: response.headers.get('content-type') } }
+    }
+    const text = await response.text()
+    let data: unknown
+    try { data = JSON.parse(text) } catch { data = text }
+    return { status: response.status, data }
   }
 }

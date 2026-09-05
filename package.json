@@ -1,7 +1,7 @@
 {
   "name": "logdd",
   "productName": "logdd",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "AI POWER",
   "author": "LONG",
   "license": "AGPL-3.0-or-later",
@@ -33,6 +33,7 @@
     "lint:ui": "node scripts/check-ui.mjs",
     "test:autopilot": "node --experimental-strip-types src/features/video-studio/autopilot/narration-timeline.test.ts",
     "test:ken-burns": "node --experimental-strip-types src/features/video-studio/autopilot/ken-burns.test.ts",
+    "test:planner-beats": "node --experimental-strip-types src/features/video-studio/autopilot/planner-beat-map.test.ts",
     "test:long-form": "node --experimental-strip-types src/features/video-studio/lib/long-form/orchestrator.test.ts",
     "test:render-transitions": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test-render-transitions.ps1",
     "preview": "vite preview",
