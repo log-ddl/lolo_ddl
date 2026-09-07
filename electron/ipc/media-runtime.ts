@@ -12,6 +12,9 @@ import {
   installTtsModel, pickReferenceAudio, removeTtsModel, revealTtsAudio,
   type TtsGeneratePayload, type TtsModelDescriptor,
 } from '../features/tts-voice/omnivoice-runtime'
+import {
+  openTtsBatchFolder, pickTtsBatchFolder, readTtsBatchText, saveTtsBatchOutput, scanTtsBatchFolder,
+} from '../features/tts-voice/folder-batch'
 import { getGeminiApiKeys, setGeminiApiKeys } from '../features/tts-voice/gemini-runtime'
 import { getVbeeCredentials, getVbeeVoices, setVbeeCredentials } from '../features/tts-voice/vbee-runtime'
 import { listVieneuVoices } from '../features/tts-voice/vieneu-runtime'
@@ -141,6 +144,11 @@ export function registerTtsIpc() {
   ipcMain.handle('tts-pick-reference-audio', async (_event, title?: string) => pickReferenceAudio(title))
   ipcMain.handle('tts-export-audio', async (_event, sourcePath: string, title?: string) => exportTtsAudio(sourcePath, title))
   ipcMain.handle('tts-reveal-audio', async (_event, filePath: string) => revealTtsAudio(filePath))
+  ipcMain.handle('tts-batch-pick-folder', async (_event, title?: string) => pickTtsBatchFolder(title))
+  ipcMain.handle('tts-batch-scan', async (_event, folderPath: string) => scanTtsBatchFolder(folderPath))
+  ipcMain.handle('tts-batch-read', async (_event, filePath: string) => readTtsBatchText(filePath))
+  ipcMain.handle('tts-batch-save', async (_event, sourcePath: string, textFilePath: string) => saveTtsBatchOutput(sourcePath, textFilePath))
+  ipcMain.handle('tts-batch-open-folder', async (_event, folderPath: string) => openTtsBatchFolder(folderPath))
 }
 
 export function registerRenderIpc() {

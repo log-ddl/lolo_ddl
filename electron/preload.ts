@@ -456,6 +456,11 @@ contextBridge.exposeInMainWorld('ttsRuntime', {
   pickReferenceAudio: (title?: string) => ipcRenderer.invoke('tts-pick-reference-audio', title),
   exportAudio: (sourcePath: string, title?: string) => ipcRenderer.invoke('tts-export-audio', sourcePath, title),
   revealAudio: (filePath: string) => ipcRenderer.invoke('tts-reveal-audio', filePath),
+  pickBatchFolder: (title?: string) => ipcRenderer.invoke('tts-batch-pick-folder', title),
+  scanBatchFolder: (folderPath: string) => ipcRenderer.invoke('tts-batch-scan', folderPath),
+  readBatchText: (filePath: string) => ipcRenderer.invoke('tts-batch-read', filePath),
+  saveBatchOutput: (sourcePath: string, textFilePath: string) => ipcRenderer.invoke('tts-batch-save', sourcePath, textFilePath),
+  openBatchFolder: (folderPath: string) => ipcRenderer.invoke('tts-batch-open-folder', folderPath),
   onEvent: (listener: (payload: {
     jobId: string;
     kind: 'install' | 'generate';

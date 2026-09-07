@@ -145,6 +145,18 @@ export interface VoiceProfile {
   createdAt: number;
 }
 
+export type TtsBatchStatus = 'pending' | 'skipped' | 'running' | 'done' | 'error';
+
+export interface TtsBatchItem {
+  path: string;
+  name: string;
+  /** -1 khi không đọc được số ký tự (file hỏng hoặc quá lớn). */
+  chars: number;
+  status: TtsBatchStatus;
+  outputPath?: string;
+  error?: string;
+}
+
 export interface TtsHistoryItem {
   id: string;
   name?: string;

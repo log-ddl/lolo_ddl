@@ -3,6 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { useI18n } from '@/shared/i18n';
 import { useTtsController } from '../hooks/use-tts-controller';
 import { AudioHistory } from './audio-history';
+import { BatchFolderCard } from './batch-folder-card';
 import { GenerationProgress } from './generation-progress';
 import { TextEditorCard } from './text-editor-card';
 import { TtsHeader } from './tts-header';
@@ -44,6 +45,13 @@ export function TtsWorkspace() {
                     : <><Download /> {t('tts.action.downloadToGenerate')}</>}
                 </Button>
               </div>
+
+              <BatchFolderCard
+                batch={controller.batch}
+                disabled={controller.busy && !controller.batch.running}
+                showOnlineHint={controller.isOnline}
+                onStop={controller.cancelJob}
+              />
 
               <AudioHistory
                 items={controller.history}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { taskMetadata } from '@/shared/task-metadata';
 import { toast } from 'sonner';
 import { useI18n } from '@/shared/i18n';
@@ -7,7 +7,11 @@ import { useTtsStore } from '../stores/tts-store';
 import { createTtsJobId, toLocalTtsAudioUrl, toRuntimeModel } from '../lib/runtime-model';
 import { CAPCUT_API_VOICES, getCapCutVoice } from '../lib/capcut-voices';
 import { GEMINI_VOICES, getGeminiVoice } from '../lib/gemini-voices';
-import type { TtsModelDefinition, TtsModelStatus, TtsProgressEvent, VieneuVoice, VoiceProfile } from '../types';
+import { useTtsBatch } from './use-tts-batch';
+import type { TtsGenerateResult, TtsModelDefinition, TtsModelStatus, TtsProgressEvent, VieneuVoice, VoiceProfile } from '../types';
+
+/** Model chưa tải: hộp thoại tải model đã mở nên không cần toast thêm. */
+const MODEL_NOT_READY = '__tts-model-not-ready__';
 
 function runtimeErrorMessage(error: unknown, t: (key: string) => string, fallbackKey: string) {
   const message = error instanceof Error ? error.message : String(error || '');
@@ -39,6 +43,7 @@ export function useTtsController() {
   const [referenceText, setReferenceText] = useState('');
   const [activeJobId, setActiveJobId] = useState<string>();
   const [progress, setProgress] = useState<TtsProgressEvent>();
+  const batchRunningRef = useRef(false);
   const [vieneuVoices, setVieneuVoices] = useState<VieneuVoice[]>([
     { id: 'Trúc Ly', label: 'Trúc Ly' },
     { id: 'Minh Đức', label: 'Minh Đức' },
@@ -65,7 +70,6 @@ export function useTtsController() {
     [selectedModel.providerId, store.voiceProfiles],
   );
   const selectedProfile = store.voiceProfiles.find((profile) => profile.id === store.selectedProfileId);
-  const busy = Boolean(activeJobId);
   const currentModelLabel = isOnline
     ? t(isVbee ? 'tts.vbee.onlineLabel' : isGemini ? 'tts.gemini.onlineLabel' : 'tts.capcut.onlineLabel')
     : `${selectedModel.parameterSize} • ${t(`tts.mode.${mode}`)}`;
@@ -134,7 +138,7 @@ export function useTtsController() {
   }, [store.mode, store.setMode, store.setSelectedEngineId, store.setSelectedModelId]);
 
   const installModel = useCallback(async (model = selectedModel) => {
-    if (activeJobId) return toast.info(t('tts.toast.jobBusy'));
+    if (activeJobId || batchRunningRef.current) return toast.info(t('tts.toast.jobBusy'));
     if (!window.ttsRuntime) return toast.error(t('tts.toast.desktopDownload'));
 
     const jobId = createTtsJobId('install');
@@ -168,14 +172,6 @@ export function useTtsController() {
     await refreshStatuses();
   }, [refreshStatuses, t]);
 
-  const cancelJob = useCallback(async () => {
-    if (!activeJobId) return;
-    await window.ttsRuntime?.cancel(activeJobId);
-    setActiveJobId(undefined);
-    await refreshStatuses();
-    toast.info(t('tts.toast.cancelRequested'));
-  }, [activeJobId, refreshStatuses, t]);
-
   const pickReferenceAudio = useCallback(async () => {
     const result = await window.ttsRuntime?.pickReferenceAudio(t('tts.native.selectReferenceAudio'));
     if (result?.path) setReferenceAudioPath(result.path);
@@ -203,73 +199,112 @@ export function useTtsController() {
     toast.success(t('tts.toast.profileSaved'));
   }, [isVieneu, profileName, referenceAudioPath, referenceText, selectedModel, store.addVoiceProfile, t]);
 
-  const generate = useCallback(async () => {
-    if (!store.text.trim()) return toast.error(t('tts.toast.textRequired'));
+  const voiceLabel = isCapCut
+    ? selectedCapCutVoice?.displayName || 'CapCut'
+    : isGemini ? selectedGeminiVoice?.name || 'Gemini'
+      : isVbee ? store.vbeeVoiceName.trim() || 'Vbee'
+        : isVieneu && mode === 'preset' ? store.vieneuVoice
+          : mode === 'clone' ? selectedProfile?.name || t('tts.settings.cloneMode') : t(`tts.mode.${mode}`);
+
+  /** Trả về thông báo lỗi nếu chưa tạo được giọng, null nếu cấu hình hợp lệ. */
+  const validateGeneration = useCallback((): string | null => {
+    if (!window.ttsRuntime) return t('tts.toast.desktopOnly');
     if (!isOnline && selectedStatus?.status !== 'ready') {
       setMissingModelOpen(true);
+      return MODEL_NOT_READY;
+    }
+    if (!isOnline && mode === 'clone' && !selectedProfile) return t('tts.toast.profileRequired');
+    if (!isOnline && !isVieneu && mode === 'design' && !store.instruction.trim()) return t('tts.toast.instructionRequired');
+    if (isCapCut && !selectedCapCutVoice) return t('tts.capcut.voiceRequired');
+    if (isGemini && !selectedGeminiVoice) return t('tts.gemini.voiceRequired');
+    if (isVbee && !store.vbeeVoiceCode.trim()) return t('tts.vbee.voiceRequired');
+    return null;
+  }, [isCapCut, isGemini, isOnline, isVbee, isVieneu, mode, selectedCapCutVoice, selectedGeminiVoice, selectedProfile, selectedStatus, store.instruction, store.vbeeVoiceCode, t]);
+
+  const buildGeneratePayload = useCallback((jobId: string, text: string) => ({
+    jobId,
+    model: toRuntimeModel(selectedModel),
+    text,
+    mode: (isOnline ? 'preset' : mode) as typeof mode,
+    splitMode: store.splitMode,
+    language: isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
+    speed: store.speed,
+    numStep: store.numStep,
+    advancedSettings: store.advancedEnabled ? store.advancedSettings : undefined,
+    capcutVoiceType: isCapCut ? selectedCapCutVoice?.voiceType : undefined,
+    capcutResourceId: isCapCut ? selectedCapCutVoice?.resourceId : undefined,
+    geminiVoiceName: isGemini ? selectedGeminiVoice?.name : undefined,
+    geminiStyle: isGemini ? store.geminiStyle.trim() : undefined,
+    geminiTemperature: isGemini ? store.geminiTemperature : undefined,
+    vbeeVoiceCode: isVbee ? store.vbeeVoiceCode.trim() : undefined,
+    vbeeAudioType: isVbee ? store.vbeeAudioType : undefined,
+    vbeeBitrate: isVbee ? store.vbeeBitrate : undefined,
+    vieneuVoice: isVieneu ? store.vieneuVoice : undefined,
+    vieneuStyle: isVieneu ? store.vieneuStyle : undefined,
+    instruction: mode === 'design' ? store.instruction.trim() : undefined,
+    profileId: mode === 'clone' ? selectedProfile?.id : undefined,
+    referenceAudioPath: selectedProfile?.referenceAudioPath,
+    referenceText: selectedProfile?.referenceText,
+  }), [isCapCut, isGemini, isOnline, isVbee, isVieneu, mode, selectedCapCutVoice, selectedGeminiVoice, selectedModel, selectedProfile, store.advancedEnabled, store.advancedSettings, store.capcutLanguage, store.geminiLanguage, store.geminiStyle, store.geminiTemperature, store.instruction, store.language, store.numStep, store.speed, store.splitMode, store.vbeeAudioType, store.vbeeBitrate, store.vbeeVoiceCode, store.vieneuStyle, store.vieneuVoice]);
+
+  /** Chạy một job và giữ khoá tác vụ; dùng chung cho nút tạo giọng và đọc hàng loạt. */
+  const runGeneration = useCallback(async (jobId: string, text: string): Promise<TtsGenerateResult> => {
+    setActiveJobId(jobId);
+    setProgress({ jobId, kind: 'generate', stage: 'starting', percent: 2, message: t('tts.toast.preparing') });
+    try {
+      return await window.ttsRuntime!.generate(buildGeneratePayload(jobId, text));
+    } finally {
+      setActiveJobId(undefined);
+    }
+  }, [buildGeneratePayload, t]);
+
+  const validateBatch = useCallback(() => {
+    const invalid = validateGeneration();
+    return invalid === MODEL_NOT_READY ? t('tts.batch.modelNotReady') : invalid;
+  }, [t, validateGeneration]);
+
+  const batch = useTtsBatch({ isOnline, validate: validateBatch, runGeneration });
+  batchRunningRef.current = batch.running;
+  const busy = Boolean(activeJobId) || batch.running;
+
+  const cancelJob = useCallback(async () => {
+    batch.requestStop();
+    if (!activeJobId) return;
+    await window.ttsRuntime?.cancel(activeJobId);
+    setActiveJobId(undefined);
+    await refreshStatuses();
+    toast.info(t('tts.toast.cancelRequested'));
+  }, [activeJobId, batch.requestStop, refreshStatuses, t]);
+
+  const generate = useCallback(async () => {
+    const text = store.text.trim();
+    if (!text) return toast.error(t('tts.toast.textRequired'));
+    const invalid = validateGeneration();
+    if (invalid) {
+      if (invalid !== MODEL_NOT_READY) toast.error(invalid);
       return;
     }
-    if (!isOnline && mode === 'clone' && !selectedProfile) return toast.error(t('tts.toast.profileRequired'));
-    if (!isOnline && !isVieneu && mode === 'design' && !store.instruction.trim()) return toast.error(t('tts.toast.instructionRequired'));
-    if (isCapCut && !selectedCapCutVoice) return toast.error(t('tts.capcut.voiceRequired'));
-    if (isGemini && !selectedGeminiVoice) return toast.error(t('tts.gemini.voiceRequired'));
-    if (isVbee && !store.vbeeVoiceCode.trim()) return toast.error(t('tts.vbee.voiceRequired'));
-    if (!window.ttsRuntime) return toast.error(t('tts.toast.desktopOnly'));
 
     const jobId = createTtsJobId('generate');
     const queuedAt = Date.now();
-    const voiceLabel = isCapCut
-      ? selectedCapCutVoice?.displayName || 'CapCut'
-      : isGemini ? selectedGeminiVoice?.name || 'Gemini'
-        : isVbee ? store.vbeeVoiceName.trim() || 'Vbee'
-          : isVieneu && mode === 'preset' ? store.vieneuVoice
-            : mode === 'clone' ? selectedProfile?.name || t('tts.settings.cloneMode') : t(`tts.mode.${mode}`);
     taskMetadata.begin({
       id: jobId, kind: 'tts', status: 'queued', queuedAt,
-      title: store.text.trim().slice(0, 80), provider: selectedModel.providerId, model: selectedModel.id,
-      prompt: store.text.trim(), instruction: mode === 'design' ? store.instruction.trim() : undefined,
+      title: text.slice(0, 80), provider: selectedModel.providerId, model: selectedModel.id,
+      prompt: text, instruction: mode === 'design' ? store.instruction.trim() : undefined,
       details: {
         voice: voiceLabel, mode: isOnline ? 'preset' : mode,
         language: isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
         speed: store.speed, splitMode: store.splitMode,
       },
     });
-    setActiveJobId(jobId);
-    setProgress({ jobId, kind: 'generate', stage: 'starting', percent: 2, message: t('tts.toast.preparing') });
     let result;
     try {
       taskMetadata.submitted(jobId);
-      result = await window.ttsRuntime.generate({
-        jobId,
-        model: toRuntimeModel(selectedModel),
-        text: store.text.trim(),
-        mode: isOnline ? 'preset' : mode,
-        splitMode: store.splitMode,
-        language: isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
-        speed: store.speed,
-        numStep: store.numStep,
-        advancedSettings: store.advancedEnabled ? store.advancedSettings : undefined,
-        capcutVoiceType: isCapCut ? selectedCapCutVoice?.voiceType : undefined,
-        capcutResourceId: isCapCut ? selectedCapCutVoice?.resourceId : undefined,
-        geminiVoiceName: isGemini ? selectedGeminiVoice?.name : undefined,
-        geminiStyle: isGemini ? store.geminiStyle.trim() : undefined,
-        geminiTemperature: isGemini ? store.geminiTemperature : undefined,
-        vbeeVoiceCode: isVbee ? store.vbeeVoiceCode.trim() : undefined,
-        vbeeAudioType: isVbee ? store.vbeeAudioType : undefined,
-        vbeeBitrate: isVbee ? store.vbeeBitrate : undefined,
-        vieneuVoice: isVieneu ? store.vieneuVoice : undefined,
-        vieneuStyle: isVieneu ? store.vieneuStyle : undefined,
-        instruction: mode === 'design' ? store.instruction.trim() : undefined,
-        profileId: mode === 'clone' ? selectedProfile?.id : undefined,
-        referenceAudioPath: selectedProfile?.referenceAudioPath,
-        referenceText: selectedProfile?.referenceText,
-      });
+      result = await runGeneration(jobId, text);
     } catch (error) {
       taskMetadata.failed(jobId, error);
       toast.error(runtimeErrorMessage(error, t, 'tts.toast.generateFailed'));
       return;
-    } finally {
-      setActiveJobId(undefined);
     }
     if (!result.success || !result.outputPath) {
       taskMetadata.failed(jobId, result.error || (result.canceled ? 'Cancelled' : 'TTS generation failed'));
@@ -287,9 +322,9 @@ export function useTtsController() {
     });
     store.addHistory({
       id: jobId,
-      name: store.text.trim().slice(0, 80),
+      name: text.slice(0, 80),
       modelId: selectedModel.id,
-      text: store.text.trim(),
+      text,
       mode: isOnline ? 'preset' : mode,
       voiceLabel,
       outputPath: result.outputPath,
@@ -297,11 +332,11 @@ export function useTtsController() {
     });
     store.setText('');
     toast.success(t('tts.toast.audioCreated'));
-  }, [isCapCut, isGemini, isOnline, isVbee, isVieneu, mode, selectedCapCutVoice, selectedGeminiVoice, selectedModel, selectedProfile, selectedStatus, store.addHistory, store.advancedEnabled, store.advancedSettings, store.capcutLanguage, store.geminiLanguage, store.geminiStyle, store.geminiTemperature, store.instruction, store.language, store.numStep, store.speed, store.splitMode, store.setText, store.text, store.vbeeAudioType, store.vbeeBitrate, store.vbeeVoiceCode, store.vbeeVoiceName, store.vieneuStyle, store.vieneuVoice, t]);
+  }, [isCapCut, isGemini, isOnline, mode, runGeneration, selectedModel, store.addHistory, store.capcutLanguage, store.geminiLanguage, store.instruction, store.language, store.speed, store.splitMode, store.setText, store.text, t, validateGeneration, voiceLabel]);
 
   const previewCapCutVoice = useCallback(async () => {
     if (!isCapCut || !selectedCapCutVoice) return;
-    if (activeJobId) return toast.info(t('tts.toast.jobBusy'));
+    if (activeJobId || batchRunningRef.current) return toast.info(t('tts.toast.jobBusy'));
     if (!window.ttsRuntime) return toast.error(t('tts.toast.desktopOnly'));
     const samples: Record<string, string> = {
       'vi-VN': 'Xin chào, đây là giọng đọc mẫu của tôi.',
@@ -343,7 +378,7 @@ export function useTtsController() {
 
   const previewGeminiVoice = useCallback(async () => {
     if (!isGemini || !selectedGeminiVoice) return;
-    if (activeJobId) return toast.info(t('tts.toast.jobBusy'));
+    if (activeJobId || batchRunningRef.current) return toast.info(t('tts.toast.jobBusy'));
     if (!window.ttsRuntime) return toast.error(t('tts.toast.desktopOnly'));
     const samples: Record<string, string> = {
       'vi-VN': 'Xin chào, đây là bản nghe thử giọng đọc Gemini của tôi.',
@@ -389,7 +424,7 @@ export function useTtsController() {
     statuses, engineGroups: TTS_MODEL_GROUPS, selectedEngine, availableModels, selectedModel, selectedStatus, isCapCut, isGemini, isVbee, isVieneu, isOnline, mode, compatibleProfiles, selectedProfile,
     capcutVoices, selectedCapCutVoice,
     geminiVoices: GEMINI_VOICES, selectedGeminiVoice,
-    currentModelLabel, activeJobId, progress, busy,
+    currentModelLabel, activeJobId, progress, busy, batch,
     managerOpen, setManagerOpen, missingModelOpen, setMissingModelOpen,
     profileOpen, setProfileOpen, profileName, setProfileName,
     referenceAudioPath, referenceText, setReferenceText,

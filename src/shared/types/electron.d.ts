@@ -511,6 +511,16 @@ declare global {
       pickReferenceAudio: (title?: string) => Promise<{ path: string | null }>;
       exportAudio: (sourcePath: string, title?: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>;
       revealAudio: (filePath: string) => Promise<{ success: boolean }>;
+      pickBatchFolder: (title?: string) => Promise<{ path: string | null }>;
+      scanBatchFolder: (folderPath: string) => Promise<{
+        success: boolean;
+        files: Array<{ path: string; name: string; chars: number; existingAudioPath?: string }>;
+        truncated: boolean;
+        error?: string;
+      }>;
+      readBatchText: (filePath: string) => Promise<{ success: boolean; text?: string; error?: string }>;
+      saveBatchOutput: (sourcePath: string, textFilePath: string) => Promise<{ success: boolean; outputPath?: string; error?: string }>;
+      openBatchFolder: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
       onEvent: (listener: (event: import('@/features/tts-voice/types').TtsProgressEvent) => void) => () => void;
     };
     autoVideoRuntime?: {
