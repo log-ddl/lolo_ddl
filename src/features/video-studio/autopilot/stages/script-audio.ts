@@ -84,10 +84,14 @@ export async function runAudioStage(
   const capcutResourceId = isCapcut ? (v.capcutResourceId || getCapCutVoice(capcutVoiceType || '')?.resourceId || '') : undefined;
   const cloneProfile = (isOmnivoice || isVieneu) && v.profileId && v.referenceAudioPath ? v : undefined;
   const mode = isOnline ? 'preset' : isVieneu ? (cloneProfile ? 'clone' : 'preset') : (v.mode && v.mode !== 'preset' ? v.mode : (cloneProfile ? 'clone' : 'auto'));
+  // Reading mode picked in the panel. `auto` (and legacy jobs without the field) keeps the
+  // old default: Vbee takes the locked narration as one request up to 50,000 characters and
+  // its runtime only chunks past that limit, every other provider reads line by line.
+  const splitMode = v.splitMode && v.splitMode !== 'auto' ? v.splitMode : (isVbee ? 'default' : 'line');
 
   ctx.log(job.id, 'audio', cloneProfile
     ? `Tạo voice bằng giọng clone OmniVoice (${v.profileId}) trước media...`
-    : `Tạo voice trước media (${v.engineName || capability}, ${narrationBlocks.length} khối)...`);
+    : `Tạo voice trước media (${v.engineName || capability}, ${narrationBlocks.length} khối, cách đọc: ${splitMode})...`);
   ctx.stageProgress(job.id, 'audio', 10);
   const ttsJobId = `autopilot-tts-${job.id}-${Date.now()}`;
   const abort = () => { void window.ttsRuntime?.cancel(ttsJobId); };
@@ -98,9 +102,7 @@ export async function runAudioStage(
       model: { id: modelId, repository, capability },
       text: narrationBlocks.join('\n'),
       mode,
-      // Vbee accepts the locked narration as one request up to 50,000
-      // characters. Its runtime only chunks text when that limit is exceeded.
-      splitMode: isVbee ? 'default' : 'line',
+      splitMode,
       language: v.language || (isGemini ? 'vi-VN' : 'vi'),
       speed: v.speed,
       numStep: v.numStep,

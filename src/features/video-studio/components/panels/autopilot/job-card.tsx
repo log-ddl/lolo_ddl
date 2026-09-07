@@ -11,7 +11,7 @@ import type { Translate } from "@/shared/i18n";
 import { Button } from "@/shared/components/ui/button";
 import { Progress } from "@/shared/components/ui/progress";
 import type { AutopilotJobListItem } from "@/features/video-studio/autopilot/types";
-import { STATUS_ICONS, STATUS_STYLES } from "./panel-shared";
+import { formatClock, formatElapsed, STATUS_ICONS, STATUS_STYLES } from "./panel-shared";
 import { JobLog, JobStageTimeline, LongFormChapterProgress } from "./job-progress";
 import { JobMediaGallery } from "./job-media-gallery";
 import { ExportFcpxmlButton, RerenderControl } from "./job-actions";
@@ -47,6 +47,9 @@ export function JobCard({
   const Icon = STATUS_ICONS[job.status];
   const isBusy = job.status === "running" || job.status === "queued";
   const isIdle = (IDLE_STATUSES as readonly string[]).includes(job.status);
+  // Jobs created before startedAt existed only carry createdAt; the queue wait is
+  // negligible there, so it stands in for the start.
+  const startedAt = job.startedAt || job.createdAt;
 
   return (
     <div className="bg-card border border-border rounded-lg p-3 space-y-2">
@@ -94,6 +97,13 @@ export function JobCard({
         )}
       </div>
       <div className="text-xs text-muted-foreground">{job.message}</div>
+      {!isBusy && job.finishedAt && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs tabular-nums text-muted-foreground">
+          <span>{t("autopilot.panel.jobStarted")} {formatClock(startedAt, now)}</span>
+          <span>{t("autopilot.panel.jobFinished")} {formatClock(job.finishedAt, startedAt)}</span>
+          <span className="text-foreground/80">{t("autopilot.panel.jobElapsed")} {formatElapsed(job.finishedAt - startedAt)}</span>
+        </div>
+      )}
       <JobStageTimeline job={job} />
       {job.error && (
         <div className="text-xs text-red-500 bg-red-500/10 border border-red-500/30 rounded p-2">{job.error}</div>

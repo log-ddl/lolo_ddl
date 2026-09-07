@@ -14,6 +14,11 @@ import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prom
 import type { AutopilotJob } from '../types';
 import { MAX_IMAGE_REFERENCE_SLOTS, runGenerationWithRetries, type CharacterReference, type EngineContext } from '../engine-shared';
 
+/** A cancelled regeneration leaves the previous asset in place, if there still is one. */
+function mediaStatusAfterAbort(existingPath: string | undefined) {
+  return existingPath ? 'completed' as const : 'idle' as const;
+}
+
 export async function runSingleShotRegeneration(
   ctx: EngineContext,
   job: AutopilotJob,
@@ -61,6 +66,7 @@ export async function runSingleShotRegeneration(
     if (kind === 'image') {
       // Regenerate image
       mediaOutput.imageStatus = 'queued';
+      mediaOutput.imageError = undefined;
       syncMediaOutputs();
       const sceneRef = sceneByName.get(String(shot.sceneRefId || '').trim().toLocaleLowerCase());
       const reservedReferenceSlots = (sceneRef?.imagePath ? 1 : 0) + (mediaOutput.realImagePath ? 1 : 0);
@@ -85,15 +91,18 @@ export async function runSingleShotRegeneration(
         : '';
       const imageResult = await runGenerationWithRetries(
         retryAttempts, signal,
-        (attempt) => googleFlowProvider.generateImage({
-          projectId: longddProjectId,
-          sceneId: `autopilot-${job.id}-${shot.index - 1}`,
-          prompt: `${sceneLine}${identityLine}${researchLine}${shot.imagePrompt || ''} ${visualStyleLine}`.trim(),
-          model: imageModel, aspectRatio, references,
-          taskId: `ap-img-${job.id}-${shot.index - 1}-regen-${attempt}`,
-          onSubmitted: () => { mediaOutput.imageStatus = 'generating'; syncMediaOutputs(); },
-          signal,
-        }),
+        (attempt) => {
+          mediaOutput.imageTaskId = `ap-img-${job.id}-${shot.index - 1}-regen-${attempt}`;
+          return googleFlowProvider.generateImage({
+            projectId: longddProjectId,
+            sceneId: `autopilot-${job.id}-${shot.index - 1}`,
+            prompt: `${sceneLine}${identityLine}${researchLine}${shot.imagePrompt || ''} ${visualStyleLine}`.trim(),
+            model: imageModel, aspectRatio, references,
+            taskId: mediaOutput.imageTaskId,
+            onSubmitted: () => { mediaOutput.imageStatus = 'generating'; syncMediaOutputs(); },
+            signal,
+          });
+        },
         (nextAttempt, totalAttempts, error) => {
           mediaOutput.imageStatus = 'queued'; syncMediaOutputs();
           ctx.log(job.id, 'media', `Tạo lại ảnh shot ${shot.index} lỗi — thử lại ${nextAttempt}/${totalAttempts}: ${error instanceof Error ? error.message : String(error)}`);
@@ -103,6 +112,7 @@ export async function runSingleShotRegeneration(
       if (!source) throw new Error('Google Flow không trả về ảnh');
       mediaOutput.imagePath = await saveImageToLocal(source, 'shots', `${safeFileName(job.title)}_shot_${shot.index}_${Date.now()}.png`);
       mediaOutput.imageStatus = 'completed';
+      mediaOutput.imageError = undefined;
       const mediaStore = useMediaStore.getState();
       mediaOutput.imageMediaId = mediaStore.addMediaFromUrl({
         url: mediaOutput.imagePath, name: `${job.title} — Shot ${shot.index}`,
@@ -114,19 +124,23 @@ export async function runSingleShotRegeneration(
       // Regenerate video
       if (!mediaOutput.imagePath) throw new Error(`Shot ${shotIndex} chưa có ảnh để tạo video`);
       mediaOutput.videoStatus = 'queued';
+      mediaOutput.videoError = undefined;
       syncMediaOutputs();
       const videoResult = await runGenerationWithRetries(
         retryAttempts, signal,
-        (attempt) => googleFlowProvider.generateVideo({
-          projectId: longddProjectId,
-          sceneId: `autopilot-${job.id}-${shot.index - 1}`,
-          prompt: `${shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
-          model: videoModel, aspectRatio, duration: shot.videoLength,
-          startImage: { source: mediaOutput.imagePath, provider: 'googleflow', flowProjectId },
-          taskId: `ap-vid-${job.id}-${shot.index - 1}-regen-${attempt}`,
-          onSubmitted: () => { mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
-          signal,
-        }),
+        (attempt) => {
+          mediaOutput.videoTaskId = `ap-vid-${job.id}-${shot.index - 1}-regen-${attempt}`;
+          return googleFlowProvider.generateVideo({
+            projectId: longddProjectId,
+            sceneId: `autopilot-${job.id}-${shot.index - 1}`,
+            prompt: `${shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
+            model: videoModel, aspectRatio, duration: shot.videoLength,
+            startImage: { source: mediaOutput.imagePath, provider: 'googleflow', flowProjectId },
+            taskId: mediaOutput.videoTaskId,
+            onSubmitted: () => { mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
+            signal,
+          });
+        },
         (nextAttempt, totalAttempts, error) => {
           mediaOutput.videoStatus = 'queued'; syncMediaOutputs();
           ctx.log(job.id, 'media', `Tạo lại video shot ${shot.index} lỗi — thử lại ${nextAttempt}/${totalAttempts}: ${error instanceof Error ? error.message : String(error)}`);
@@ -136,6 +150,7 @@ export async function runSingleShotRegeneration(
       if (!source) throw new Error('Google Flow không trả về video');
       mediaOutput.videoPath = await saveVideoToLocal(source, `${safeFileName(job.title)}_shot_${shot.index}_${Date.now()}.mp4`);
       mediaOutput.videoStatus = 'completed';
+      mediaOutput.videoError = undefined;
       const mediaStore = useMediaStore.getState();
       mediaOutput.videoMediaId = mediaStore.addMediaFromUrl({
         url: mediaOutput.videoPath, name: `${job.title} — Shot ${shot.index}`,
@@ -156,10 +171,23 @@ export async function runSingleShotRegeneration(
     }
     ctx.updateJob(job.id, { status: prevStatus === 'done' && allMedia.every((m) => m.imagePath && (m.videoPath || m.videoStatus === 'skipped')) ? 'done' : 'paused', outputVideoPath: undefined, message: `Đã tạo lại ${kind === 'image' ? 'ảnh' : 'video'} shot ${shotIndex}` });
   } catch (error) {
+    // The asset was left 'queued'/'generating' by the code above; without settling it
+    // here the card would keep showing a spinner for work that already stopped.
+    const target = (job.mediaOutputs || []).find((item) => item.index === shotIndex);
     if (signal.aborted) {
+      if (target) {
+        if (kind === 'image') target.imageStatus = mediaStatusAfterAbort(target.imagePath);
+        else target.videoStatus = mediaStatusAfterAbort(target.videoPath);
+        ctx.updateJob(job.id, { mediaOutputs: [...(job.mediaOutputs || [])] });
+      }
       ctx.updateJob(job.id, { status: 'paused', message: 'Đã dừng' });
     } else {
       const msg = error instanceof Error ? error.message : String(error);
+      if (target) {
+        if (kind === 'image') { target.imageStatus = 'failed'; target.imageError = msg; }
+        else { target.videoStatus = 'failed'; target.videoError = msg; }
+        ctx.updateJob(job.id, { mediaOutputs: [...(job.mediaOutputs || [])] });
+      }
       ctx.log(job.id, 'error', `Tạo lại shot ${shotIndex} thất bại: ${msg}`);
       ctx.updateJob(job.id, { status: prevStatus === 'done' ? 'done' : 'paused', error: msg, message: `Lỗi tạo lại shot ${shotIndex}` });
     }

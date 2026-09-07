@@ -4,7 +4,8 @@ import { cn } from "@/shared/lib/utils";
 import { useI18n } from "@/shared/i18n";
 import { useNow } from "@/shared/lib/use-now";
 import { TaskInfoButton } from "@/shared/task-metadata";
-import { ChevronRight, Mic, Plus } from "lucide-react";
+import { Check, ChevronRight, Copy, Mic, Plus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { SplitSceneCard } from "@/features/video-studio/components/panels/director/split-scene-card";
 import { useAutopilotStore } from "@/features/video-studio/stores/autopilot-store";
 import type { SplitScene } from "@/features/video-studio/stores/director-types";
@@ -28,6 +29,55 @@ function toGenerationStatus(status: AutopilotPlannedShot["imageStatus"] | Autopi
     return status;
   }
   return "idle";
+}
+
+/**
+ * A status badge that opens the failure message on click. The message is the one the
+ * provider returned, kept on the media output; a badge with nothing behind it stays a
+ * plain badge so the user never clicks into an empty popover.
+ */
+function StatusBadge({ label, message, tone }: { label: string; message?: string; tone: "error" | "warning" }) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+  const className = cn(
+    "rounded-full border px-2 py-0.5 text-2xs",
+    tone === "error"
+      ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+      : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  );
+  if (!message) return <span className={className}>{label}</span>;
+  return (
+    <Popover>
+      {/*
+        The badge lives inside the card's <summary>. Stopping propagation keeps the click
+        from reaching it (which would expand the card) while Radix still opens the popover.
+        Popover content is portalled, but React events bubble along the React tree, so it
+        needs the same guard.
+      */}
+      <PopoverTrigger asChild onClick={(event) => event.stopPropagation()}>
+        <button type="button" className={cn(className, "cursor-pointer underline decoration-dotted underline-offset-2")}>{label}</button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 space-y-2 p-3" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold">{t("autopilot.card.errorDetail")}</span>
+          <button
+            type="button"
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-muted-foreground hover:bg-muted"
+            onClick={() => {
+              void navigator.clipboard.writeText(message).then(() => {
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1500);
+              });
+            }}
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {t(copied ? "taskInfo.copied" : "taskInfo.copy")}
+          </button>
+        </div>
+        <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded border bg-muted/30 p-2 font-sans text-2xs leading-relaxed">{message}</pre>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /** Track when a status transitions to 'generating' and return the timestamp */
@@ -83,7 +133,7 @@ export function AutopilotShotCard({
     imagePrompt: shot.imagePrompt || "",
     imageStatus: toGenerationStatus(media?.imageStatus),
     imageProgress: 0,
-    imageError: null,
+    imageError: media?.imageError || null,
     imageSource: "ai-generated",
     videoPrompt: shot.videoPrompt || "",
     voiceOver: shot.voiceOver || "",
@@ -91,7 +141,7 @@ export function AutopilotShotCard({
     videoStatus: toGenerationStatus(media?.videoStatus),
     videoProgress: 0,
     videoUrl: media?.videoPath || null,
-    videoError: media?.videoStatus === "failed" ? t("director.generationFailed") : null,
+    videoError: media?.videoError || (media?.videoStatus === "failed" ? t("director.generationFailed") : null),
     videoMediaId: media?.videoMediaId || null,
     characterIds: [],
     dialogue: "",
@@ -110,8 +160,10 @@ export function AutopilotShotCard({
     shot.videoLength,
     media?.imagePath,
     media?.imageStatus,
+    media?.imageError,
     media?.videoPath,
     media?.videoStatus,
+    media?.videoError,
     media?.videoMediaId,
     t,
   ]);
@@ -125,6 +177,10 @@ export function AutopilotShotCard({
   const videoQueued = media?.videoStatus === "queued";
   const imageFailed = media?.imageStatus === "failed";
   const videoFailed = media?.videoStatus === "failed";
+  const videoFellBackToStill = media?.videoStatus === "skipped" && !!media?.videoError;
+  // Show the video task when there is one to talk about (finished or broken); otherwise
+  // the image task, which is what a shot stuck without a frame needs.
+  const infoIsVideo = hasVideo || videoFailed || videoFellBackToStill;
   const sceneName = shot.sceneRefId || "";
   const now = useNow(imageGenerating || videoGenerating);
   const imageElapsed = imageGenerating && imageStartedAt ? Math.max(0, Math.floor((now - imageStartedAt) / 1000)) : 0;
@@ -146,7 +202,7 @@ export function AutopilotShotCard({
           ) : imageQueued ? (
             <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-2xs text-amber-600 dark:text-amber-400">{t("autopilot.panel.waiting")}</span>
           ) : imageFailed ? (
-            <span className="rounded-full bg-red-500/10 border border-red-500/30 px-2 py-0.5 text-2xs text-red-600 dark:text-red-400">{t("autopilot.card.failed")}</span>
+            <StatusBadge label={t("autopilot.card.failed")} message={media?.imageError} tone="error" />
           ) : null}
           {/* Duration */}
           <span className="rounded-full bg-muted border border-border px-2 py-0.5 text-2xs text-muted-foreground">{shot.videoLength}s</span>
@@ -158,13 +214,18 @@ export function AutopilotShotCard({
           ) : videoQueued ? (
             <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-2xs text-amber-600 dark:text-amber-400">{t("autopilot.panel.waiting")}</span>
           ) : videoFailed ? (
-            <span className="rounded-full bg-red-500/10 border border-red-500/30 px-2 py-0.5 text-2xs text-red-600 dark:text-red-400">{t("autopilot.card.videoFailed")}</span>
+            <StatusBadge label={t("autopilot.card.videoFailed")} message={media?.videoError} tone="error" />
+          ) : videoFellBackToStill ? (
+            // Not an error for the job — the shot renders as a still — but the user still
+            // needs to know the clip was meant to exist and why it does not.
+            <StatusBadge label={t("autopilot.card.videoFallback")} message={media?.videoError} tone="warning" />
           ) : null}
           <TaskInfoButton
-            outputUrl={hasVideo ? media?.videoPath : media?.imagePath}
-            prompt={hasVideo ? shot.videoPrompt : shot.imagePrompt}
-            kind={hasVideo ? "video" : "image"}
-            title={t(hasVideo ? "taskInfo.video" : "taskInfo.image")}
+            taskId={infoIsVideo ? media?.videoTaskId : media?.imageTaskId}
+            outputUrl={infoIsVideo ? media?.videoPath : media?.imagePath}
+            prompt={infoIsVideo ? shot.videoPrompt : shot.imagePrompt}
+            kind={infoIsVideo ? "video" : "image"}
+            title={t(infoIsVideo ? "taskInfo.video" : "taskInfo.image")}
           />
         </div>
         <ChevronRight className="autopilot-collapsible-chevron-right h-4 w-4 shrink-0 text-muted-foreground" />

@@ -129,6 +129,7 @@ function toListItem(job: AutopilotJob): AutopilotJobListItem {
     progress: job.progress,
     message: job.message,
     createdAt: job.createdAt,
+    startedAt: job.startedAt,
     finishedAt: job.finishedAt,
     error: job.error,
     input: job.input,

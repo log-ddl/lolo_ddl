@@ -54,6 +54,11 @@ export interface PendingShot {
   researchStatus: AutopilotAssetStatus;
   imageStatus: AutopilotAssetStatus;
   videoStatus: AutopilotAssetStatus;
+  researchError?: string;
+  imageError?: string;
+  videoError?: string;
+  imageTaskId?: string;
+  videoTaskId?: string;
 }
 
 export interface AudioResult {

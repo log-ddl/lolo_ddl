@@ -28,10 +28,17 @@ const GEMINI_MODELS = TTS_MODEL_GROUPS.find((group) => group.id === "gemini")?.m
 
 export type VoiceEngine = "capcut" | "gemini" | "omnivoice" | "vbee" | "vieneu";
 
+/**
+ * Same split modes as the TTS tab, plus `auto`: keep the per-provider default
+ * (Vbee reads the whole script in one request, everything else reads line by line).
+ */
+export type VoiceSplitMode = "auto" | "default" | "line" | "sentence";
+
 export type AutopilotVoiceSettings = ReturnType<typeof useAutopilotVoiceSettings>;
 
 export function useAutopilotVoiceSettings() {
   const [voiceEngine, setVoiceEngine] = useState<VoiceEngine>("vbee");
+  const [splitMode, setSplitMode] = useState<VoiceSplitMode>("auto");
   const [capcutLanguage, setCapcutLanguage] = useState("vi-VN");
   const [capcutVoiceType, setCapcutVoiceType] = useState("BV421_vivn_streaming");
   const [geminiLanguage, setGeminiLanguage] = useState("vi-VN");
@@ -138,7 +145,7 @@ export function useAutopilotVoiceSettings() {
   }, [voiceEngine, vieneuVoice]);
 
   /** Assembles the provider-specific `voice` block of an AutopilotJobInput. */
-  const buildVoice = (): NonNullable<AutopilotJobInput["voice"]> => {
+  const buildEngineVoice = (): NonNullable<AutopilotJobInput["voice"]> => {
     if (voiceEngine === "capcut") {
       return {
         capability: "capcut",
@@ -207,8 +214,12 @@ export function useAutopilotVoiceSettings() {
     };
   };
 
+  /** Engine block + the reading mode the audio stage should use. */
+  const buildVoice = (): NonNullable<AutopilotJobInput["voice"]> => ({ ...buildEngineVoice(), splitMode });
+
   return {
     voiceEngine, setVoiceEngine,
+    splitMode, setSplitMode,
     capcutLanguage, setCapcutLanguage,
     capcutVoiceType, setCapcutVoiceType,
     capcutVoices,
@@ -238,18 +249,32 @@ export function useAutopilotVoiceSettings() {
 
 const SELECT_CLASS = "w-full h-8 rounded-lg border border-border bg-background px-2 text-xs";
 
-/** Engine picker. Rendered separately so it can sit above the engine-specific controls. */
+/** Engine + reading mode picker. Rendered separately so it can sit above the engine-specific controls. */
 export function VoiceEnginePicker({ settings, t }: { settings: AutopilotVoiceSettings; t: Translate }) {
   return (
-    <div>
-      <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voice")}</Label>
-      <select value={settings.voiceEngine} onChange={(e) => settings.setVoiceEngine(e.target.value as VoiceEngine)} className={SELECT_CLASS}>
-        <option value="capcut">CapCut</option>
-        <option value="gemini">Gemini</option>
-        <option value="vbee">Vbee</option>
-        <option value="vieneu">VieNeu</option>
-        <option value="omnivoice">OmniVoice</option>
-      </select>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voice")}</Label>
+          <select value={settings.voiceEngine} onChange={(e) => settings.setVoiceEngine(e.target.value as VoiceEngine)} className={SELECT_CLASS}>
+            <option value="capcut">CapCut</option>
+            <option value="gemini">Gemini</option>
+            <option value="vbee">Vbee</option>
+            <option value="vieneu">VieNeu</option>
+            <option value="omnivoice">OmniVoice</option>
+          </select>
+        </div>
+        <div>
+          <Label className="text-xs mb-1.5 block">{t("tts.splitMode.title")}</Label>
+          <select value={settings.splitMode} onChange={(e) => settings.setSplitMode(e.target.value as VoiceSplitMode)} className={SELECT_CLASS}>
+            <option value="auto">{t("autopilot.panel.splitModeAuto")}</option>
+            <option value="default">{t("tts.splitMode.default")}</option>
+            <option value="line">{t("tts.splitMode.line")}</option>
+            <option value="sentence">{t("tts.splitMode.sentence")}</option>
+          </select>
+        </div>
+      </div>
+      <p className="text-2xs leading-4 text-muted-foreground">{t("autopilot.panel.splitModeHint")}</p>
     </div>
   );
 }

@@ -85,6 +85,12 @@ export async function runMediaStage(
             : 'idle',
       imageStatus: imagePath ? 'completed' : 'idle',
       videoStatus: videoPath ? 'completed' : existing?.videoStatus === 'skipped' ? 'skipped' : 'idle',
+      // Keep the previous failure visible while resuming, but drop it once the asset exists.
+      researchError: realImageAvailable ? undefined : existing?.researchError,
+      imageError: imagePath ? undefined : existing?.imageError,
+      videoError: videoPath ? undefined : existing?.videoError,
+      imageTaskId: existing?.imageTaskId,
+      videoTaskId: existing?.videoTaskId,
       realImage: allowRealImageResearch && realImageAvailable && existing?.realImagePath ? {
         query: existing.realImageQuery || shot.realImageQuery || '',
         title: existing.realImageTitle || existing.realImageQuery || 'Researched image',
@@ -126,6 +132,11 @@ export async function runMediaStage(
         researchStatus: item.researchStatus,
         imageStatus: item.imageStatus,
         videoStatus: item.videoStatus,
+        researchError: item.researchError,
+        imageError: item.imageError,
+        videoError: item.videoError,
+        imageTaskId: item.imageTaskId,
+        videoTaskId: item.videoTaskId,
       })),
     });
   };
@@ -136,7 +147,7 @@ export async function runMediaStage(
   const missingResearch = researchedShots.filter((item) => !item.realImage && !item.realImageSearchCompleted);
   ctx.log(job.id, 'media', `Pha 1/3: tìm ảnh thật trước cho ${missingResearch.length}/${researchedShots.length} shot cần tư liệu`);
   let completedResearch = researchedShots.length - missingResearch.length;
-  missingResearch.forEach((item) => { item.researchStatus = 'queued'; });
+  missingResearch.forEach((item) => { item.researchStatus = 'queued'; item.researchError = undefined; });
   syncMediaOutputs();
   await runOrdered(missingResearch, await resolveLaneCount('image', 'googleflow'), async (item) => {
     if (signal.aborted) throw new Error('aborted');
@@ -151,6 +162,7 @@ export async function runMediaStage(
       item.realImageSearchCompleted = true;
       if (item.realImage) {
         item.researchStatus = 'completed';
+        item.researchError = undefined;
         const mediaStore = useMediaStore.getState();
         item.realImageMediaId = mediaStore.addMediaFromUrl({
           url: item.realImage.localPath,
@@ -163,6 +175,7 @@ export async function runMediaStage(
         ctx.log(job.id, 'media', `[tư liệu shot ${item.shot.index}] ${item.realImage.title}`);
       } else {
         item.researchStatus = 'skipped';
+        item.researchError = undefined;
         ctx.log(job.id, 'media', `[tư liệu shot ${item.shot.index}] không tìm thấy — frame sẽ tạo không có ảnh thật`);
       }
     } catch (error) {
@@ -171,7 +184,8 @@ export async function runMediaStage(
         throw error;
       }
       item.researchStatus = 'failed';
-      ctx.log(job.id, 'media', `[tư liệu shot ${item.shot.index}] lỗi tạm thời, lần resume sẽ thử lại: ${error instanceof Error ? error.message : String(error)}`);
+      item.researchError = error instanceof Error ? error.message : String(error);
+      ctx.log(job.id, 'media', `[tư liệu shot ${item.shot.index}] lỗi tạm thời, lần resume sẽ thử lại: ${item.researchError}`);
     } finally {
       completedResearch += 1;
       syncMediaOutputs();
@@ -185,7 +199,7 @@ export async function runMediaStage(
   const missingImages = pending.filter((item) => !item.imagePath);
   ctx.log(job.id, 'media', `Pha 2/3: tạo ${missingImages.length}/${shots.length} frame AI; ảnh thật có sẵn được đưa vào reference ngay từ đầu`);
   let completedImages = shots.length - missingImages.length;
-  missingImages.forEach((item) => { item.imageStatus = 'queued'; });
+  missingImages.forEach((item) => { item.imageStatus = 'queued'; item.imageError = undefined; });
   syncMediaOutputs();
   await runGoogleFlowQueueOrdered(ctx, job, 'media', 'image', missingImages, signal, async (item) => {
     if (signal.aborted) throw new Error('aborted');
@@ -214,20 +228,25 @@ export async function runMediaStage(
       const imageResult = await runGenerationWithRetries(
           retryAttempts,
           signal,
-          (attempt) => googleFlowProvider.generateImage({
-            projectId: longddProjectId,
-            sceneId: `autopilot-${job.id}-${item.shot.index - 1}`,
-            prompt: `${sceneLine}${identityLine}${researchLine}${item.shot.imagePrompt || ''} ${visualStyleLine}`.trim(),
-            model: imageModel,
-            aspectRatio,
-            references,
-            taskId: `ap-img-${job.id}-${item.shot.index - 1}-try-${attempt}`,
-            onSubmitted: () => {
-              item.imageStatus = 'generating';
-              syncMediaOutputs();
-            },
-            signal,
-          }),
+          (attempt) => {
+            // Remember the id of the attempt actually in flight: the last one to run is
+            // the one whose provider record explains the final outcome.
+            item.imageTaskId = `ap-img-${job.id}-${item.shot.index - 1}-try-${attempt}`;
+            return googleFlowProvider.generateImage({
+              projectId: longddProjectId,
+              sceneId: `autopilot-${job.id}-${item.shot.index - 1}`,
+              prompt: `${sceneLine}${identityLine}${researchLine}${item.shot.imagePrompt || ''} ${visualStyleLine}`.trim(),
+              model: imageModel,
+              aspectRatio,
+              references,
+              taskId: item.imageTaskId,
+              onSubmitted: () => {
+                item.imageStatus = 'generating';
+                syncMediaOutputs();
+              },
+              signal,
+            });
+          },
           (nextAttempt, totalAttempts, error) => {
             item.imageStatus = 'queued';
             syncMediaOutputs();
@@ -238,6 +257,7 @@ export async function runMediaStage(
       if (!source) throw new Error('Google Flow không trả về ảnh');
       item.imagePath = await saveImageToLocal(source, 'shots', `${safeFileName(job.title)}_shot_${item.shot.index}_${Date.now()}.png`);
       item.imageStatus = 'completed';
+      item.imageError = undefined;
       const mediaStore = useMediaStore.getState();
       item.imageMediaId = mediaStore.addMediaFromUrl({
         url: item.imagePath,
@@ -254,7 +274,8 @@ export async function runMediaStage(
         throw error;
       }
       item.imageStatus = 'failed';
-      ctx.log(job.id, 'media', `Ảnh shot ${item.shot.index} thất bại: ${error instanceof Error ? error.message : String(error)}`);
+      item.imageError = error instanceof Error ? error.message : String(error);
+      ctx.log(job.id, 'media', `Ảnh shot ${item.shot.index} thất bại: ${item.imageError}`);
     } finally {
       completedImages += 1;
       syncMediaOutputs();
@@ -281,7 +302,7 @@ export async function runMediaStage(
   const missingVideos = pending.filter((item) => item.imagePath && !item.videoPath && item.videoStatus !== 'skipped');
   ctx.log(job.id, 'media', `Pha 3/3: tạo ${missingVideos.length}/${shots.length} video còn thiếu từ frame cuối`);
   let completedVideos = shots.length - missingVideos.length;
-  missingVideos.forEach((item) => { item.videoStatus = 'queued'; });
+  missingVideos.forEach((item) => { item.videoStatus = 'queued'; item.videoError = undefined; });
   syncMediaOutputs();
   await runGoogleFlowQueueOrdered(ctx, job, 'media', 'video', missingVideos, signal, async (item) => {
     if (signal.aborted) throw new Error('aborted');
@@ -289,21 +310,24 @@ export async function runMediaStage(
       const videoResult = await runGenerationWithRetries(
           retryAttempts,
           signal,
-          (attempt) => googleFlowProvider.generateVideo({
-            projectId: longddProjectId,
-            sceneId: `autopilot-${job.id}-${item.shot.index - 1}`,
-            prompt: `${item.shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
-            model: videoModel,
-            aspectRatio,
-            duration: item.shot.videoLength,
-            startImage: { source: item.imagePath, provider: 'googleflow', flowProjectId },
-            taskId: `ap-vid-${job.id}-${item.shot.index - 1}-try-${attempt}`,
-            onSubmitted: () => {
-              item.videoStatus = 'generating';
-              syncMediaOutputs();
-            },
-            signal,
-          }),
+          (attempt) => {
+            item.videoTaskId = `ap-vid-${job.id}-${item.shot.index - 1}-try-${attempt}`;
+            return googleFlowProvider.generateVideo({
+              projectId: longddProjectId,
+              sceneId: `autopilot-${job.id}-${item.shot.index - 1}`,
+              prompt: `${item.shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
+              model: videoModel,
+              aspectRatio,
+              duration: item.shot.videoLength,
+              startImage: { source: item.imagePath, provider: 'googleflow', flowProjectId },
+              taskId: item.videoTaskId,
+              onSubmitted: () => {
+                item.videoStatus = 'generating';
+                syncMediaOutputs();
+              },
+              signal,
+            });
+          },
           (nextAttempt, totalAttempts, error) => {
             item.videoStatus = 'queued';
             syncMediaOutputs();
@@ -314,6 +338,7 @@ export async function runMediaStage(
       if (!source) throw new Error('Google Flow không trả về video');
       item.videoPath = await saveVideoToLocal(source, `${safeFileName(job.title)}_shot_${item.shot.index}_${Date.now()}.mp4`);
       item.videoStatus = 'completed';
+      item.videoError = undefined;
       const mediaStore = useMediaStore.getState();
       item.videoMediaId = mediaStore.addMediaFromUrl({
         url: item.videoPath,
@@ -331,8 +356,11 @@ export async function runMediaStage(
         item.videoStatus = 'idle';
         throw err;
       }
+      // Still 'skipped', not 'failed': the shot degrades to a still and the job goes on.
+      // The message is kept so the card can explain why it went still.
       item.videoStatus = 'skipped';
-      ctx.log(job.id, 'media', `Video shot ${item.shot.index} thất bại — dùng ảnh fallback: ${err instanceof Error ? err.message : String(err)}`);
+      item.videoError = err instanceof Error ? err.message : String(err);
+      ctx.log(job.id, 'media', `Video shot ${item.shot.index} thất bại — dùng ảnh fallback: ${item.videoError}`);
     } finally {
       completedVideos += 1;
       syncMediaOutputs();

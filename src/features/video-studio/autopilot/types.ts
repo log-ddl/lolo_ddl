@@ -47,7 +47,8 @@ export interface AutopilotVoiceInput {
   repository?: string;
   capability?: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu';
   mode?: 'clone' | 'design' | 'auto' | 'preset';
-  splitMode?: string;
+  /** How the narration is fed to TTS. `auto` (or missing) keeps the per-provider default. */
+  splitMode?: 'auto' | 'default' | 'line' | 'sentence';
   language?: string;
   speed?: number;
   numStep?: number;
@@ -257,6 +258,20 @@ export interface AutopilotMediaOutput {
   researchStatus?: AutopilotAssetStatus;
   imageStatus?: AutopilotAssetStatus;
   videoStatus?: AutopilotAssetStatus;
+  /**
+   * Why the last attempt failed, kept per asset so the shot card can say what broke
+   * instead of a bare "failed" badge. Cleared when the asset is retried or succeeds.
+   */
+  researchError?: string;
+  imageError?: string;
+  videoError?: string;
+  /**
+   * Task id of the last attempt. The task-info dialog looks records up by id; without
+   * it the lookup falls back to prompt matching, which never hits because the prompt
+   * actually sent carries scene/character/style lines the shot does not store.
+   */
+  imageTaskId?: string;
+  videoTaskId?: string;
 }
 
 export interface AutopilotJob {
@@ -333,6 +348,7 @@ export interface AutopilotJobListItem {
   progress: number;
   message: string;
   createdAt: number;
+  startedAt?: number;
   finishedAt?: number;
   error?: string;
   input: AutopilotJobInput;

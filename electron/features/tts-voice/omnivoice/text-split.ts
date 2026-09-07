@@ -41,24 +41,73 @@ export function splitSentences(text: string): string[] {
     .filter(Boolean)
 }
 
-export function mergeLineAudios(jobId: string, inputs: string[], outputPath: string, gapSec = 0.25, sampleRate = 24000): Promise<{ ok: boolean; canceled: boolean }> {
+/**
+ * Above this many parts a single merge command (one -i per part plus a filtergraph
+ * that grows with the part count) overflows the OS command-line limit and spawn
+ * throws ENAMETOOLONG, so the parts are folded in batches of this size. Same limit
+ * and same reasoning as MAX_XFADE_INPUTS in the render pipeline.
+ */
+const MAX_MERGE_INPUTS = 60
+
+/**
+ * One ffmpeg pass over up to MAX_MERGE_INPUTS parts. The graph is written to a
+ * file and passed via -filter_complex_script (as the final render does) so it
+ * never counts towards the command line; the result is byte-identical.
+ *
+ * A gap is padded after every part except the batch's last one: at the top level
+ * that last part is the end of the audio, and inside a batch the boundary gap is
+ * added by the level above, where the intermediate file itself is a non-final input.
+ */
+function runMergePass(jobId: string, inputs: string[], outputPath: string, filterScriptPath: string, gapSec: number, sampleRate: number) {
   const graphParts = inputs.map((_input, index) => {
     const pad = index < inputs.length - 1 ? `,apad=pad_dur=${gapSec}` : ''
     return `[${index}:a]aresample=${sampleRate},aformat=sample_fmts=s16:channel_layouts=mono${pad}[a${index}]`
   })
   const concatInputs = inputs.map((_input, index) => `[a${index}]`).join('')
-  const filter = `${graphParts.join(';')};${concatInputs}concat=n=${inputs.length}:v=0:a=1[out]`
+  fs.writeFileSync(filterScriptPath, `${graphParts.join(';')};${concatInputs}concat=n=${inputs.length}:v=0:a=1[out]`, 'utf8')
   return runFFmpeg({
     jobId,
     args: [
       '-y',
       ...inputs.flatMap((input) => ['-i', input]),
-      '-filter_complex', filter,
+      '-filter_complex_script', filterScriptPath,
       '-map', '[out]',
       '-c:a', 'pcm_s16le',
       outputPath,
     ],
   }).then((result) => ({ ok: result.success, canceled: result.canceled }))
+}
+
+export async function mergeLineAudios(jobId: string, inputs: string[], outputPath: string, gapSec = 0.25, sampleRate = 24000): Promise<{ ok: boolean; canceled: boolean }> {
+  const scratch: string[] = []
+  const filterScriptPath = path.join(outputRoot(), `${jobId}-merge-filter.txt`)
+  scratch.push(filterScriptPath)
+  // Every pass reuses the same jobId: batches run one after another, so cancel
+  // still reaches whichever ffmpeg is alive.
+  try {
+    let files = inputs
+    let level = 0
+    while (files.length > MAX_MERGE_INPUTS) {
+      const next: string[] = []
+      for (let start = 0; start < files.length; start += MAX_MERGE_INPUTS) {
+        const batch = files.slice(start, start + MAX_MERGE_INPUTS)
+        if (batch.length === 1) {
+          next.push(batch[0])
+          continue
+        }
+        const batchOutput = path.join(outputRoot(), `${jobId}-merge-l${level}-c${next.length}.wav`)
+        const result = await runMergePass(jobId, batch, batchOutput, filterScriptPath, gapSec, sampleRate)
+        if (!result.ok) return result
+        scratch.push(batchOutput)
+        next.push(batchOutput)
+      }
+      files = next
+      level += 1
+    }
+    return await runMergePass(jobId, files, outputPath, filterScriptPath, gapSec, sampleRate)
+  } finally {
+    for (const file of scratch) fs.rmSync(file, { force: true })
+  }
 }
 
 export async function generateSplit(

@@ -269,6 +269,7 @@ export class AutopilotEngine {
       videoPath: previous?.videoPath || '',
       imageMediaId,
       imageStatus: 'completed' as const,
+      imageError: undefined,
     };
     this.updateJob(jobId, { mediaOutputs: [...(job.mediaOutputs || []).filter((item) => item.index !== shotIndex), output].sort((a, b) => a.index - b.index) });
     this.log(jobId, 'import', `Đã import ảnh cho shot ${shotIndex}; bước tạo ảnh sẽ bỏ qua shot này`);
@@ -389,7 +390,7 @@ export class AutopilotEngine {
     if (!job || ['running', 'queued'].includes(job.status)) return false;
     const mediaOutputs = (job.mediaOutputs || []).map((item) =>
       item.index === shotIndex
-        ? { ...item, imagePath: '', imageMediaId: undefined, imageStatus: 'idle' as const, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const }
+        ? { ...item, imagePath: '', imageMediaId: undefined, imageStatus: 'idle' as const, imageError: undefined, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const, videoError: undefined }
         : item,
     );
     this.updateJob(jobId, { mediaOutputs });
@@ -408,9 +409,9 @@ export class AutopilotEngine {
     const mediaOutputs = (job.mediaOutputs || []).map((item) => {
       if (item.index !== shotIndex) return item;
       if (kind === 'image') {
-        return { ...item, imagePath: '', imageMediaId: undefined, imageStatus: 'idle' as const, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const };
+        return { ...item, imagePath: '', imageMediaId: undefined, imageStatus: 'idle' as const, imageError: undefined, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const, videoError: undefined };
       }
-      return { ...item, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const };
+      return { ...item, videoPath: '', videoMediaId: undefined, videoStatus: 'idle' as const, videoError: undefined };
     });
     this.updateJob(jobId, { mediaOutputs });
     // Remove relevant steps from completedSteps so stage badges update correctly

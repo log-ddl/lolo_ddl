@@ -33,6 +33,29 @@ export const STATUS_ICONS: Record<AutopilotJob["status"], typeof Circle> = {
   cancelled: Circle,
 };
 
+/** Wall-clock span as "1h 12m 30s" / "37m 46s" / "46s". */
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+/**
+ * Clock time for a job milestone. The date is dropped when the timestamp falls on
+ * the same day as `sameDayAs` (the job's own start, or now), so a job that ran
+ * within one day stays short and an overnight one still reads unambiguously.
+ */
+export function formatClock(ts: number, sameDayAs: number): string {
+  const date = new Date(ts);
+  const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  if (new Date(sameDayAs).toDateString() === date.toDateString()) return time;
+  return `${date.toLocaleDateString([], { day: "2-digit", month: "2-digit" })} ${time}`;
+}
+
 /** Seconds since an asset entered an in-flight state; resets to 0 when it leaves one. */
 export function useActiveElapsedSeconds(status: string | undefined): number {
   const isGenerating = status === "generating" || status === "uploading";
