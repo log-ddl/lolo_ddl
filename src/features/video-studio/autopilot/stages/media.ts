@@ -8,7 +8,7 @@
  * the job.
  */
 
-import { getFeatureConfig } from '@/features/video-studio/lib/ai/feature-router';
+import { googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
 import { resolveFlowProjectBinding } from '@/features/video-studio/autopilot/flow-binding';
 import { useMediaStore } from '@/features/video-studio/stores/media-store';
@@ -48,8 +48,10 @@ export async function runMediaStage(
   const flowProjectId = resolved.flowProjectId;
   const longddProjectId = resolved.longddProjectId;
   const aspectRatio = job.input.aspectRatio || DEFAULT_ASPECT_RATIO;
-  const imageModel = job.input.imageModel || DEFAULT_IMAGE_MODEL;
-  const videoModel = job.input.videoModel || getFeatureConfig('video_generation')?.model || 'Veo_3.1-Fast';
+  // Same head the reference images use, so one setting drives every image. A
+  // binding on another provider is ignored: this stage only talks to Flow.
+  const imageModel = job.input.imageModel || googleFlowBoundModel('character_generation') || DEFAULT_IMAGE_MODEL;
+  const videoModel = job.input.videoModel || googleFlowBoundModel('video_generation') || 'Veo_3.1-Fast';
   // Model chain + account allowlist are frozen into the job when it is created, so
   // editing Settings mid-run cannot change what a running job is allowed to use.
   const routing = buildAccountRouting({

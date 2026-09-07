@@ -52,9 +52,8 @@ function readAccountLabels(): Record<string, string> {
 }
 
 /** Head + fallbacks as one ordered list, which is how the user reads it. */
-function toChain(primary: string | undefined, fallbacks: string[], withPrimary: boolean): string[] {
-  const parts = withPrimary ? [primary || "", ...fallbacks] : fallbacks;
-  return [...new Set(parts.map((model) => (model || "").trim()).filter(Boolean))];
+function toChain(primary: string | undefined, fallbacks: string[]): string[] {
+  return [...new Set([primary || "", ...fallbacks].map((model) => (model || "").trim()).filter(Boolean))];
 }
 
 /**
@@ -125,12 +124,22 @@ function ModelOrderPicker({
 }
 
 export function MediaRoutingPicker({
-  value, onChange, showPrimaryModels = false,
+  value, onChange,
+  imageModels = GOOGLE_FLOW_IMAGE_MODELS,
+  videoModels = GOOGLE_FLOW_VIDEO_MODELS,
+  videoOnGoogleFlow = true,
 }: {
   value: MediaRoutingValue;
   onChange: (next: MediaRoutingValue) => void;
-  /** AutoPilot owns the whole chain; Settings keeps the head model in its own selectors. */
-  showPrimaryModels?: boolean;
+  /** Models of the provider currently selected for each kind. */
+  imageModels?: string[];
+  videoModels?: string[];
+  /**
+   * Per-account video models and the quota routing they feed only exist on
+   * Google Flow. With another provider selected for video, that whole part of
+   * the panel would be describing accounts the request never touches.
+   */
+  videoOnGoogleFlow?: boolean;
 }) {
   const { status, initialize, refresh } = useGoogleFlowRuntimeStore();
   const [accountLabels, setAccountLabels] = useState<Record<string, string>>({});
@@ -170,20 +179,17 @@ export function MediaRoutingPicker({
 
   const patch = (next: Partial<MediaRoutingValue>) => onChange({ ...value, ...next });
 
-  const imageChain = toChain(value.imageModel, value.imageModelFallbacks, showPrimaryModels);
-  const videoChain = toChain(value.videoModel, value.videoModelFallbacks, showPrimaryModels);
+  // A chain saved under a different provider can outlive the switch, so only
+  // models the current provider actually offers are shown or handed on.
+  const imageChain = toChain(value.imageModel, value.imageModelFallbacks).filter((model) => imageModels.includes(model));
+  const videoChain = toChain(value.videoModel, value.videoModelFallbacks).filter((model) => videoModels.includes(model));
 
+  // Mắt số 1 là model chính, phần còn lại là dự phòng — một danh sách, một nghĩa.
   const setChain = (kind: "image" | "video", chain: string[]) => {
     const [head, ...rest] = chain;
-    if (kind === "image") {
-      patch(showPrimaryModels
-        ? { imageModel: head || "", imageModelFallbacks: rest }
-        : { imageModelFallbacks: chain });
-      return;
-    }
-    patch(showPrimaryModels
-      ? { videoModel: head || "", videoModelFallbacks: rest }
-      : { videoModelFallbacks: chain });
+    patch(kind === "image"
+      ? { imageModel: head || "", imageModelFallbacks: rest }
+      : { videoModel: head || "", videoModelFallbacks: rest });
   };
 
   const accountIds = accounts.map((account) => account.ownerScopeId);
@@ -213,14 +219,14 @@ export function MediaRoutingPicker({
   };
 
   const toggleModel = (ownerScopeId: string, model: string) => {
-    const owned = capabilities[ownerScopeId] || GOOGLE_FLOW_VIDEO_MODELS;
+    const owned = capabilities[ownerScopeId] || videoModels;
     const next = owned.includes(model)
       ? owned.filter((item) => item !== model)
-      : GOOGLE_FLOW_VIDEO_MODELS.filter((item) => owned.includes(item) || item === model);
+      : videoModels.filter((item) => owned.includes(item) || item === model);
     const map = { ...capabilities };
     // Owning everything is the default, so store nothing rather than a full list
     // that would silently freeze if a new model is added later.
-    if (next.length === GOOGLE_FLOW_VIDEO_MODELS.length) delete map[ownerScopeId];
+    if (next.length === videoModels.length) delete map[ownerScopeId];
     else map[ownerScopeId] = next;
     patch({ accountVideoModels: map });
   };
@@ -233,7 +239,9 @@ export function MediaRoutingPicker({
     accountVideoModels: capabilities,
   }), [accountIds.join("|"), value.flowAccounts, capabilities]);
 
-  const droppedVideoModels = videoChain.filter((model) => routing.videoAccountsFor(model)?.length === 0);
+  const droppedVideoModels = videoOnGoogleFlow
+    ? videoChain.filter((model) => routing.videoAccountsFor(model)?.length === 0)
+    : [];
   const hasAccounts = accounts.length > 0;
   // In-app accounts are keyed by the slot id the extension reports as its
   // instance id, so anything without a matching credential is signed in but not
@@ -247,20 +255,16 @@ export function MediaRoutingPicker({
         <ModelOrderPicker
           label="Model ảnh — bấm theo thứ tự chạy"
           hint="Thứ tự"
-          emptyHint={showPrimaryModels
-            ? "Chưa chọn — dùng model ảnh trong Cài đặt, không đổi model khi hết hạn mức."
-            : "Chưa chọn — hết hạn mức là báo lỗi thay vì đổi model."}
-          models={GOOGLE_FLOW_IMAGE_MODELS}
+          emptyHint="Chưa chọn model nào — sẽ dùng model mặc định và không đổi model khi hết hạn mức."
+          models={imageModels}
           chain={imageChain}
           onChange={(chain) => setChain("image", chain)}
         />
         <ModelOrderPicker
           label="Model video — bấm theo thứ tự chạy"
           hint="Thứ tự"
-          emptyHint={showPrimaryModels
-            ? "Chưa chọn — dùng model video trong Cài đặt, không đổi model khi hết hạn mức."
-            : "Chưa chọn — hết hạn mức là báo lỗi thay vì đổi model."}
-          models={GOOGLE_FLOW_VIDEO_MODELS}
+          emptyHint="Chưa chọn model nào — sẽ dùng model mặc định và không đổi model khi hết hạn mức."
+          models={videoModels}
           chain={videoChain}
           onChange={(chain) => setChain("video", chain)}
           warning={droppedVideoModels.length > 0
@@ -323,10 +327,10 @@ export function MediaRoutingPicker({
                       {account.lockedModels.length > 0 && `hết hạn mức ${account.lockedModels.length} model hôm nay`}
                     </span>
                   </div>
-                  {used && (
+                  {used && videoOnGoogleFlow && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <span className="text-2xs text-muted-foreground">Có model video:</span>
-                      {GOOGLE_FLOW_VIDEO_MODELS.map((model) => {
+                      {videoModels.map((model) => {
                         const owns = ownsModel(account.ownerScopeId, model);
                         return (
                           <Button
@@ -361,8 +365,11 @@ export function MediaRoutingPicker({
         )}
         <p className="text-2xs leading-4 text-muted-foreground">
           {value.flowAccounts.length === 0
-            ? "Đang dùng mọi tài khoản đang kết nối. Bỏ tick model video mà tài khoản đó không có."
+            ? "Đang dùng mọi tài khoản đang kết nối."
             : `Chỉ chạy trên ${usedIds.length} tài khoản đang bật — không tài khoản nào trong số đó kết nối thì job dừng.`}
+          {videoOnGoogleFlow
+            ? " Bỏ tick model video mà tài khoản đó không có."
+            : " Video đang chạy bằng nhà cung cấp khác nên không dùng tài khoản Google Flow."}
         </p>
       </div>
     </div>

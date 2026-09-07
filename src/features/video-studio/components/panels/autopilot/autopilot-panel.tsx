@@ -104,8 +104,12 @@ export function AutopilotPanel() {
     // The picker shows one ordered list, so its head must already be the model
     // this job would have run anyway — seeding an empty head would promote the
     // first fallback to primary behind the user's back.
-    const imageHead = DEFAULT_IMAGE_MODEL;
-    const videoHead = getFeatureConfig("video_generation")?.model || "Veo_3.1-Fast";
+    // AutoPilot always generates through Google Flow, so a binding pointing at
+    // another provider must not seed the chain with a model Flow cannot run.
+    const imageBinding = getFeatureConfig("character_generation");
+    const videoBinding = getFeatureConfig("video_generation");
+    const imageHead = (imageBinding?.platform === "googleflow" && imageBinding.model) || DEFAULT_IMAGE_MODEL;
+    const videoHead = (videoBinding?.platform === "googleflow" && videoBinding.model) || "Veo_3.1-Fast";
     return {
       imageModel: imageHead,
       videoModel: videoHead,
@@ -440,7 +444,7 @@ export function AutopilotPanel() {
             {showVoiceSettings && <VoiceEnginePicker settings={voice} t={t} />}
             {showVoiceSettings && <VoiceEngineSettings settings={voice} t={t} />}
 
-            {advancedExpanded && <MediaRoutingPicker value={mediaRouting} onChange={setMediaRouting} showPrimaryModels />}
+            {advancedExpanded && <MediaRoutingPicker value={mediaRouting} onChange={setMediaRouting} />}
 
             {advancedExpanded && (
               <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">

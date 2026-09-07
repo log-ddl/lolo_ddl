@@ -1,6 +1,8 @@
 import type { VideoLength } from '@/features/video-studio/types/script';
 import { googleFlowProvider } from './google-flow-provider';
 import { grokVideoProvider } from './grok-video-provider';
+import { resolveSettingsMediaRouting } from './media-routing';
+import { runWithModelFallback } from '@/features/video-studio/autopilot/model-fallback';
 import { useProjectStore } from '@/features/video-studio/stores/project-store';
 
 export type GoogleFlowSourceState = {
@@ -66,11 +68,14 @@ export async function generateProviderVideo(params: VideoGenerationParams): Prom
     throw new Error(`Unsupported video platform: ${params.platform}. Only "googleflow" and "grok" are supported.`);
   }
   const projectId = params.projectId || useProjectStore.getState().activeProjectId || 'default-project';
-  const result = await googleFlowProvider.generateVideo({
+  // Accounts and fallback order come from Settings, exactly as they do for an
+  // AutoPilot job — the only difference is that this reads them at press time.
+  const { chain, routing } = await resolveSettingsMediaRouting('video', params.model);
+  const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
     projectId,
     sceneId: String(params.sceneId),
     prompt: params.prompt,
-    model: params.model,
+    model,
     aspectRatio: params.aspectRatio || '16:9',
     duration: Number(params.length as VideoLength | undefined) || undefined,
     startImage: params.startImageUrl ? toGoogleFlowMediaRef(params.startImageUrl, params.startImageFlowState) : undefined,
@@ -79,10 +84,11 @@ export async function generateProviderVideo(params: VideoGenerationParams): Prom
     preferredCredentialId: params.preferredCredentialId
       || params.startImageFlowState?.preferredCredentialId
       || params.referenceImageUrls?.map((source) => params.referenceImageFlowStates?.[source]?.preferredCredentialId).find(Boolean),
+    allowedOwnerScopeIds: routing.videoAccountsFor(model),
     taskId: params.taskId,
     onSubmitted: params.onSubmitted,
     signal: params.signal,
-  });
+  }));
   const videoUrl = result.localUrl || result.remoteUrl;
   if (!videoUrl) throw new Error('Google Flow returned no video URL');
   return {

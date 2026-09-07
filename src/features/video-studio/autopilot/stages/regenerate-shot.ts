@@ -4,7 +4,6 @@
  * and retry policy as the batch media stage.
  */
 
-import { getFeatureConfig } from '@/features/video-studio/lib/ai/feature-router';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
 import { resolveFlowProjectBinding } from '@/features/video-studio/autopilot/flow-binding';
 import { useMediaStore } from '@/features/video-studio/stores/media-store';
@@ -13,6 +12,7 @@ import { saveImageToLocal, saveVideoToLocal } from '@/features/video-studio/lib/
 import { stripFlowErrorCode } from '@/features/video-studio/lib/ai/google-flow-errors';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prompts';
 import { buildModelChain, runWithModelFallback } from '../model-fallback';
+import { googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
 import { buildAccountRouting, listKnownOwnerScopeIds } from '../account-routing';
 import type { AutopilotJob } from '../types';
 import { MAX_IMAGE_REFERENCE_SLOTS, runGenerationWithRetries, type CharacterReference, type EngineContext } from '../engine-shared';
@@ -40,8 +40,8 @@ export async function runSingleShotRegeneration(
     const flowProjectId = resolved.flowProjectId;
     const longddProjectId = resolved.longddProjectId;
     const aspectRatio = job.input.aspectRatio || DEFAULT_ASPECT_RATIO;
-    const imageModel = job.input.imageModel || DEFAULT_IMAGE_MODEL;
-    const videoModel = job.input.videoModel || getFeatureConfig('video_generation')?.model || 'Veo_3.1-Fast';
+    const imageModel = job.input.imageModel || googleFlowBoundModel('character_generation') || DEFAULT_IMAGE_MODEL;
+    const videoModel = job.input.videoModel || googleFlowBoundModel('video_generation') || 'Veo_3.1-Fast';
     const routing = buildAccountRouting({
       connectedOwnerScopeIds: await listKnownOwnerScopeIds(runtime),
       flowAccounts: job.input.flowAccounts,

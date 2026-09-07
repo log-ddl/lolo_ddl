@@ -19,6 +19,8 @@ import { useProjectStore } from '@/features/video-studio/stores/project-store';
 import { useDirectorStore } from '@/features/video-studio/stores/director-store';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
 import { grokVideoProvider } from '@/features/video-studio/lib/ai/grok-video-provider';
+import { resolveSettingsMediaRouting } from '@/features/video-studio/lib/ai/media-routing';
+import { runWithModelFallback } from '@/features/video-studio/autopilot/model-fallback';
 
 type PromiseCallbacks = {
   resolve: (value: unknown) => void;
@@ -330,23 +332,33 @@ export class AIWorkerBridge {
   }): Promise<void> {
     try {
       const projectId = useProjectStore.getState().activeProjectId || 'default-project';
+      // The worker only knows the head model; which accounts may serve it and
+      // what to try when they run out is Settings' business, same as everywhere.
       const result = payload.kind === 'image'
-        ? await googleFlowProvider.generateImage({
-          projectId, prompt: payload.prompt, model: payload.model, aspectRatio: payload.aspectRatio,
-          references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
-        })
+        ? await (async () => {
+          const { chain, routing } = await resolveSettingsMediaRouting('image', payload.model);
+          return (await runWithModelFallback(chain, (model) => googleFlowProvider.generateImage({
+            projectId, prompt: payload.prompt, model, aspectRatio: payload.aspectRatio,
+            references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
+            allowedOwnerScopeIds: routing.imageAccounts,
+          }))).result;
+        })()
         : payload.provider === 'grok'
           ? await grokVideoProvider.generateVideo({
             projectId, sceneId: payload.requestId, prompt: payload.prompt, model: payload.model,
             aspectRatio: payload.aspectRatio, duration: payload.duration,
             startImage: payload.imageUrl ? { source: payload.imageUrl, provider: 'grok' } : undefined,
           })
-          : await googleFlowProvider.generateVideo({
-            projectId, sceneId: payload.requestId, prompt: payload.prompt, model: payload.model,
-            aspectRatio: payload.aspectRatio, duration: payload.duration,
-            startImage: payload.imageUrl ? { source: payload.imageUrl, provider: 'googleflow' } : undefined,
-            references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
-          });
+          : await (async () => {
+            const { chain, routing } = await resolveSettingsMediaRouting('video', payload.model);
+            return (await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
+              projectId, sceneId: payload.requestId, prompt: payload.prompt, model,
+              aspectRatio: payload.aspectRatio, duration: payload.duration,
+              startImage: payload.imageUrl ? { source: payload.imageUrl, provider: 'googleflow' } : undefined,
+              references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
+              allowedOwnerScopeIds: routing.videoAccountsFor(model),
+            }))).result;
+          })();
       const url = result.localUrl || result.remoteUrl;
       if (!url) throw new Error(`${payload.provider === 'grok' ? 'Grok' : 'Google Flow'} returned no media URL`);
       this.worker?.postMessage({ type: 'RUNTIME_RESPONSE', payload: { requestId: payload.requestId, url } });

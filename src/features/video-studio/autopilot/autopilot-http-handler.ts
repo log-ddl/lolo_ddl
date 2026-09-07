@@ -8,6 +8,8 @@ import { hasPlanAccess } from '@/shared/lib/license-client';
 import { getCapCutVoice } from '@/features/tts-voice/lib/capcut-voices';
 import { getGeminiVoice } from '@/features/tts-voice/lib/gemini-voices';
 import type { AutopilotJobInput } from '@/features/video-studio/autopilot/types';
+import { resolveSettingsMediaRouting } from '@/features/video-studio/lib/ai/media-routing';
+import { runWithModelFallback } from '@/features/video-studio/autopilot/model-fallback';
 
 export interface AutopilotHttpRequest {
   requestId: string;
@@ -253,14 +255,16 @@ async function route(request: AutopilotHttpRequest, emit: Emit): Promise<Autopil
     const body = isObject(request.body) ? request.body : {};
     try {
       const { longddProjectId } = await resolveFlowProject();
-      const result = await googleFlowProvider.generateImage({
+      const { chain, routing } = await resolveSettingsMediaRouting('image', String(body.model ?? 'GEM_PIX_2'));
+      const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateImage({
         projectId: longddProjectId,
         sceneId: String(body.sceneId ?? 'http-image'),
         prompt: String(body.prompt ?? ''),
-        model: String(body.model ?? 'GEM_PIX_2'),
+        model,
         aspectRatio: String(body.aspectRatio ?? '16:9'),
+        allowedOwnerScopeIds: routing.imageAccounts,
         taskId: `http-img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      });
+      }));
       return json(200, result);
     } catch (err) {
       return json(500, { error: err instanceof Error ? err.message : String(err) });
@@ -271,16 +275,18 @@ async function route(request: AutopilotHttpRequest, emit: Emit): Promise<Autopil
     const body = isObject(request.body) ? request.body : {};
     try {
       const { flowProjectId, longddProjectId } = await resolveFlowProject();
-      const result = await googleFlowProvider.generateVideo({
+      const { chain, routing } = await resolveSettingsMediaRouting('video', String(body.model ?? ''));
+      const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
         projectId: longddProjectId,
         sceneId: String(body.sceneId ?? 'http-video'),
         prompt: String(body.prompt ?? ''),
-        model: String(body.model ?? ''),
+        model,
         aspectRatio: String(body.aspectRatio ?? '16:9'),
         duration: typeof body.duration === 'number' ? body.duration : 6,
         startImage: body.startImage ? { source: String(body.startImage), provider: 'googleflow', flowProjectId } : undefined,
+        allowedOwnerScopeIds: routing.videoAccountsFor(model),
         taskId: `http-vid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      });
+      }));
       return json(200, result);
     } catch (err) {
       return json(500, { error: err instanceof Error ? err.message : String(err) });

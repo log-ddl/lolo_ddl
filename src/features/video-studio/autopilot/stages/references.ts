@@ -5,7 +5,6 @@
  * and re-runs never pay to regenerate a reference that is already on disk.
  */
 
-import { getFeatureConfig } from '@/features/video-studio/lib/ai/feature-router';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
 import { resolveFlowProjectBinding } from '@/features/video-studio/autopilot/flow-binding';
 import { useCharacterLibraryStore } from '@/features/video-studio/stores/character-library-store';
@@ -14,6 +13,7 @@ import { useMediaStore } from '@/features/video-studio/stores/media-store';
 import { saveImageToLocal } from '@/features/video-studio/lib/image-storage';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prompts';
 import { buildModelChain, runWithModelFallback } from '../model-fallback';
+import { googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
 import type { AutopilotCharacterPlan, AutopilotJob, AutopilotScenePlan } from '../types';
 import {
   runGoogleFlowQueueOrdered,
@@ -40,7 +40,7 @@ export async function runCharactersStage(
   const { longddProjectId } = await resolveFlowProjectBinding(runtime, job.projectId);
   const activeProjectId = job.projectId;
   const library = useCharacterLibraryStore.getState();
-  const characterModel = getFeatureConfig('character_generation')?.model || DEFAULT_IMAGE_MODEL;
+  const characterModel = googleFlowBoundModel('character_generation') || DEFAULT_IMAGE_MODEL;
   const visualStyleLine = job.visualStylePrompt
     ? `Mandatory project visual style: ${job.visualStylePrompt}.`
     : '';
@@ -137,7 +137,7 @@ export async function runScenesStage(
   const { longddProjectId } = await resolveFlowProjectBinding(runtime, job.projectId);
   const activeProjectId = job.projectId;
   const sceneStore = useSceneStore.getState();
-  const sceneModel = getFeatureConfig('scene_generation')?.model || job.input.imageModel || DEFAULT_IMAGE_MODEL;
+  const sceneModel = googleFlowBoundModel('scene_generation') || job.input.imageModel || DEFAULT_IMAGE_MODEL;
   const sceneAspectRatio = (['1:1', '3:4', '4:3', '9:16', '16:9'] as const).find((value) => value === job.input.aspectRatio) || '16:9';
   const visualStyleLine = job.visualStylePrompt ? `Mandatory project visual style: ${job.visualStylePrompt}.` : '';
   let completed = 0;

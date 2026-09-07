@@ -5,6 +5,8 @@
 
 import { getFeatureConfig, getFeatureNotConfiguredMessage } from '@/features/video-studio/lib/ai/feature-router';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
+import { resolveSettingsMediaRouting } from '@/features/video-studio/lib/ai/media-routing';
+import { runWithModelFallback } from '@/features/video-studio/autopilot/model-fallback';
 import { useProjectStore } from '@/features/video-studio/stores/project-store';
 
 export interface ImageGenerationParams {
@@ -47,16 +49,23 @@ async function generateImage(
   }
 
   const projectId = useProjectStore.getState().activeProjectId || 'default-project';
-  const result = await googleFlowProvider.generateImage({
+  // Same accounts and same fallback order AutoPilot uses — read now rather than
+  // frozen, because this call has no job to be frozen into.
+  const { chain, routing } = await resolveSettingsMediaRouting(
+    'image',
+    featureConfig.model || featureConfig.models?.[0] || 'GEM_PIX_2',
+  );
+  const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateImage({
     projectId,
     prompt: params.prompt,
-    model: featureConfig.model || featureConfig.models?.[0] || 'GEM_PIX_2',
+    model,
     aspectRatio: params.aspectRatio || '1:1',
     references: params.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
     preferredCredentialId: params.preferredCredentialId,
+    allowedOwnerScopeIds: routing.imageAccounts,
     onSubmitted: params.onSubmitted,
     signal: params.signal,
-  });
+  }));
   const imageUrl = result.localUrl || result.remoteUrl;
   if (!imageUrl) throw new Error('Google Flow returned no image URL');
   return {
@@ -105,10 +114,11 @@ export async function submitGridImageRequest(params: {
   }
 
   const projectId = useProjectStore.getState().activeProjectId || 'default-project';
-  const result = await googleFlowProvider.generateImage({
+  const { chain, routing } = await resolveSettingsMediaRouting('image', model);
+  const { result } = await runWithModelFallback(chain, (chainModel) => googleFlowProvider.generateImage({
     projectId,
     prompt,
-    model,
+    model: chainModel,
     aspectRatio,
     references: referenceImages?.map((source) => {
       const hint = params.referenceMediaHints?.[source];
@@ -117,10 +127,11 @@ export async function submitGridImageRequest(params: {
         : { source, provider: 'googleflow' as const };
     }),
     preferredCredentialId: params.preferredCredentialId,
+    allowedOwnerScopeIds: routing.imageAccounts,
     taskId: params.taskId,
     onSubmitted,
     signal,
-  });
+  }));
   return {
     imageUrl: result.localUrl || result.remoteUrl,
     taskId: result.taskId,

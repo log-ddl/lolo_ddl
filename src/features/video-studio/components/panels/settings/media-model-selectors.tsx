@@ -12,7 +12,6 @@ import { useCallback, useEffect, useMemo } from "react";
 import { Zap } from "lucide-react";
 import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { getModelDisplayName } from "@/features/video-studio/lib/api-key-manager";
 import { useAPIConfigStore, type AIFeature, type IProvider } from "@/features/video-studio/stores/api-config-store";
 import { useVideoStudioSettingsStore } from "@/features/video-studio/stores/video-studio-settings-store";
 import { MediaRoutingPicker } from "@/features/video-studio/components/media-routing-picker";
@@ -65,7 +64,11 @@ export function MediaModelSelectors() {
     if (!provider) return;
     const model = getProviderMediaModels(provider, kind)[0];
     if (model) setMediaModelBinding(feature, provider, model);
-  }, [mediaProviders, setMediaModelBinding]);
+    // The fallback order belongs to the provider it was picked from — keeping
+    // Veo models around after a switch to Grok would leave the chain pointing at
+    // models this provider cannot run.
+    setMediaRouting(kind === 'image' ? { imageModelFallbacks: [] } : { videoModelFallbacks: [] });
+  }, [mediaProviders, setMediaModelBinding, setMediaRouting]);
 
   useEffect(() => {
     const ensureBinding = (feature: AIFeature, selection: MediaSelection) => {
@@ -124,26 +127,11 @@ export function MediaModelSelectors() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Mô hình tạo ảnh</Label>
-              <Select
-                value={imageSelection?.model}
-                onValueChange={(model) => imageSelection && setMediaModelBinding('character_generation', imageSelection.provider, model)}
-                disabled={!imageSelection}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn mô hình tạo ảnh" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(imageSelection ? getProviderMediaModels(imageSelection.provider, 'image') : []).map((model) => (
-                    <SelectItem key={model} value={model}>{getModelDisplayName(model)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {imageSelection ? `Chỉ hiển thị mô hình ảnh của ${getProviderDisplayName(imageSelection.provider)}.` : 'Chưa có nhà cung cấp tạo ảnh.'}
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              {imageSelection
+                ? `Mô hình ảnh chọn ở phần dưới, trong danh sách của ${getProviderDisplayName(imageSelection.provider)}.`
+                : 'Chưa có nhà cung cấp tạo ảnh.'}
+            </p>
           </div>
 
           <div className="space-y-4 rounded-lg border border-border/60 p-4">
@@ -164,50 +152,50 @@ export function MediaModelSelectors() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Mô hình tạo video</Label>
-              <Select
-                value={videoSelection?.model}
-                onValueChange={(model) => videoSelection && setMediaModelBinding('video_generation', videoSelection.provider, model)}
-                disabled={!videoSelection}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn mô hình tạo video" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(videoSelection ? getProviderMediaModels(videoSelection.provider, 'video') : []).map((model) => (
-                    <SelectItem key={model} value={model}>{getModelDisplayName(model)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {videoSelection ? `Chỉ hiển thị mô hình video của ${getProviderDisplayName(videoSelection.provider)}.` : 'Chưa có nhà cung cấp tạo video.'}
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              {videoSelection
+                ? `Mô hình video chọn ở phần dưới, trong danh sách của ${getProviderDisplayName(videoSelection.provider)}.`
+                : 'Chưa có nhà cung cấp tạo video.'}
+            </p>
           </div>
         </div>
       )}
 
       <div className="space-y-2 border-t border-border/60 pt-4">
         <div>
-          <h4 className="text-sm font-semibold text-foreground">Tài khoản và model dự phòng</h4>
+          <h4 className="text-sm font-semibold text-foreground">Thứ tự model và tài khoản</h4>
           <p className="mt-1 text-xs text-muted-foreground">
-            Mặc định cho job mới. Mỗi job AutoPilot chép các giá trị này lúc tạo, và phần nâng cao của job đó ghi đè được.
+            Dùng cho mọi chỗ tạo ảnh/video: panel Cảnh, Nhân vật, Đạo diễn đọc ngay lúc bấm nút; job AutoPilot chép lại lúc tạo và phần nâng cao của job ghi đè được.
           </p>
         </div>
         <MediaRoutingPicker
+          imageModels={imageSelection ? getProviderMediaModels(imageSelection.provider, 'image') : []}
+          videoModels={videoSelection ? getProviderMediaModels(videoSelection.provider, 'video') : []}
+          videoOnGoogleFlow={videoSelection?.provider.platform === 'googleflow'}
           value={{
+            // Model đầu chuỗi chính là binding: một nguồn duy nhất, không còn hai
+            // ô chọn model song song nhau.
+            imageModel: imageSelection?.model,
+            videoModel: videoSelection?.model,
             imageModelFallbacks: mediaRouting.imageModelFallbacks,
             videoModelFallbacks: mediaRouting.videoModelFallbacks,
             flowAccounts: mediaRouting.flowAccounts,
             accountVideoModels: mediaRouting.accountVideoModels,
           }}
-          onChange={(next) => setMediaRouting({
-            imageModelFallbacks: next.imageModelFallbacks,
-            videoModelFallbacks: next.videoModelFallbacks,
-            flowAccounts: next.flowAccounts,
-            accountVideoModels: next.accountVideoModels,
-          })}
+          onChange={(next) => {
+            if (imageSelection && next.imageModel && next.imageModel !== imageSelection.model) {
+              setMediaModelBinding('character_generation', imageSelection.provider, next.imageModel);
+            }
+            if (videoSelection && next.videoModel && next.videoModel !== videoSelection.model) {
+              setMediaModelBinding('video_generation', videoSelection.provider, next.videoModel);
+            }
+            setMediaRouting({
+              imageModelFallbacks: next.imageModelFallbacks,
+              videoModelFallbacks: next.videoModelFallbacks,
+              flowAccounts: next.flowAccounts,
+              accountVideoModels: next.accountVideoModels,
+            });
+          }}
         />
       </div>
     </div>
