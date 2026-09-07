@@ -52,7 +52,8 @@ export interface FlowSocketContext {
     timeout: number,
     signal?: AbortSignal,
   ): Promise<unknown>;
-  apiUrl(endpoint: string, extra?: string): string;
+  /** Per-account: the browser API key differs from one signed-in Chrome to the next. */
+  apiUrl(slot: FlowCredentialSlot, endpoint: string, extra?: string): string;
 }
 
 export function attachSocket(ctx: FlowSocketContext, socket: WebSocket): void {
@@ -237,7 +238,7 @@ export async function pollOperations(ctx: FlowSocketContext, slot: FlowCredentia
     let response: unknown;
     try {
       response = await ctx.apiRequest(slot, {
-        url: ctx.apiUrl('/v1/video:batchCheckAsyncVideoGenerationStatus'), method: 'POST', body: { operations },
+        url: ctx.apiUrl(slot, '/v1/video:batchCheckAsyncVideoGenerationStatus'), method: 'POST', body: { operations },
       }, 30_000, signal);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -340,7 +341,7 @@ export async function pollWorkflowVideo(ctx: FlowSocketContext, slot: FlowCreden
 
 export async function refreshCredits(ctx: FlowSocketContext, slot: FlowCredentialSlot): Promise<void> {
   try {
-    const response = await ctx.apiRequest(slot, { url: ctx.apiUrl('/v1/credits'), method: 'GET' }, 15_000);
+    const response = await ctx.apiRequest(slot, { url: ctx.apiUrl(slot, '/v1/credits'), method: 'GET' }, 15_000);
     const record = (response && typeof response === 'object' ? response : {}) as Record<string, unknown>;
     const text = JSON.stringify(record);
     const tier = /PAYGATE_TIER_(ONE|TWO)/.exec(text)?.[0];

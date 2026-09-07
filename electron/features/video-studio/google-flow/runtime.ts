@@ -428,7 +428,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         let response: unknown;
         try {
           response = await this.apiRequest(slot, {
-            url: this.apiUrl(`/v1/projects/${encodeURIComponent(binding.flowProjectId)}/flowMedia:batchGenerateImages`),
+            url: this.apiUrl(slot, `/v1/projects/${encodeURIComponent(binding.flowProjectId)}/flowMedia:batchGenerateImages`),
             method: 'POST', body, captchaAction: 'IMAGE_GENERATION', activityId: taskId, activityKind: 'image',
           }, 180_000, signal);
         } catch (error) {
@@ -508,7 +508,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         this.emitLaneTask(taskId, 'video', 'submitting', slot, lane, 20);
         try {
           submit = await this.apiRequest(slot, {
-            url: this.apiUrl(endpoint), method: 'POST', captchaAction: 'VIDEO_GENERATION', activityId: taskId, activityKind: 'video',
+            url: this.apiUrl(slot, endpoint), method: 'POST', captchaAction: 'VIDEO_GENERATION', activityId: taskId, activityKind: 'video',
             body: {
               mediaGenerationContext: isOmniFlash
                 ? { batchId: randomUUID(), audioFailurePreference: 'BLOCK_SILENCED_VIDEOS' }
@@ -560,7 +560,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       this.emitLaneTask(taskId, 'video', 'submitting', slot, lane, 10);
       await this.reserveSubmitWindow(slot.credentialId, 'video', signal);
       const submit = await this.apiRequest(slot, {
-        url: this.apiUrl('/v1/video:batchAsyncGenerateVideoUpsampleVideo'), method: 'POST', captchaAction: 'VIDEO_GENERATION',
+        url: this.apiUrl(slot, '/v1/video:batchAsyncGenerateVideoUpsampleVideo'), method: 'POST', captchaAction: 'VIDEO_GENERATION',
         activityId: taskId, activityKind: 'upscale',
         body: {
           clientContext: this.clientContext(binding.flowProjectId, slot.tier),
@@ -614,6 +614,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     this.sockets.delete(credentialId);
     this.credentials.delete(credentialId);
     this.instanceToCredential.delete(extensionInstanceId);
+    this.apiKeys.delete(extensionInstanceId);
     this.emitStatus();
   }
 
@@ -838,7 +839,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     onUpload?.();
     const { base64, mimeType, fileName } = await readImageSource(this.options.mediaRoot, ref.source, signal);
     const response = await this.apiRequest(slot, {
-      url: this.apiUrl('/v1/flow/uploadImage'), method: 'POST',
+      url: this.apiUrl(slot, '/v1/flow/uploadImage'), method: 'POST',
       body: { clientContext: { projectId: flowProjectId, tool: 'PINHOLE' }, fileName, imageBytes: base64, isHidden: false, isUserUploaded: true, mimeType },
     }, 90_000, signal);
     const mediaId = extractFlowMediaId(response);
@@ -915,21 +916,27 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     };
   }
 
-  private currentApiKey: string = GOOGLE_FLOW_BROWSER_API_KEY;
+  // Browser API key sniffed from each account's own Flow tab, keyed by
+  // extensionInstanceId. This is deliberately NOT one shared key: every account
+  // runs its own Chrome, and a tab still sitting on the sign-in flow (or on
+  // labs.google) sees keys that are restricted to other origins/services. One
+  // shared field meant the newest account's tab silently swapped the key out
+  // from under every already-working account, and all of them started failing.
+  private readonly apiKeys = new Map<string, string>();
 
-  getCurrentApiKey(): string {
-    return this.currentApiKey;
+  getApiKey(extensionInstanceId: string): string {
+    return this.apiKeys.get(extensionInstanceId) || GOOGLE_FLOW_BROWSER_API_KEY;
   }
 
-  updateApiKey(key: string): void {
-    if (key && typeof key === 'string' && key.startsWith('AIzaSy') && key !== this.currentApiKey) {
-      console.log(`[video-studio][google-flow] API key updated to ${key}`);
-      this.currentApiKey = key;
-    }
+  updateApiKey(extensionInstanceId: string, key: string): void {
+    if (!extensionInstanceId || typeof key !== 'string' || !key.startsWith('AIzaSy')) return;
+    if (this.apiKeys.get(extensionInstanceId) === key) return;
+    console.log(`[video-studio][google-flow] API key updated for account ${extensionInstanceId.slice(0, 8)} (${key.slice(0, 12)}…)`);
+    this.apiKeys.set(extensionInstanceId, key);
   }
 
-  apiUrl(endpoint: string, extra = ''): string {
-    return `${GOOGLE_FLOW_API_ROOT}${endpoint}?key=${this.currentApiKey}${extra}`;
+  apiUrl(slot: FlowCredentialSlot, endpoint: string, extra = ''): string {
+    return `${GOOGLE_FLOW_API_ROOT}${endpoint}?key=${this.getApiKey(slot.extensionInstanceId)}${extra}`;
   }
 
   emitLaneTask(taskId: string, kind: 'image' | 'video', status: FlowTaskEvent['status'], slot: FlowCredentialSlot, lane: Lane, progress?: number, message?: string, phase?: FlowTaskEvent['phase']) {

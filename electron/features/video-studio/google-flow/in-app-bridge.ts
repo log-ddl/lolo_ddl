@@ -3,8 +3,8 @@ import { FakeSocket } from '../browser-session/fake-socket'
 import type { AccountSessionHandle } from '../browser-session/session-manager'
 import type { GoogleFlowRuntime } from './runtime'
 import {
+  GOOGLE_FLOW_API_ROOT,
   GOOGLE_FLOW_APP_ORIGIN,
-  GOOGLE_FLOW_BROWSER_API_KEY,
   GOOGLE_FLOW_LEGACY_API_KEY,
   GOOGLE_FLOW_PROTOCOL_VERSION,
   GOOGLE_FLOW_TRPC_ORIGIN,
@@ -19,10 +19,28 @@ const FLOW_SITE_KEY = '6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV'
 const TOKEN_URL_PREFIXES = ['https://aisandbox-pa.googleapis.com/', 'https://labs.google/', 'https://flow.google.com/']
 const MAX_RELOAD_RETRIES = 4
 const RELOAD_RETRY_DELAY_MS = 6000
-// The Google OAuth bearer token (ya29...) lasts ~60 min. Reload the hidden
-// Flow tab a bit before that so the page re-fetches a fresh token (which the
-// Network listener captures) — otherwise the account goes "Cần làm mới" and
-// the user has to poke it manually.
+/**
+ * Where the token actually comes from now.
+ *
+ * Google rebuilt the signed-in app: flow.google.com is an Angular/WIZ frontend
+ * that talks to `/_/AiSandboxAngularFrontend/data/batchexecute` using cookies,
+ * and puts NO `Authorization: Bearer ya29...` on the wire at all. The Network
+ * listener below therefore waits forever and every account stays "Cần làm mới"
+ * — which is exactly how a working account "goes dead" after any tab reload.
+ *
+ * The backend the runtime talks to is untouched: aisandbox-pa and the
+ * labs.google tRPC mount both still answer, and this NextAuth session endpoint
+ * still hands the account's OAuth token to whoever holds the profile's cookies.
+ * So the token is fetched directly instead of overheard; the sniffing path is
+ * kept as a fallback in case Google puts it back on the wire.
+ */
+const FLOW_SESSION_URL = 'https://labs.google/fx/api/auth/session'
+// The token lasts ~60 min and the session endpoint reports its expiry, so poll
+// often enough to renew before it lapses (and to recover an account that had no
+// token at all) while staying far below one request per minute per account.
+const TOKEN_POLL_INTERVAL_MS = 10 * 60 * 1000
+const TOKEN_RENEW_MARGIN_MS = 15 * 60 * 1000
+// Fallback cadence when the session endpoint gave no expiry.
 const TOKEN_REFRESH_INTERVAL_MS = 40 * 60 * 1000
 
 type OutgoingMessage = {
@@ -55,6 +73,25 @@ function flowProjectIdOf(url: string, body: unknown): string | undefined {
   return typeof context?.projectId === 'string' && context.projectId ? context.projectId : undefined
 }
 
+/**
+ * The browser API key, but only when it is genuinely Flow's own.
+ *
+ * A tab does far more than call Flow: it walks through the Google sign-in
+ * pages, may still be sitting on labs.google, and Chrome itself talks to a
+ * handful of *.googleapis.com services — all with their own `key=AIzaSy...`
+ * that is restricted to a different origin or service. Accepting one of those
+ * used to break every generation on this account (and, back when the key was
+ * shared, on every other account too). Only the Flow media API is ever called
+ * with an explicit key, so that is the only URL worth reading one from; the
+ * legacy labs.google key is rejected as well since it is already dead and
+ * handleOutgoing exists precisely to replace it.
+ */
+function sniffFlowApiKey(url: string): string | undefined {
+  if (!url.startsWith(`${GOOGLE_FLOW_API_ROOT}/`)) return undefined
+  const key = /[?&]key=(AIzaSy[A-Za-z0-9_-]+)/.exec(url)?.[1]
+  return key && key !== GOOGLE_FLOW_LEGACY_API_KEY ? key : undefined
+}
+
 function findAuthHeader(headers: Record<string, string> | undefined): string | undefined {
   if (!headers) return undefined
   const key = Object.keys(headers).find((name) => name.toLowerCase() === 'authorization')
@@ -80,6 +117,9 @@ export class GoogleFlowInAppBridge {
   private reloadAttempts = 0
   private reloadTimer: ReturnType<typeof setTimeout> | undefined
   private refreshTimer: ReturnType<typeof setInterval> | undefined
+  /** Expiry reported by the session endpoint, so renewal is scheduled off the real deadline. */
+  private tokenExpiresAt: number | undefined
+  private tokenFetchedAt = 0
   // In-flight api/trpc requests routed through this bridge. The periodic token
   // refresh reloads the page, which would abort an in-flight page fetch — so we
   // only refresh while idle.
@@ -98,12 +138,16 @@ export class GoogleFlowInAppBridge {
     // token refresh; the FakeSocket→runtime credential stays alive throughout.
     handle.onReconnect(() => {
       console.log(`[video-studio][google-flow] reconnected to respawned Chrome for account ${handle.accountSlotId}`)
-      this.flowKey = undefined
+      // The token belongs to the signed-in profile, not to this CDP connection,
+      // so it is renewed below rather than thrown away — dropping it here is
+      // what used to leave the account "ready" in the UI but failing on
+      // NO_FLOW_KEY when no replacement ever arrived.
       this.reloadAttempts = 0
       if (this.reloadTimer) { clearTimeout(this.reloadTimer); this.reloadTimer = undefined }
       this.requestUrlById.clear()
       this.wireCdp()
       this.startRefreshTimer()
+      void this.fetchSessionToken()
     })
 
     runtime.registerInAppConnection(this.socket as unknown as WebSocket)
@@ -113,6 +157,10 @@ export class GoogleFlowInAppBridge {
       extensionInstanceId: handle.accountSlotId,
       flowKeyPresent: false,
     }))
+    // Ask for the token straight away instead of waiting for page traffic that
+    // the rebuilt Flow app no longer produces. Runs after the handshake above so
+    // the credential id it echoes is already assigned.
+    void this.fetchSessionToken()
   }
 
   private wireCdp(): void {
@@ -135,32 +183,74 @@ export class GoogleFlowInAppBridge {
     this.socket.close()
   }
 
-  /** Force the hidden Flow page to fetch a fresh bearer token now. */
+  /**
+   * Get a fresh bearer token for this account now.
+   *
+   * The session endpoint is asked first because it is the only reliable source
+   * since the Flow frontend stopped sending bearer tokens. A page reload is kept
+   * as the fallback for the day Google puts them back. The current token is NOT
+   * dropped up front: an account that still holds a valid token must not be
+   * knocked offline just because a refresh attempt failed.
+   */
   async refreshToken(): Promise<void> {
     if (this.disposed) return
-    this.flowKey = undefined
+    if (await this.fetchSessionToken()) return
     this.reloadAttempts = 0
     if (this.reloadTimer) { clearTimeout(this.reloadTimer); this.reloadTimer = undefined }
     await this.handle.cdp.send('Page.reload', { ignoreCache: false })
   }
 
-  // Periodically reload the hidden Flow tab so its bootstrap requests carry a
-  // fresh OAuth token before the current one expires. Skips while a request is
-  // in flight (a reload would abort it) — the next tick, or that request's own
-  // page traffic, refreshes the token instead.
+  /**
+   * Reads this profile's OAuth token off the labs.google session endpoint using
+   * the account's own cookies (fetched over CDP, used for this request only and
+   * never logged or persisted). Returns false when the profile is not signed in.
+   */
+  private async fetchSessionToken(): Promise<boolean> {
+    if (this.disposed) return false
+    try {
+      const { cookies } = await this.handle.cdp.send<{ cookies: Array<{ name: string; value: string }> }>(
+        'Network.getCookies', { urls: [FLOW_SESSION_URL] },
+      )
+      const cookie = (cookies || []).map((item) => `${item.name}=${item.value}`).join('; ')
+      if (!cookie) return false
+      const response = await fetch(FLOW_SESSION_URL, { headers: { cookie, accept: 'application/json' } })
+      if (!response.ok) return false
+      const session = await response.json() as { access_token?: unknown; expires?: unknown }
+      const token = typeof session.access_token === 'string' ? session.access_token : ''
+      if (!token.startsWith('ya29.')) return false
+      const expiresAt = typeof session.expires === 'string' ? Date.parse(session.expires) : Number.NaN
+      this.applyToken(token, expiresAt)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Renew shortly before the token lapses, and keep retrying for an account that
+  // has none at all — the old timer bailed out on `!this.flowKey`, so an account
+  // that missed its token once stayed dead until the user poked it by hand.
   private startRefreshTimer(): void {
     if (this.refreshTimer) clearInterval(this.refreshTimer)
     this.refreshTimer = setInterval(() => {
-      if (this.disposed || !this.flowKey || this.pendingRequests > 0 || this.reloadTimer) return
-      console.log(`[video-studio][google-flow] periodic token refresh — reloading Flow tab for account ${this.handle.accountSlotId}`)
-      void this.handle.cdp.send('Page.reload', { ignoreCache: false }).catch(() => { /* best-effort */ })
-    }, TOKEN_REFRESH_INTERVAL_MS)
+      if (this.disposed) return
+      const expiringSoon = this.tokenExpiresAt
+        ? this.tokenExpiresAt - Date.now() <= TOKEN_RENEW_MARGIN_MS
+        : Date.now() - this.tokenFetchedAt >= TOKEN_REFRESH_INTERVAL_MS
+      if (this.flowKey && !expiringSoon) return
+      void this.fetchSessionToken()
+    }, TOKEN_POLL_INTERVAL_MS)
   }
 
   private captureToken(auth: string | undefined): void {
     if (typeof auth !== 'string' || !auth.startsWith('Bearer ya29.')) return
+    this.applyToken(auth.slice('Bearer '.length).trim(), Number.NaN)
+  }
+
+  private applyToken(token: string, expiresAt: number): void {
     const isFirstToken = !this.flowKey
-    this.flowKey = auth.slice('Bearer '.length).trim()
+    this.flowKey = token
+    this.tokenExpiresAt = Number.isFinite(expiresAt) ? expiresAt : undefined
+    this.tokenFetchedAt = Date.now()
     if (this.reloadTimer) { clearTimeout(this.reloadTimer); this.reloadTimer = undefined }
     this.socket.receive(JSON.stringify({ type: 'token_captured', sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
     if (isFirstToken) {
@@ -172,9 +262,9 @@ export class GoogleFlowInAppBridge {
   private onRequestWillBeSent(params: { requestId?: string; request?: { url?: string; headers?: Record<string, string> } }): void {
     const url = params.request?.url || ''
     if (params.requestId) this.requestUrlById.set(params.requestId, url)
-    const keyMatch = /[?&]key=(AIzaSy[A-Za-z0-9_-]+)/.exec(url)
-    if (keyMatch) {
-      this.runtime.updateApiKey(keyMatch[1])
+    const apiKey = sniffFlowApiKey(url)
+    if (apiKey) {
+      this.runtime.updateApiKey(this.handle.accountSlotId, apiKey)
     }
     if (!TOKEN_URL_PREFIXES.some((prefix) => url.startsWith(prefix))) return
     this.captureToken(findAuthHeader(params.request?.headers))
@@ -202,6 +292,10 @@ export class GoogleFlowInAppBridge {
     if (this.flowKey || params.frame?.parentId) return
     const url = params.frame?.url || ''
     if (!/^https:\/\/(?:labs\.google\/fx\/(?:[^/]+\/)?tools\/flow|flow\.google\.com)/.test(url)) return
+    // Landing here is the moment a sign-in just finished, so the session
+    // endpoint has a token to give even though the page itself will never put
+    // one on the wire. The reload retries below stay as the fallback.
+    void this.fetchSessionToken()
     if (this.reloadTimer || this.reloadAttempts >= MAX_RELOAD_RETRIES) return
     this.reloadAttempts += 1
     const delay = this.reloadAttempts === 1 ? 2500 : RELOAD_RETRY_DELAY_MS
@@ -213,15 +307,17 @@ export class GoogleFlowInAppBridge {
     }, delay)
   }
 
+  // Same rule as sniffFlowApiKey: read the page's key only while the tab is
+  // actually on the signed-in Flow app, never off a sign-in or labs.google page.
   private async extractApiKeyFromTab(): Promise<void> {
     try {
       const result = await this.handle.cdp.send<EvaluateResult<string>>('Runtime.evaluate', {
-        expression: 'window.WIZ_global_data?.K21R3e || ""',
+        expression: `(window.location.origin === ${JSON.stringify(GOOGLE_FLOW_APP_ORIGIN)} && window.WIZ_global_data?.K21R3e) || ""`,
         returnByValue: true,
       })
       const key = result.result?.value
-      if (key && typeof key === 'string' && key.startsWith('AIzaSy')) {
-        this.runtime.updateApiKey(key)
+      if (key && typeof key === 'string' && key.startsWith('AIzaSy') && key !== GOOGLE_FLOW_LEGACY_API_KEY) {
+        this.runtime.updateApiKey(this.handle.accountSlotId, key)
       }
     } catch {
       // best effort
@@ -426,11 +522,17 @@ export class GoogleFlowInAppBridge {
         }
       }
 
+      // Last-chance recovery: an account whose token never arrived (or expired
+      // between polls) fixes itself here instead of failing the generation.
+      if (!this.flowKey) await this.fetchSessionToken()
       if (!this.flowKey) throw new Error('NO_FLOW_KEY')
       const headers: Record<string, string> = { ...(params.headers || {}), authorization: `Bearer ${this.flowKey}` }
       const method = params.method || 'POST'
       let requestUrl = params.url
-      const currentApiKey = this.runtime.getCurrentApiKey() || GOOGLE_FLOW_BROWSER_API_KEY
+      // This account's own key (never another account's), and never the legacy
+      // one — updateApiKey refuses to store it — so the swap below can no longer
+      // degrade into replacing the dead key with itself.
+      const currentApiKey = this.runtime.getApiKey(this.handle.accountSlotId)
       if (requestUrl.includes(GOOGLE_FLOW_LEGACY_API_KEY)) {
         requestUrl = requestUrl.replace(GOOGLE_FLOW_LEGACY_API_KEY, currentApiKey)
       }
