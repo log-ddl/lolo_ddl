@@ -49,6 +49,9 @@ function parseInput(body: unknown): AutopilotJobInput {
   pick('aspectRatio');
   pick('imageModel');
   pick('videoModel');
+  pick('imageModelFallbacks');
+  pick('videoModelFallbacks');
+  pick('flowAccounts');
   pick('importedAudioPath');
   pick('importedSrtRaw');
   pick('importedPlan');

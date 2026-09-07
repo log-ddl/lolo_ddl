@@ -19,6 +19,8 @@ export type ImageGenerationInput = {
   baseImage?: ProviderMediaRef;
   references?: ProviderMediaRef[];
   preferredCredentialId?: string;
+  /** Restrict this request to these accounts (Google Flow `ownerScopeId`s). Empty = any. */
+  allowedOwnerScopeIds?: string[];
   // Caller-supplied task id, so the caller can correlate this call's live
   // phase updates (useGoogleFlowRuntimeStore tasks[taskId]) before the
   // promise resolves. Falls back to an internally generated id when unset.
@@ -38,6 +40,8 @@ export type VideoGenerationInput = {
   endImage?: ProviderMediaRef;
   references?: ProviderMediaRef[];
   preferredCredentialId?: string;
+  /** Restrict this request to these accounts (Google Flow `ownerScopeId`s). Empty = any. */
+  allowedOwnerScopeIds?: string[];
   taskId?: string;
   onSubmitted?: () => void;
   signal?: AbortSignal;

@@ -14,12 +14,16 @@ import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { getModelDisplayName } from "@/features/video-studio/lib/api-key-manager";
 import { useAPIConfigStore, type AIFeature, type IProvider } from "@/features/video-studio/stores/api-config-store";
+import { useVideoStudioSettingsStore } from "@/features/video-studio/stores/video-studio-settings-store";
+import { MediaRoutingPicker } from "@/features/video-studio/components/media-routing-picker";
 import { getProviderDisplayName, getProviderMediaModels, type MediaModelKind } from "./shared";
 
 type MediaSelection = { provider: IProvider; model: string } | null;
 
 export function MediaModelSelectors() {
   const { providers, setFeatureBindings, getFeatureBindings } = useAPIConfigStore();
+  const mediaRouting = useVideoStudioSettingsStore((state) => state.mediaRouting);
+  const setMediaRouting = useVideoStudioSettingsStore((state) => state.setMediaRouting);
 
   const mediaProviders = useMemo(
     () => providers.filter((provider) => ['googleflow', 'grok'].includes(provider.platform)),
@@ -183,6 +187,29 @@ export function MediaModelSelectors() {
           </div>
         </div>
       )}
+
+      <div className="space-y-2 border-t border-border/60 pt-4">
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">Tài khoản và model dự phòng</h4>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Mặc định cho job mới. Mỗi job AutoPilot chép các giá trị này lúc tạo, và phần nâng cao của job đó ghi đè được.
+          </p>
+        </div>
+        <MediaRoutingPicker
+          value={{
+            imageModelFallbacks: mediaRouting.imageModelFallbacks,
+            videoModelFallbacks: mediaRouting.videoModelFallbacks,
+            flowAccounts: mediaRouting.flowAccounts,
+            accountVideoModels: mediaRouting.accountVideoModels,
+          }}
+          onChange={(next) => setMediaRouting({
+            imageModelFallbacks: next.imageModelFallbacks,
+            videoModelFallbacks: next.videoModelFallbacks,
+            flowAccounts: next.flowAccounts,
+            accountVideoModels: next.accountVideoModels,
+          })}
+        />
+      </div>
     </div>
   );
 }

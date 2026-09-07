@@ -352,7 +352,7 @@ declare global {
       addInAppAccount: () => Promise<VideoStudioInAppAccount>;
       removeInAppAccount: (accountSlotId: string) => Promise<void>;
       showInAppAccount: (accountSlotId: string) => Promise<void>;
-      refreshInAppAccounts: () => Promise<{ ok: boolean }>;
+      refreshInAppAccounts: () => Promise<{ ok: boolean; errors?: Array<{ accountSlotId: string; message: string }> }>;
     };
     videoStudioBrowser?: {
       startRuntimes: () => Promise<{ ok: boolean }>;

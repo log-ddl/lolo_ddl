@@ -11,6 +11,17 @@ import path from 'node:path';
  * out (and vice versa).
  */
 
+/**
+ * Machine-readable prefixes for lane-selection failures.
+ *
+ * The renderer matches on these to decide whether to retry the same work on a
+ * different model, so they are part of the IPC contract and must never be
+ * localised or reworded. Mirrored for the renderer in
+ * src/features/video-studio/packages/ai-core/providers/google-flow/types.ts.
+ */
+export const FLOW_ALL_ACCOUNTS_QUOTA_LOCKED = 'FLOW_ALL_ACCOUNTS_QUOTA_LOCKED';
+export const FLOW_NO_ALLOWED_ACCOUNT = 'FLOW_NO_ALLOWED_ACCOUNT';
+
 export type FlowQuotaLock = {
   /** Account identity (`slot.ownerScopeId`) — stable across app restarts. */
   ownerScopeId: string;

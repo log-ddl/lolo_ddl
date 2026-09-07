@@ -31,6 +31,8 @@ import { setProjectVisualStyleId, useProjectVisualStyleId } from "@/features/vid
 import { toast } from "sonner";
 import { parseSrt } from "@/features/video-studio/lib/auto-video/srt-parser";
 import { parseAutopilotImportedPlan, scriptFromImportedPlan } from "@/features/video-studio/autopilot/imported-plan";
+import { DEFAULT_IMAGE_MODEL } from "@/features/video-studio/autopilot/prompts";
+import { getFeatureConfig } from "@/features/video-studio/lib/ai/feature-router";
 import {
   ChevronDown,
   ChevronRight,
@@ -48,6 +50,7 @@ import type { AutopilotImportedPlan, AutopilotJobInput } from "@/features/video-
 import type { RenderCodec } from "@/features/video-studio/lib/auto-video/types";
 import { CODEC_OPTIONS, inferAutopilotSkillName } from "./panel-shared";
 import { useAutopilotVoiceSettings, VoiceEnginePicker, VoiceEngineSettings } from "./voice-settings";
+import { MediaRoutingPicker, type MediaRoutingValue } from "@/features/video-studio/components/media-routing-picker";
 import { ShotPreviewOverlay } from "./job-media-gallery";
 import { JobCard } from "./job-card";
 
@@ -94,6 +97,24 @@ export function AutopilotPanel() {
   // When false, stop after generating the shot videos (no final ffmpeg merge).
   const [mergeAfterCreate, setMergeAfterCreate] = useState(true);
   const [advancedExpanded, setAdvancedExpanded] = useState(false);
+  // Seeded from Settings so a job starts on the app-wide defaults; editing here only
+  // changes the job about to be created, and the values are frozen into it.
+  const [mediaRouting, setMediaRouting] = useState<MediaRoutingValue>(() => {
+    const defaults = useVideoStudioSettingsStore.getState().mediaRouting;
+    // The picker shows one ordered list, so its head must already be the model
+    // this job would have run anyway — seeding an empty head would promote the
+    // first fallback to primary behind the user's back.
+    const imageHead = DEFAULT_IMAGE_MODEL;
+    const videoHead = getFeatureConfig("video_generation")?.model || "Veo_3.1-Fast";
+    return {
+      imageModel: imageHead,
+      videoModel: videoHead,
+      imageModelFallbacks: defaults.imageModelFallbacks.filter((model) => model !== imageHead),
+      videoModelFallbacks: defaults.videoModelFallbacks.filter((model) => model !== videoHead),
+      flowAccounts: defaults.flowAccounts,
+      accountVideoModels: defaults.accountVideoModels,
+    };
+  });
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const now = useNow(jobs.some((job) => job.status === "running" || job.status === "queued"));
 
@@ -186,6 +207,14 @@ export function AutopilotPanel() {
       videoAudioVolume: videoAudioVolume > 0 ? videoAudioVolume : undefined,
       kenBurnsEnabled,
       kenBurnsPercent,
+      // Frozen at creation: an empty head model still means "whatever Settings says
+      // at run time", but the accounts and the fallback chain travel with the job.
+      imageModel: mediaRouting.imageModel?.trim() || undefined,
+      videoModel: mediaRouting.videoModel?.trim() || undefined,
+      imageModelFallbacks: mediaRouting.imageModelFallbacks.length ? mediaRouting.imageModelFallbacks : undefined,
+      videoModelFallbacks: mediaRouting.videoModelFallbacks.length ? mediaRouting.videoModelFallbacks : undefined,
+      flowAccounts: mediaRouting.flowAccounts.length ? mediaRouting.flowAccounts : undefined,
+      accountVideoModels: Object.keys(mediaRouting.accountVideoModels).length ? mediaRouting.accountVideoModels : undefined,
       resolution: "1920x1080",
       executionMode,
       stopAfterStep: mergeAfterCreate ? undefined : "videos",
@@ -195,7 +224,7 @@ export function AutopilotPanel() {
       return null;
     }
     return input;
-  }, [t, importedPlan, script, skillText, maxShots, longFormThresholdMinutes, aspectRatio, voiceSource, importedAudioPath, importedSrtRaw, voice, subtitles, bgmPath, codec, audioNormalize, videoAudioVolume, kenBurnsEnabled, kenBurnsPercent, mergeAfterCreate]);
+  }, [t, importedPlan, script, skillText, maxShots, longFormThresholdMinutes, aspectRatio, voiceSource, importedAudioPath, importedSrtRaw, voice, subtitles, bgmPath, codec, audioNormalize, videoAudioVolume, kenBurnsEnabled, kenBurnsPercent, mediaRouting, mergeAfterCreate]);
 
   const handleCreate = useCallback((executionMode: "all" | "step") => {
     const input = buildInput(executionMode);
@@ -410,6 +439,8 @@ export function AutopilotPanel() {
 
             {showVoiceSettings && <VoiceEnginePicker settings={voice} t={t} />}
             {showVoiceSettings && <VoiceEngineSettings settings={voice} t={t} />}
+
+            {advancedExpanded && <MediaRoutingPicker value={mediaRouting} onChange={setMediaRouting} showPrimaryModels />}
 
             {advancedExpanded && (
               <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">

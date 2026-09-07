@@ -28,8 +28,11 @@ export function registerGoogleFlowIpc(runtime: GoogleFlowRuntime, accountManager
   ipcMain.handle('google-flow:sync-references', (_event, payload) => runtime.syncReferences(payload));
   ipcMain.handle('google-flow:clear-quota-locks', (_event, payload) => runtime.clearQuotaLocks(payload));
   ipcMain.handle('google-flow:refresh-inapp-accounts', async () => {
-    await accountManager?.refreshAccounts();
-    return { ok: true };
+    // Report why an account could not be reconnected instead of swallowing it:
+    // the renderer has no other way to tell "no token yet" from "Chrome never
+    // attached", and those need different actions from the user.
+    const result = await accountManager?.refreshAccounts();
+    return { ok: true, errors: result?.errors || [] };
   });
   ipcMain.handle('google-flow:open-flow', async () => {
     await shell.openExternal('https://labs.google/fx/tools/flow');

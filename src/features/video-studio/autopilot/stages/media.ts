@@ -15,7 +15,10 @@ import { useMediaStore } from '@/features/video-studio/stores/media-store';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { resolveLaneCount, runOrdered } from '@/features/video-studio/lib/ai/lane-manager';
 import { saveImageToLocal, saveVideoToLocal } from '@/features/video-studio/lib/image-storage';
+import { stripFlowErrorCode } from '@/features/video-studio/lib/ai/google-flow-errors';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName, skillAllowsRealImageResearch } from '../prompts';
+import { buildModelChain, runWithModelFallback } from '../model-fallback';
+import { buildAccountRouting, listKnownOwnerScopeIds } from '../account-routing';
 import { downloadRealImage } from '../real-media-search';
 import type { AutopilotJob } from '../types';
 import {
@@ -47,6 +50,23 @@ export async function runMediaStage(
   const aspectRatio = job.input.aspectRatio || DEFAULT_ASPECT_RATIO;
   const imageModel = job.input.imageModel || DEFAULT_IMAGE_MODEL;
   const videoModel = job.input.videoModel || getFeatureConfig('video_generation')?.model || 'Veo_3.1-Fast';
+  // Model chain + account allowlist are frozen into the job when it is created, so
+  // editing Settings mid-run cannot change what a running job is allowed to use.
+  const routing = buildAccountRouting({
+    connectedOwnerScopeIds: await listKnownOwnerScopeIds(runtime),
+    flowAccounts: job.input.flowAccounts,
+    accountVideoModels: job.input.accountVideoModels,
+  });
+  const imageModelChain = buildModelChain(imageModel, job.input.imageModelFallbacks);
+  const requestedVideoChain = buildModelChain(videoModel, job.input.videoModelFallbacks);
+  // A video model no enabled account owns answers 404, which no retry and no
+  // account failover can fix — drop it before it eats an attempt.
+  const videoModelChain = routing.filterVideoChain(requestedVideoChain);
+  const skippedVideoModels = requestedVideoChain.filter((model) => !videoModelChain.includes(model));
+  if (skippedVideoModels.length) {
+    ctx.log(job.id, 'media', `Bỏ qua model video ${skippedVideoModels.join(', ')}: không tài khoản nào đang bật có model này`);
+  }
+  const allowedOwnerScopeIds = routing.imageAccounts;
   const allowRealImageResearch = skillAllowsRealImageResearch(job.input.skill)
     || job.input.importedPlan?.allowRealImageResearch === true
     || job.input.importedPlan?.shots.some((shot) => Boolean(shot.realImageQuery?.trim())) === true;
@@ -137,6 +157,8 @@ export async function runMediaStage(
         videoError: item.videoError,
         imageTaskId: item.imageTaskId,
         videoTaskId: item.videoTaskId,
+        imageModelUsed: item.imageModelUsed,
+        videoModelUsed: item.videoModelUsed,
       })),
     });
   };
@@ -149,7 +171,7 @@ export async function runMediaStage(
   let completedResearch = researchedShots.length - missingResearch.length;
   missingResearch.forEach((item) => { item.researchStatus = 'queued'; item.researchError = undefined; });
   syncMediaOutputs();
-  await runOrdered(missingResearch, await resolveLaneCount('image', 'googleflow'), async (item) => {
+  await runOrdered(missingResearch, await resolveLaneCount('image', 'googleflow', job.input.flowAccounts), async (item) => {
     if (signal.aborted) throw new Error('aborted');
     item.researchStatus = 'generating';
     syncMediaOutputs();
@@ -225,20 +247,25 @@ export async function runMediaStage(
       ? 'Use the final supplied reference as factual source imagery. Integrate it naturally into the composition where it best supports the visual hierarchy and story. Keep it clearly recognizable and preserve its factual content and identity. '
       : '';
     try {
-      const imageResult = await runGenerationWithRetries(
+      const attemptImage = await runWithModelFallback(
+        imageModelChain,
+        (model, modelIndex) => runGenerationWithRetries(
           retryAttempts,
           signal,
           (attempt) => {
             // Remember the id of the attempt actually in flight: the last one to run is
-            // the one whose provider record explains the final outcome.
-            item.imageTaskId = `ap-img-${job.id}-${item.shot.index - 1}-try-${attempt}`;
+            // the one whose provider record explains the final outcome. The model index
+            // is part of the id so a fallback attempt does not overwrite the record of
+            // the model that ran before it.
+            item.imageTaskId = `ap-img-${job.id}-${item.shot.index - 1}-m${modelIndex}-try-${attempt}`;
             return googleFlowProvider.generateImage({
               projectId: longddProjectId,
               sceneId: `autopilot-${job.id}-${item.shot.index - 1}`,
               prompt: `${sceneLine}${identityLine}${researchLine}${item.shot.imagePrompt || ''} ${visualStyleLine}`.trim(),
-              model: imageModel,
+              model,
               aspectRatio,
               references,
+              allowedOwnerScopeIds,
               taskId: item.imageTaskId,
               onSubmitted: () => {
                 item.imageStatus = 'generating';
@@ -252,12 +279,21 @@ export async function runMediaStage(
             syncMediaOutputs();
             ctx.log(job.id, 'media', `Ảnh shot ${item.shot.index} lỗi — thử lại ${nextAttempt}/${totalAttempts}: ${error instanceof Error ? error.message : String(error)}`);
           },
-        );
+        ),
+        (fromModel, toModel) => {
+          item.imageStatus = 'queued';
+          syncMediaOutputs();
+          ctx.log(job.id, 'media', `Ảnh shot ${item.shot.index}: mọi tài khoản đã hết hạn mức ngày cho ${fromModel} — chuyển sang ${toModel}`);
+        },
+      );
+      const imageResult = attemptImage.result;
+      item.imageModelUsed = attemptImage.fellBack ? attemptImage.model : undefined;
       const source = imageResult.localUrl || imageResult.remoteUrl || '';
       if (!source) throw new Error('Google Flow không trả về ảnh');
       item.imagePath = await saveImageToLocal(source, 'shots', `${safeFileName(job.title)}_shot_${item.shot.index}_${Date.now()}.png`);
       item.imageStatus = 'completed';
       item.imageError = undefined;
+      if (attemptImage.fellBack) ctx.log(job.id, 'media', `[ảnh ${item.shot.index}] tạo bằng model dự phòng ${attemptImage.model}`);
       const mediaStore = useMediaStore.getState();
       item.imageMediaId = mediaStore.addMediaFromUrl({
         url: item.imagePath,
@@ -274,7 +310,7 @@ export async function runMediaStage(
         throw error;
       }
       item.imageStatus = 'failed';
-      item.imageError = error instanceof Error ? error.message : String(error);
+      item.imageError = stripFlowErrorCode(error instanceof Error ? error.message : String(error));
       ctx.log(job.id, 'media', `Ảnh shot ${item.shot.index} thất bại: ${item.imageError}`);
     } finally {
       completedImages += 1;
@@ -307,19 +343,22 @@ export async function runMediaStage(
   await runGoogleFlowQueueOrdered(ctx, job, 'media', 'video', missingVideos, signal, async (item) => {
     if (signal.aborted) throw new Error('aborted');
     try {
-      const videoResult = await runGenerationWithRetries(
+      const attemptVideo = await runWithModelFallback(
+        videoModelChain,
+        (model, modelIndex) => runGenerationWithRetries(
           retryAttempts,
           signal,
           (attempt) => {
-            item.videoTaskId = `ap-vid-${job.id}-${item.shot.index - 1}-try-${attempt}`;
+            item.videoTaskId = `ap-vid-${job.id}-${item.shot.index - 1}-m${modelIndex}-try-${attempt}`;
             return googleFlowProvider.generateVideo({
               projectId: longddProjectId,
               sceneId: `autopilot-${job.id}-${item.shot.index - 1}`,
               prompt: `${item.shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
-              model: videoModel,
+              model,
               aspectRatio,
               duration: item.shot.videoLength,
               startImage: { source: item.imagePath, provider: 'googleflow', flowProjectId },
+              allowedOwnerScopeIds: routing.videoAccountsFor(model),
               taskId: item.videoTaskId,
               onSubmitted: () => {
                 item.videoStatus = 'generating';
@@ -333,12 +372,21 @@ export async function runMediaStage(
             syncMediaOutputs();
             ctx.log(job.id, 'media', `Video shot ${item.shot.index} lỗi — thử lại ${nextAttempt}/${totalAttempts}: ${error instanceof Error ? error.message : String(error)}`);
           },
-        );
+        ),
+        (fromModel, toModel) => {
+          item.videoStatus = 'queued';
+          syncMediaOutputs();
+          ctx.log(job.id, 'media', `Video shot ${item.shot.index}: mọi tài khoản đã hết hạn mức ngày cho ${fromModel} — chuyển sang ${toModel}`);
+        },
+      );
+      const videoResult = attemptVideo.result;
+      item.videoModelUsed = attemptVideo.fellBack ? attemptVideo.model : undefined;
       const source = videoResult.localUrl || videoResult.remoteUrl || '';
       if (!source) throw new Error('Google Flow không trả về video');
       item.videoPath = await saveVideoToLocal(source, `${safeFileName(job.title)}_shot_${item.shot.index}_${Date.now()}.mp4`);
       item.videoStatus = 'completed';
       item.videoError = undefined;
+      if (attemptVideo.fellBack) ctx.log(job.id, 'media', `[video ${item.shot.index}] tạo bằng model dự phòng ${attemptVideo.model}`);
       const mediaStore = useMediaStore.getState();
       item.videoMediaId = mediaStore.addMediaFromUrl({
         url: item.videoPath,
@@ -359,7 +407,7 @@ export async function runMediaStage(
       // Still 'skipped', not 'failed': the shot degrades to a still and the job goes on.
       // The message is kept so the card can explain why it went still.
       item.videoStatus = 'skipped';
-      item.videoError = err instanceof Error ? err.message : String(err);
+      item.videoError = stripFlowErrorCode(err instanceof Error ? err.message : String(err));
       ctx.log(job.id, 'media', `Video shot ${item.shot.index} thất bại — dùng ảnh fallback: ${item.videoError}`);
     } finally {
       completedVideos += 1;

@@ -107,6 +107,28 @@ export interface AutopilotJobInput {
   aspectRatio?: string;
   imageModel?: string;
   videoModel?: string;
+  /**
+   * Models to try, in order, when every allowed account is out of daily quota for
+   * the one before it. `imageModel`/`videoModel` is the head of the chain; these
+   * are the ones after it. Empty means "fail instead of switching model", which
+   * stays the old behaviour.
+   */
+  imageModelFallbacks?: string[];
+  videoModelFallbacks?: string[];
+  /**
+   * Google Flow accounts (`ownerScopeId`) this job may use. Empty = every connected
+   * account, which is what jobs created before this field did.
+   */
+  flowAccounts?: string[];
+  /**
+   * Video models each account actually owns, keyed by `ownerScopeId`. Omni Flash
+   * and the low-priority Veo keys are missing on some Flow accounts, and asking
+   * for a model an account does not have answers 404 — an error no retry and no
+   * account failover can fix, so those pairs are routed around instead.
+   * A missing entry means "owns everything", which is what jobs created before
+   * this field did. Images need no map: every account runs every image model.
+   */
+  accountVideoModels?: Record<string, string[]>;
   /** Existing narration file. When present it replaces TTS and its Whisper transcript becomes the locked script. */
   importedAudioPath?: string;
   /** Optional raw SRT for the imported narration file. When present it replaces Whisper: its segments lock timing and become the primary script. */
@@ -272,6 +294,12 @@ export interface AutopilotMediaOutput {
    */
   imageTaskId?: string;
   videoTaskId?: string;
+  /**
+   * Set only when the asset was produced by a fallback model rather than the one
+   * the job asked for — a fallback usually looks different, so the card says so.
+   */
+  imageModelUsed?: string;
+  videoModelUsed?: string;
 }
 
 export interface AutopilotJob {

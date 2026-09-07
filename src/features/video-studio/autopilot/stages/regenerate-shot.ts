@@ -10,7 +10,10 @@ import { resolveFlowProjectBinding } from '@/features/video-studio/autopilot/flo
 import { useMediaStore } from '@/features/video-studio/stores/media-store';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { saveImageToLocal, saveVideoToLocal } from '@/features/video-studio/lib/image-storage';
+import { stripFlowErrorCode } from '@/features/video-studio/lib/ai/google-flow-errors';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prompts';
+import { buildModelChain, runWithModelFallback } from '../model-fallback';
+import { buildAccountRouting, listKnownOwnerScopeIds } from '../account-routing';
 import type { AutopilotJob } from '../types';
 import { MAX_IMAGE_REFERENCE_SLOTS, runGenerationWithRetries, type CharacterReference, type EngineContext } from '../engine-shared';
 
@@ -39,6 +42,16 @@ export async function runSingleShotRegeneration(
     const aspectRatio = job.input.aspectRatio || DEFAULT_ASPECT_RATIO;
     const imageModel = job.input.imageModel || DEFAULT_IMAGE_MODEL;
     const videoModel = job.input.videoModel || getFeatureConfig('video_generation')?.model || 'Veo_3.1-Fast';
+    const routing = buildAccountRouting({
+      connectedOwnerScopeIds: await listKnownOwnerScopeIds(runtime),
+      flowAccounts: job.input.flowAccounts,
+      accountVideoModels: job.input.accountVideoModels,
+    });
+    const imageModelChain = buildModelChain(imageModel, job.input.imageModelFallbacks);
+    // Models no enabled account owns would only answer 404 — routed around, same
+    // as in the media stage, so a regenerate behaves like the run it repairs.
+    const videoModelChain = routing.filterVideoChain(buildModelChain(videoModel, job.input.videoModelFallbacks));
+    const allowedOwnerScopeIds = routing.imageAccounts;
     const laneSettings = useVideoStudioSettingsStore.getState().maxStudioLanes;
     const retryAttempts = Math.max(0, Math.floor(laneSettings.generationRetryAttempts ?? 1));
     const visualStyleLine = job.visualStylePrompt ? `Visual style: ${job.visualStylePrompt}.` : '';
@@ -89,25 +102,34 @@ export async function runSingleShotRegeneration(
       const researchLine = mediaOutput.realImagePath
         ? 'Use the final supplied reference as factual source imagery. Integrate it naturally into the composition where it best supports the visual hierarchy and story. Keep it clearly recognizable and preserve its factual content and identity. '
         : '';
-      const imageResult = await runGenerationWithRetries(
-        retryAttempts, signal,
-        (attempt) => {
-          mediaOutput.imageTaskId = `ap-img-${job.id}-${shot.index - 1}-regen-${attempt}`;
-          return googleFlowProvider.generateImage({
-            projectId: longddProjectId,
-            sceneId: `autopilot-${job.id}-${shot.index - 1}`,
-            prompt: `${sceneLine}${identityLine}${researchLine}${shot.imagePrompt || ''} ${visualStyleLine}`.trim(),
-            model: imageModel, aspectRatio, references,
-            taskId: mediaOutput.imageTaskId,
-            onSubmitted: () => { mediaOutput.imageStatus = 'generating'; syncMediaOutputs(); },
-            signal,
-          });
-        },
-        (nextAttempt, totalAttempts, error) => {
+      const attemptImage = await runWithModelFallback(
+        imageModelChain,
+        (model, modelIndex) => runGenerationWithRetries(
+          retryAttempts, signal,
+          (attempt) => {
+            mediaOutput.imageTaskId = `ap-img-${job.id}-${shot.index - 1}-regen-m${modelIndex}-${attempt}`;
+            return googleFlowProvider.generateImage({
+              projectId: longddProjectId,
+              sceneId: `autopilot-${job.id}-${shot.index - 1}`,
+              prompt: `${sceneLine}${identityLine}${researchLine}${shot.imagePrompt || ''} ${visualStyleLine}`.trim(),
+              model, aspectRatio, references, allowedOwnerScopeIds,
+              taskId: mediaOutput.imageTaskId,
+              onSubmitted: () => { mediaOutput.imageStatus = 'generating'; syncMediaOutputs(); },
+              signal,
+            });
+          },
+          (nextAttempt, totalAttempts, error) => {
+            mediaOutput.imageStatus = 'queued'; syncMediaOutputs();
+            ctx.log(job.id, 'media', `Tạo lại ảnh shot ${shot.index} lỗi — thử lại ${nextAttempt}/${totalAttempts}: ${error instanceof Error ? error.message : String(error)}`);
+          },
+        ),
+        (fromModel, toModel) => {
           mediaOutput.imageStatus = 'queued'; syncMediaOutputs();
-          ctx.log(job.id, 'media', `Tạo lại ảnh shot ${shot.index} lỗi — thử lại ${nextAttempt}/${totalAttempts}: ${error instanceof Error ? error.message : String(error)}`);
+          ctx.log(job.id, 'media', `Tạo lại ảnh shot ${shot.index}: hết hạn mức ngày cho ${fromModel} — chuyển sang ${toModel}`);
         },
       );
+      const imageResult = attemptImage.result;
+      mediaOutput.imageModelUsed = attemptImage.fellBack ? attemptImage.model : undefined;
       const source = imageResult.localUrl || imageResult.remoteUrl || '';
       if (!source) throw new Error('Google Flow không trả về ảnh');
       mediaOutput.imagePath = await saveImageToLocal(source, 'shots', `${safeFileName(job.title)}_shot_${shot.index}_${Date.now()}.png`);
@@ -126,26 +148,36 @@ export async function runSingleShotRegeneration(
       mediaOutput.videoStatus = 'queued';
       mediaOutput.videoError = undefined;
       syncMediaOutputs();
-      const videoResult = await runGenerationWithRetries(
-        retryAttempts, signal,
-        (attempt) => {
-          mediaOutput.videoTaskId = `ap-vid-${job.id}-${shot.index - 1}-regen-${attempt}`;
-          return googleFlowProvider.generateVideo({
-            projectId: longddProjectId,
-            sceneId: `autopilot-${job.id}-${shot.index - 1}`,
-            prompt: `${shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
-            model: videoModel, aspectRatio, duration: shot.videoLength,
-            startImage: { source: mediaOutput.imagePath, provider: 'googleflow', flowProjectId },
-            taskId: mediaOutput.videoTaskId,
-            onSubmitted: () => { mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
-            signal,
-          });
-        },
-        (nextAttempt, totalAttempts, error) => {
+      const attemptVideo = await runWithModelFallback(
+        videoModelChain,
+        (model, modelIndex) => runGenerationWithRetries(
+          retryAttempts, signal,
+          (attempt) => {
+            mediaOutput.videoTaskId = `ap-vid-${job.id}-${shot.index - 1}-regen-m${modelIndex}-${attempt}`;
+            return googleFlowProvider.generateVideo({
+              projectId: longddProjectId,
+              sceneId: `autopilot-${job.id}-${shot.index - 1}`,
+              prompt: `${shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
+              model, aspectRatio, duration: shot.videoLength,
+              startImage: { source: mediaOutput.imagePath, provider: 'googleflow', flowProjectId },
+              allowedOwnerScopeIds: routing.videoAccountsFor(model),
+              taskId: mediaOutput.videoTaskId,
+              onSubmitted: () => { mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
+              signal,
+            });
+          },
+          (nextAttempt, totalAttempts, error) => {
+            mediaOutput.videoStatus = 'queued'; syncMediaOutputs();
+            ctx.log(job.id, 'media', `Tạo lại video shot ${shot.index} lỗi — thử lại ${nextAttempt}/${totalAttempts}: ${error instanceof Error ? error.message : String(error)}`);
+          },
+        ),
+        (fromModel, toModel) => {
           mediaOutput.videoStatus = 'queued'; syncMediaOutputs();
-          ctx.log(job.id, 'media', `Tạo lại video shot ${shot.index} lỗi — thử lại ${nextAttempt}/${totalAttempts}: ${error instanceof Error ? error.message : String(error)}`);
+          ctx.log(job.id, 'media', `Tạo lại video shot ${shot.index}: hết hạn mức ngày cho ${fromModel} — chuyển sang ${toModel}`);
         },
       );
+      const videoResult = attemptVideo.result;
+      mediaOutput.videoModelUsed = attemptVideo.fellBack ? attemptVideo.model : undefined;
       const source = videoResult.localUrl || videoResult.remoteUrl || '';
       if (!source) throw new Error('Google Flow không trả về video');
       mediaOutput.videoPath = await saveVideoToLocal(source, `${safeFileName(job.title)}_shot_${shot.index}_${Date.now()}.mp4`);
@@ -182,7 +214,7 @@ export async function runSingleShotRegeneration(
       }
       ctx.updateJob(job.id, { status: 'paused', message: 'Đã dừng' });
     } else {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = stripFlowErrorCode(error instanceof Error ? error.message : String(error));
       if (target) {
         if (kind === 'image') { target.imageStatus = 'failed'; target.imageError = msg; }
         else { target.videoStatus = 'failed'; target.videoError = msg; }

@@ -1,5 +1,26 @@
 import type { GenerationOutput, ImageGenerationInput, VideoGenerationInput } from '../media-provider';
 
+/**
+ * Machine-readable prefixes the runtime puts on lane-selection failures, so a
+ * caller can react to "this exact model is out everywhere" without parsing prose.
+ * Mirrors electron/features/video-studio/google-flow/quota-locks.ts — the two
+ * must stay identical; main and renderer cannot share a module.
+ */
+export const FLOW_ALL_ACCOUNTS_QUOTA_LOCKED = 'FLOW_ALL_ACCOUNTS_QUOTA_LOCKED';
+export const FLOW_NO_ALLOWED_ACCOUNT = 'FLOW_NO_ALLOWED_ACCOUNT';
+
+/** True when every allowed account has burned its daily quota for the requested model. */
+export function isAllAccountsQuotaLocked(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes(FLOW_ALL_ACCOUNTS_QUOTA_LOCKED);
+}
+
+/** True when none of the accounts the caller allowed is connected right now. */
+export function isNoAllowedAccount(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes(FLOW_NO_ALLOWED_ACCOUNT);
+}
+
 export type GoogleFlowCredentialState = 'ready' | 'stale' | 'disconnected' | 'blocked';
 
 export type GoogleFlowCredential = {

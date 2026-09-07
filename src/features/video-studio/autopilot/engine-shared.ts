@@ -13,6 +13,10 @@ import { ApiKeyManager } from '@/features/video-studio/lib/api-key-manager';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { useContentChatStore } from '@/features/content-chat/store';
 import {
+  isAllAccountsQuotaLocked,
+  isNoAllowedAccount,
+} from '@/features/video-studio/packages/ai-core/providers/google-flow/types';
+import {
   buildLaneWorkers,
   resolveLaneCount,
   runLaneQueue,
@@ -59,6 +63,8 @@ export interface PendingShot {
   videoError?: string;
   imageTaskId?: string;
   videoTaskId?: string;
+  imageModelUsed?: string;
+  videoModelUsed?: string;
 }
 
 export interface AudioResult {
@@ -156,6 +162,10 @@ export async function runGenerationWithRetries<T>(
       attempts: totalAttempts,
       baseDelayMs: 0,
       signal,
+      // A daily-quota wall stands until midnight Pacific and a disconnected account
+      // will not reconnect between two immediate attempts: retrying either one just
+      // burns time. Both are handled a level up (switch model / stop and report).
+      retryable: (error) => !isAllAccountsQuotaLocked(error) && !isNoAllowedAccount(error),
       onRetry: (nextAttempt, error) => onRetry(nextAttempt, totalAttempts, error),
     },
     operation,
@@ -265,7 +275,7 @@ export async function runGoogleFlowQueueOrdered<T, R>(
 ): Promise<R[]> {
   if (items.length === 0) return [];
   await syncRuntimeLaneSettings();
-  const laneCount = await resolveLaneCount(kind, 'googleflow');
+  const laneCount = await resolveLaneCount(kind, 'googleflow', job.input.flowAccounts);
   ctx.log(job.id, stage, `Queue ${kind === 'image' ? 'ảnh' : 'video'} dùng chung với Đạo diễn: ${laneCount} lane`);
 
   const results = new Array<R>(items.length);

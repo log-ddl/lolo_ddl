@@ -54,10 +54,39 @@ export class InAppAccountManager<B extends { dispose(): void }> {
     return this.sessionManager.showAccountWindow(accountSlotId)
   }
 
-  async refreshAccounts(): Promise<void> {
+  /**
+   * Give a bridge to every account that has none.
+   *
+   * A restore that failed at startup (Chrome already owning the profile
+   * directory, CDP attach timing out, ...) leaves the account listed but with no
+   * bridge — so it never handshakes, never gets a credential, and the runtime
+   * reports "0 tiện ích sẵn sàng" while a Chrome window sits on screen. Without
+   * this, the only way out was restarting the app.
+   */
+  private async ensureBridges(): Promise<Array<{ accountSlotId: string; message: string }>> {
+    const failures: Array<{ accountSlotId: string; message: string }> = []
+    for (const record of this.listAccounts()) {
+      if (this.bridges.has(record.accountSlotId)) continue
+      try {
+        const handle = await this.sessionManager.restoreAccount(record.accountSlotId, { loginUrl: this.loginUrl })
+        this.bridges.set(handle.accountSlotId, this.createBridge(handle, () => {
+          setTimeout(() => { void handle.hide() }, AUTO_MINIMIZE_DELAY_MS)
+        }))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        failures.push({ accountSlotId: record.accountSlotId, message })
+        console.error(`[video-studio][${this.providerId}] không kết nối được tài khoản ${record.accountSlotId}:`, error)
+      }
+    }
+    return failures
+  }
+
+  async refreshAccounts(): Promise<{ errors: Array<{ accountSlotId: string; message: string }> }> {
+    const errors = await this.ensureBridges()
     await Promise.all([...this.bridges.values()].map(async (bridge) => {
       const refresh = (bridge as B & { refreshToken?: () => Promise<void> }).refreshToken
       if (refresh) await refresh.call(bridge)
     }))
+    return { errors }
   }
 }

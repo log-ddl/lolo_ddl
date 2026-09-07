@@ -21,13 +21,24 @@ export type FlowMediaRefInput = {
   flowProjectId?: string;
   credentialId?: string;
 };
+/**
+ * Accounts a request is allowed to run on, as `ownerScopeId`s. Empty or missing
+ * means every connected account, which is the historical behaviour. Scoped by
+ * owner rather than credential because a credential id changes when the browser
+ * extension is reinstalled, while the owner scope survives it (quota locks are
+ * keyed the same way).
+ */
+export type FlowAccountAllowlist = string[] | undefined;
+
 export type FlowImageInput = {
   taskId?: string; projectId: string; sceneId?: string; prompt: string; model: string; aspectRatio: string;
   baseImage?: FlowMediaRefInput; references?: FlowMediaRefInput[]; preferredCredentialId?: string;
+  allowedOwnerScopeIds?: FlowAccountAllowlist;
 };
 export type FlowVideoInput = {
   taskId?: string; projectId: string; sceneId: string; prompt: string; model: string; aspectRatio: string; duration?: number;
   startImage?: FlowMediaRefInput; endImage?: FlowMediaRefInput; references?: FlowMediaRefInput[]; preferredCredentialId?: string;
+  allowedOwnerScopeIds?: FlowAccountAllowlist;
 };
 
 export type ProjectBinding = {

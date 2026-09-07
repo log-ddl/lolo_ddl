@@ -13,6 +13,7 @@ import { useSceneStore } from '@/features/video-studio/stores/scene-store';
 import { useMediaStore } from '@/features/video-studio/stores/media-store';
 import { saveImageToLocal } from '@/features/video-studio/lib/image-storage';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prompts';
+import { buildModelChain, runWithModelFallback } from '../model-fallback';
 import type { AutopilotCharacterPlan, AutopilotJob, AutopilotScenePlan } from '../types';
 import {
   runGoogleFlowQueueOrdered,
@@ -82,16 +83,21 @@ export async function runCharactersStage(
     try {
       if (!imagePath) {
         const prompt = `Single reusable character reference for a documentary. ${name}. ${characterPrompt}. ${description}. Centered full-body neutral pose, clearly visible construction and identity markers, isolated simple background, clean silhouette, no scenery, no typography, no watermark. ${visualStyleLine}`;
-        const result = await googleFlowProvider.generateImage({
+        const result = (await runWithModelFallback(
+          buildModelChain(characterModel, job.input.imageModelFallbacks),
+          (model, modelIndex) => googleFlowProvider.generateImage({
             projectId: longddProjectId,
             sceneId: `autopilot-character-${job.id}-${index}`,
             prompt,
-            model: characterModel,
+            model,
             aspectRatio: '1:1',
-            taskId: `ap-char-${job.id}-${index}`,
+            allowedOwnerScopeIds: job.input.flowAccounts?.length ? job.input.flowAccounts : undefined,
+            taskId: `ap-char-${job.id}-${index}-m${modelIndex}`,
             onSubmitted: () => ctx.updateCharacterOutput(job.id, name, { status: 'generating' }),
             signal,
-          });
+          }),
+          (fromModel, toModel) => ctx.log(job.id, 'characters', `Reference ${name}: hết hạn mức ngày cho ${fromModel} — chuyển sang ${toModel}`),
+        )).result;
         const source = result.localUrl || result.remoteUrl || '';
         if (!source) throw new Error('Google Flow không trả về ảnh');
         imagePath = await saveImageToLocal(source, 'characters', `${name.replace(/[^a-zA-Z0-9À-ɏ]/g, '_')}_${Date.now()}.png`);
@@ -180,16 +186,21 @@ export async function runScenesStage(
     try {
       if (!imagePath) {
         const prompt = `Reusable empty environment reference for a documentary. ${name}. ${scenePrompt}. ${description}. Environment only, stable layout, camera-neutral wide establishing view, no characters, no temporary action, no typography, no watermark. ${visualStyleLine}`;
-        const result = await googleFlowProvider.generateImage({
-          projectId: longddProjectId,
-          sceneId: `autopilot-scene-${job.id}-${index}`,
-          prompt,
-          model: sceneModel,
-          aspectRatio: job.input.aspectRatio || DEFAULT_ASPECT_RATIO,
-          taskId: `ap-scene-${job.id}-${index}`,
-          onSubmitted: () => ctx.updateSceneOutput(job.id, name, { status: 'generating' }),
-          signal,
-        });
+        const result = (await runWithModelFallback(
+          buildModelChain(sceneModel, job.input.imageModelFallbacks),
+          (model, modelIndex) => googleFlowProvider.generateImage({
+            projectId: longddProjectId,
+            sceneId: `autopilot-scene-${job.id}-${index}`,
+            prompt,
+            model,
+            aspectRatio: job.input.aspectRatio || DEFAULT_ASPECT_RATIO,
+            allowedOwnerScopeIds: job.input.flowAccounts?.length ? job.input.flowAccounts : undefined,
+            taskId: `ap-scene-${job.id}-${index}-m${modelIndex}`,
+            onSubmitted: () => ctx.updateSceneOutput(job.id, name, { status: 'generating' }),
+            signal,
+          }),
+          (fromModel, toModel) => ctx.log(job.id, 'scenes', `Cảnh ${name}: hết hạn mức ngày cho ${fromModel} — chuyển sang ${toModel}`),
+        )).result;
         const source = result.localUrl || result.remoteUrl || '';
         if (!source) throw new Error('Google Flow không trả về ảnh');
         imagePath = await saveImageToLocal(source, 'scenes', `${safeFileName(name)}_${Date.now()}.png`);

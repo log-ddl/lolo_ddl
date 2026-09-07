@@ -233,14 +233,28 @@ export async function syncRuntimeLaneSettings(): Promise<void> {
  * - grok: runtime capacity (video only; image falls back to settings)
  * - other / runtime unavailable: configured lanes per JWT
  */
-export async function resolveLaneCount(kind: LaneMediaKind, platform?: string): Promise<number> {
+export async function resolveLaneCount(
+  kind: LaneMediaKind,
+  platform?: string,
+  /** Restrict capacity to these Google Flow accounts (`ownerScopeId`). Empty = all. */
+  allowedOwnerScopeIds?: string[],
+): Promise<number> {
   const settings = useVideoStudioSettingsStore.getState().maxStudioLanes;
   const configured = Math.max(1, kind === 'image' ? settings.imageLanesPerJwt : settings.videoLanesPerJwt);
 
   if (platform === 'googleflow' && window.googleFlowRuntime) {
     try {
       const capacity = await window.googleFlowRuntime.getCapacity();
-      const lanes = kind === 'image' ? capacity.imageLanes : capacity.videoLanes;
+      let lanes = kind === 'image' ? capacity.imageLanes : capacity.videoLanes;
+      if (allowedOwnerScopeIds?.length) {
+        // Runtime capacity counts every connected account. A job limited to a subset
+        // can only ever occupy that subset's lanes; the extra workers would sit in the
+        // runtime queue and make the lane count in the log a lie.
+        const credentials = await window.googleFlowRuntime.listCredentials();
+        const allowed = new Set(allowedOwnerScopeIds);
+        const readyAllowed = credentials.filter((item) => item.state === 'ready' && allowed.has(item.ownerScopeId)).length;
+        lanes = Math.min(lanes || configured, Math.max(1, readyAllowed) * configured);
+      }
       return Math.max(1, lanes || configured);
     } catch {
       return configured;

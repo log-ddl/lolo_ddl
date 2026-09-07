@@ -138,6 +138,90 @@ async function terminateChromeProcessTree(child: ChildProcess): Promise<void> {
   }
 }
 
+/**
+ * PID of the Chrome still holding this profile directory, if any.
+ *
+ * The two platforms answer this very differently:
+ *
+ * - macOS/Linux: Chrome writes `SingletonLock` as a symlink to `<host>-<pid>`,
+ *   so the owner reads straight off the filesystem.
+ * - Windows: there is no such file — Chrome guards the profile with a hidden
+ *   message window instead — so the owner has to be found by asking WMI which
+ *   chrome.exe was started with this `--user-data-dir`.
+ */
+async function findProfileOwnerPids(profileDir: string): Promise<number[]> {
+  if (process.platform === 'win32') {
+    // -like treats these as wildcards; a profile path is app-generated but the
+    // user's Windows account name sits in the middle of it, so escape anyway.
+    const pattern = profileDir.replace(/'/g, "''").replace(/[[\]*?]/g, (character) => `[${character}]`)
+    const script = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe' OR Name='msedge.exe'" -ErrorAction SilentlyContinue `
+      + `| Where-Object { $_.CommandLine -like '*${pattern}*' } | Select-Object -ExpandProperty ProcessId`
+    const output = await new Promise<string>((resolve) => {
+      try {
+        execFile(
+          'powershell.exe',
+          ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+          { windowsHide: true },
+          (error, stdout) => resolve(error ? '' : stdout),
+        )
+      } catch { resolve('') }
+    })
+    return output.split(/\r?\n/).map((line) => Number(line.trim())).filter((pid) => Number.isInteger(pid) && pid > 0)
+  }
+
+  let target: string
+  try {
+    target = fs.readlinkSync(path.join(profileDir, 'SingletonLock'))
+  } catch { return [] }
+  const pid = Number(/-(\d+)$/.exec(target)?.[1])
+  if (!Number.isInteger(pid) || pid <= 0) return []
+  try { process.kill(pid, 0) } catch { return [] } // stale lock from a crash
+  // The PID may have been recycled by an unrelated program since Chrome died,
+  // so confirm what it actually is before signalling it.
+  const command = await new Promise<string>((resolve) => {
+    try {
+      execFile('ps', ['-p', String(pid), '-o', 'comm='], (error, stdout) => resolve(error ? '' : stdout.trim()))
+    } catch { resolve('') }
+  })
+  return /chrome|chromium|edge/i.test(command) ? [pid] : []
+}
+
+/**
+ * Clear a Chrome left holding this profile from an earlier app run.
+ *
+ * Chrome hands its command line to whichever process already owns a
+ * `--user-data-dir` and then exits, so the freshly spawned one never opens its
+ * debugging port: the account ends up with a window on screen and no CDP
+ * session. That orphan only appears when the app was force-quit or crashed
+ * before `shutdownAll()` could run.
+ *
+ * Only ever called with a directory this app created under userData — the
+ * user's own Chrome profile is never touched.
+ */
+async function releaseProfileDirectory(profileDir: string): Promise<boolean> {
+  const pids = await findProfileOwnerPids(profileDir)
+  if (!pids.length) return false
+  for (const pid of pids) {
+    if (process.platform === 'win32') {
+      await new Promise<void>((resolve) => {
+        try {
+          execFile('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => resolve())
+        } catch { resolve() }
+      })
+      continue
+    }
+    try { process.kill(pid, 'SIGTERM') } catch { continue }
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      try { process.kill(pid, 0) } catch { break }
+      if (attempt === 11) { try { process.kill(pid, 'SIGKILL') } catch { /* already gone */ } }
+    }
+  }
+  // Chrome unlinks SingletonLock on the way out; give it a beat either way.
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  return true
+}
+
 // Owns the lifecycle of the app-spawned Chrome processes used to log into
 // Google Flow / Grok without a browser extension. One real, externally
 // spawned Chrome (or Edge) + dedicated --user-data-dir per account,
@@ -269,6 +353,38 @@ export class InAppBrowserSessionManager {
     return handles
   }
 
+  /** True when this account has a Chrome we are actually attached to. */
+  hasLiveSession(accountSlotId: string): boolean {
+    const session = this.sessions.get(accountSlotId)
+    return Boolean(session && !session.removed && session.cdp)
+  }
+
+  /**
+   * Relaunch one account whose restore failed earlier.
+   *
+   * `restoreAll` swallows a per-account failure, so an account whose Chrome
+   * spawned but whose CDP attach timed out ends up with a window on screen and
+   * no session here — and nothing in the app could recover it short of a
+   * restart. Any half-dead session of ours is torn down first, because Chrome
+   * hands the URL to whatever process already owns that profile directory and
+   * then exits without ever opening a debugging port.
+   */
+  async restoreAccount(accountSlotId: string, options: OpenAccountOptions): Promise<AccountSessionHandle> {
+    const record = this.accounts.find((account) => account.accountSlotId === accountSlotId)
+    if (!record) throw new Error(`Không còn bản ghi tài khoản ${accountSlotId}`)
+    const existing = this.sessions.get(accountSlotId)
+    if (existing) {
+      existing.removed = true
+      try { existing.cdp?.close() } catch { /* already closing */ }
+      try { existing.process?.kill() } catch { /* already gone */ }
+      this.sessions.delete(accountSlotId)
+    }
+    const session: AccountSession = { record, options, removed: false, respawning: false, lastConnectedAt: 0, fastCrashes: 0, autoHidden: false, reconnectListeners: new Set() }
+    this.sessions.set(accountSlotId, session)
+    await this.launch(session, { ...options, startMinimized: true })
+    return this.makeHandle(session)
+  }
+
   async removeAccount(accountSlotId: string): Promise<void> {
     const session = this.sessions.get(accountSlotId)
     if (session) {
@@ -322,6 +438,11 @@ export class InAppBrowserSessionManager {
     const { record } = session
     const profileDir = path.join(this.profilesDir, record.accountSlotId)
     fs.mkdirSync(profileDir, { recursive: true })
+    // Do this before picking a port: an orphan owning the profile would swallow
+    // the launch and leave us waiting out the full CDP timeout for nothing.
+    if (await releaseProfileDirectory(profileDir)) {
+      console.log(`[video-studio][in-app-session] closed a leftover Chrome holding the profile (account=${record.accountSlotId})`)
+    }
     const port = await findFreePort()
     const width = options.windowSize?.width ?? 1200
     const height = options.windowSize?.height ?? 840

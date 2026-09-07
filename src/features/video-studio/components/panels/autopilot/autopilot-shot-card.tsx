@@ -196,7 +196,12 @@ export function AutopilotShotCard({
         <div className="flex items-center gap-1.5 shrink-0">
           {/* Image status */}
           {hasImage ? (
-            <span className="rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-2xs text-green-700 dark:text-green-400">Asset</span>
+            <span
+              className="rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-2xs text-green-700 dark:text-green-400"
+              title={media?.imageModelUsed ? `Tạo bằng model dự phòng ${media.imageModelUsed}` : undefined}
+            >
+              {media?.imageModelUsed ? `Asset · ${media.imageModelUsed}` : "Asset"}
+            </span>
           ) : imageGenerating ? (
             <span className="rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-2xs text-primary animate-pulse">{t("autopilot.card.generating")} {imageElapsed}s</span>
           ) : imageQueued ? (
@@ -208,7 +213,12 @@ export function AutopilotShotCard({
           <span className="rounded-full bg-muted border border-border px-2 py-0.5 text-2xs text-muted-foreground">{shot.videoLength}s</span>
           {/* Video status */}
           {hasVideo ? (
-            <span className="rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-2xs text-green-700 dark:text-green-400">{t("autopilot.card.hasVideo")}</span>
+            <span
+              className="rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-2xs text-green-700 dark:text-green-400"
+              title={media?.videoModelUsed ? `Tạo bằng model dự phòng ${media.videoModelUsed}` : undefined}
+            >
+              {media?.videoModelUsed ? `${t("autopilot.card.hasVideo")} · ${media.videoModelUsed}` : t("autopilot.card.hasVideo")}
+            </span>
           ) : videoGenerating ? (
             <span className="rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-2xs text-primary animate-pulse">{t("autopilot.card.renderingVideo")} {videoElapsed}s</span>
           ) : videoQueued ? (

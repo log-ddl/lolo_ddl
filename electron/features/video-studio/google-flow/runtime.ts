@@ -26,6 +26,7 @@ import { normalizeDelayRange, randomBetween, sleep } from '../browser-session/ru
 
 import {
   safeMessage,
+  type FlowAccountAllowlist,
   type FlowImageInput,
   type FlowMediaRefInput,
   type FlowProjectBindingInfo,
@@ -56,7 +57,12 @@ import {
   runOnLane,
   type FlowSocketContext,
 } from './socket-transport';
-import { FlowQuotaLockStore, isDailyQuotaError } from './quota-locks';
+import {
+  FLOW_ALL_ACCOUNTS_QUOTA_LOCKED,
+  FLOW_NO_ALLOWED_ACCOUNT,
+  FlowQuotaLockStore,
+  isDailyQuotaError,
+} from './quota-locks';
 
 const UPSCALE_MODEL_KEY = 'veo_3_1_upsampler_4k';
 
@@ -448,7 +454,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           ownerScopeId: slot.ownerScopeId, flowProjectId: binding.flowProjectId, mediaId, remoteUrl,
         };
       }
-    }, () => imageModelName);
+    }, () => imageModelName, input.allowedOwnerScopeIds);
   }
 
   async generateVideo(input: FlowVideoInput): Promise<GenerationResult> {
@@ -549,7 +555,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         taskId, provider: 'googleflow', credentialId: slot.credentialId, accountId: slot.accountId,
         ownerScopeId: slot.ownerScopeId, flowProjectId: binding.flowProjectId, mediaId, remoteUrl, localUrl,
       };
-    }, videoModelKeyFor);
+    }, videoModelKeyFor, input.allowedOwnerScopeIds);
   }
 
   async upscaleVideo(input: { taskId?: string; projectId: string; sceneId: string; mediaId: string; aspectRatio: string; preferredCredentialId?: string }): Promise<GenerationResult> {
@@ -635,14 +641,15 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
    */
   private async runOnLane<T>(kind: 'image' | 'video', taskId: string, preferredCredentialId: string | undefined,
     executor: (slot: FlowCredentialSlot, lane: Lane, signal: AbortSignal) => Promise<T>,
-    modelKeyFor: (slot: FlowCredentialSlot) => string): Promise<T> {
+    modelKeyFor: (slot: FlowCredentialSlot) => string,
+    allowedOwnerScopeIds?: FlowAccountAllowlist): Promise<T> {
     const exhausted = new Set<string>();
     let lastAttempt: { slot: FlowCredentialSlot; lane: Lane } | undefined;
     let queuedMessage: string | undefined;
     for (;;) {
       let lane: Lane;
       try {
-        lane = this.selectLane(kind, preferredCredentialId, { modelKeyFor, exclude: exhausted });
+        lane = this.selectLane(kind, preferredCredentialId, { modelKeyFor, exclude: exhausted, allowedOwnerScopeIds });
       } catch (error) {
         // On the first pass nothing was queued yet, so the thrown error is the
         // caller's whole story. After a failover the UI already shows this task
@@ -691,13 +698,25 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     }
   }
   selectLane(kind: 'image' | 'video', preferredCredentialId?: string,
-    options?: { modelKeyFor?: (slot: FlowCredentialSlot) => string; exclude?: ReadonlySet<string> }): Lane {
-    const connected = [...this.sockets.values()].filter(({ slot, socket }) => (
+    options?: {
+      modelKeyFor?: (slot: FlowCredentialSlot) => string;
+      exclude?: ReadonlySet<string>;
+      allowedOwnerScopeIds?: FlowAccountAllowlist;
+    }): Lane {
+    const allowed = options?.allowedOwnerScopeIds?.length ? new Set(options.allowedOwnerScopeIds) : undefined;
+    const connectedAll = [...this.sockets.values()].filter(({ slot, socket }) => (
       slot.state === 'ready'
       && socket.readyState === WebSocket.OPEN
       && (!slot.tokenCapturedAt || Date.now() - slot.tokenCapturedAt <= 70 * 60_000)
     ));
-    if (!connected.length) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
+    if (!connectedAll.length) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
+    const connected = allowed ? connectedAll.filter(({ slot }) => allowed.has(slot.ownerScopeId)) : connectedAll;
+    if (!connected.length) {
+      // The job restricted itself to accounts that are not connected right now.
+      // Say so plainly: silently spilling onto an account the user excluded would
+      // spend quota they were deliberately protecting.
+      throw new Error(`${FLOW_NO_ALLOWED_ACCOUNT}: Không có tài khoản Google Flow nào trong danh sách đã chọn đang kết nối. Mở lại tài khoản đó hoặc bỏ giới hạn tài khoản trong phần nâng cao.`);
+    }
     const modelKeyFor = options?.modelKeyFor;
     const ready = connected.filter(({ slot }) => (
       !options?.exclude?.has(slot.credentialId)
@@ -706,11 +725,12 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     if (!ready.length) {
       // Every connected account is out of daily quota for this exact model.
       // Name the model and the reset time so the failure is actionable instead
-      // of looking like a generic "no extension" problem.
+      // of looking like a generic "no extension" problem. The machine-readable
+      // prefix lets callers fall back to another model instead of parsing prose.
       const modelKey = modelKeyFor ? modelKeyFor(connected[0].slot) : '';
       const until = Math.min(...connected.map(({ slot }) => this.quotaLocks.lockedUntil(slot.ownerScopeId, modelKeyFor ? modelKeyFor(slot) : '') || Infinity));
       const resetAt = Number.isFinite(until) ? new Date(until).toLocaleString('vi-VN') : '';
-      throw new Error(`Mọi tài khoản Google Flow đã hết hạn mức ngày cho model ${modelKey || 'này'}${resetAt ? ` (mở lại khoảng ${resetAt})` : ''}. Hãy đổi model hoặc thêm tài khoản.`);
+      throw new Error(`${FLOW_ALL_ACCOUNTS_QUOTA_LOCKED}: Mọi tài khoản Google Flow đã hết hạn mức ngày cho model ${modelKey || 'này'}${resetAt ? ` (mở lại khoảng ${resetAt})` : ''}. Hãy đổi model hoặc thêm tài khoản.`);
     }
     const preferred = preferredCredentialId ? ready.filter(({ slot }) => slot.credentialId === preferredCredentialId) : [];
     // A stored credential id can become stale after an extension reinstall. In

@@ -67,6 +67,26 @@ export interface AutopilotSettings {
   kenBurnsPercent: number;
 }
 
+/**
+ * Defaults for which Google Flow accounts and models media generation may use.
+ *
+ * These are only defaults: a job copies them at creation time, and anything the
+ * job sets itself wins. Editing them never changes a job that is already running.
+ */
+export interface MediaRoutingSettings {
+  /** Accounts (`ownerScopeId`) generation may use. Empty = every connected account. */
+  flowAccounts: string[];
+  /** Models tried in order after the selected one runs out of daily quota everywhere. */
+  imageModelFallbacks: string[];
+  videoModelFallbacks: string[];
+  /**
+   * ownerScopeId → video models that account owns. A missing entry means it owns
+   * every model, so an account nobody configured behaves exactly as before.
+   * Images need no such map: every Flow account runs every image model.
+   */
+  accountVideoModels: Record<string, string[]>;
+}
+
 interface VideoStudioSettingsState {
   resourceSharing: ResourceSharingSettings;
   storagePaths: StoragePathSettings;
@@ -76,6 +96,7 @@ interface VideoStudioSettingsState {
   maxStudioLanes: MaxStudioLaneSettings;
   scriptImport: ScriptImportSettings;
   autopilot: AutopilotSettings;
+  mediaRouting: MediaRoutingSettings;
   /** Fully hide (not just minimize) the in-app login Chrome windows after they finish signing in. */
   hideLoginBrowser: boolean;
   /** Automatically remove the Gemini watermark from newly generated images. Pro plan or higher. */
@@ -91,6 +112,7 @@ interface VideoStudioSettingsActions {
   setMaxStudioLanes: (settings: Partial<MaxStudioLaneSettings>) => void;
   setScriptImport: (settings: Partial<ScriptImportSettings>) => void;
   setAutopilot: (settings: Partial<AutopilotSettings>) => void;
+  setMediaRouting: (settings: Partial<MediaRoutingSettings>) => void;
   setHideLoginBrowser: (value: boolean) => void;
   setWatermarkRemovalEnabled: (value: boolean) => void;
 }
@@ -136,6 +158,44 @@ const defaultMaxStudioLaneSettings: MaxStudioLaneSettings = {
 
 function mergeMaxStudioLaneSettings(settings?: Partial<MaxStudioLaneSettings>): MaxStudioLaneSettings {
   return { ...defaultMaxStudioLaneSettings, ...(settings || {}) };
+}
+
+// Empty everywhere: no account is excluded and no model is silently swapped until
+// the user says so.
+const defaultMediaRoutingSettings: MediaRoutingSettings = {
+  flowAccounts: [],
+  imageModelFallbacks: [],
+  videoModelFallbacks: [],
+  accountVideoModels: {},
+};
+
+function cleanModelList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const cleaned = value.map((item) => String(item || '').trim()).filter(Boolean);
+  return [...new Set(cleaned)];
+}
+
+function cleanAccountVideoModels(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const cleaned: Record<string, string[]> = {};
+  for (const [ownerScopeId, models] of Object.entries(value as Record<string, unknown>)) {
+    const owner = ownerScopeId.trim();
+    if (!owner) continue;
+    // An empty list is a real answer ("owns nothing"), so it is kept; only a
+    // non-list is dropped, since that would silently mean "owns everything".
+    if (!Array.isArray(models)) continue;
+    cleaned[owner] = cleanModelList(models);
+  }
+  return cleaned;
+}
+
+function mergeMediaRoutingSettings(settings?: Partial<MediaRoutingSettings>): MediaRoutingSettings {
+  return {
+    flowAccounts: cleanModelList(settings?.flowAccounts),
+    imageModelFallbacks: cleanModelList(settings?.imageModelFallbacks),
+    videoModelFallbacks: cleanModelList(settings?.videoModelFallbacks),
+    accountVideoModels: cleanAccountVideoModels(settings?.accountVideoModels),
+  };
 }
 
 function normalizeTextApiBatchConcurrency(value: unknown): number {
@@ -222,6 +282,7 @@ const defaultState: VideoStudioSettingsState = {
     kenBurnsEnabled: true,
     kenBurnsPercent: DEFAULT_AUTOPILOT_KEN_BURNS_PERCENT,
   },
+  mediaRouting: defaultMediaRoutingSettings,
   hideLoginBrowser: false,
   watermarkRemovalEnabled: false,
 };
@@ -280,6 +341,10 @@ export const useVideoStudioSettingsStore = create<VideoStudioSettingsState & Vid
               settings.kenBurnsPercent ?? state.autopilot.kenBurnsPercent,
             ),
           },
+        })),
+      setMediaRouting: (settings) =>
+        set((state) => ({
+          mediaRouting: mergeMediaRoutingSettings({ ...state.mediaRouting, ...settings }),
         })),
       setHideLoginBrowser: (value) => set({ hideLoginBrowser: value }),
       setWatermarkRemovalEnabled: (value) => set({ watermarkRemovalEnabled: value }),
@@ -344,6 +409,7 @@ export const useVideoStudioSettingsStore = create<VideoStudioSettingsState & Vid
               (typedPersisted as any)?.autopilot?.kenBurnsPercent,
             ),
           },
+          mediaRouting: mergeMediaRoutingSettings((typedPersisted as any)?.mediaRouting),
           hideLoginBrowser: typedPersisted?.hideLoginBrowser ?? defaultState.hideLoginBrowser,
           watermarkRemovalEnabled: typedPersisted?.watermarkRemovalEnabled ?? defaultState.watermarkRemovalEnabled,
         };
