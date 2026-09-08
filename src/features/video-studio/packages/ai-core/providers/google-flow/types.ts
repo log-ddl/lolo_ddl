@@ -31,6 +31,8 @@ export type GoogleFlowCredential = {
   accountId?: string;
   tokenAgeMs?: number;
   state: GoogleFlowCredentialState;
+  /** Signed-in Google address, so accounts are told apart by something readable. */
+  email?: string;
   tier?: string;
   credits?: number;
   /** Models this account is out of daily quota for, with their reset time. */

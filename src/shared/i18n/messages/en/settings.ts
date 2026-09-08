@@ -164,7 +164,7 @@ const settings = {
   "featureBindings.videoGenerationDesc": "Convert images into video.",
   "featureBindings.imageUnderstanding": "Image Understanding",
   "featureBindings.imageUnderstandingDesc": "Analyze image content and generate descriptions.",
-  "featureBindings.imageRec": "Recommended: Nano Banana Pro (Gemini 3 Pro) for strong image quality and consistency.",
+  "featureBindings.imageRec": "Recommended: Nano Pro for strong image quality and consistency.",
   "featureBindings.videoRec": "Test recommendation: doubao-seedance-1-0-lite-t2v-250428 for quick workflow validation.",
   "featureBindings.modelCount": "{count} models",
   "featureBindings.noModels": "No selectable models yet. Configure model lists under API Providers first.",

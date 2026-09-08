@@ -98,7 +98,13 @@ export function attachSocket(ctx: FlowSocketContext, socket: WebSocket): void {
           socket.send(JSON.stringify({ type: 'callback_secret', secret: ctx.sessionSecret }));
         }
         ctx.emitStatus();
-        void refreshCredits(ctx, slot);
+        // Only worth asking when this connection already holds a token. The
+        // in-app bridge always handshakes with flowKeyPresent:false and fetches
+        // its token a moment later, so asking here raced the token and lost for
+        // whichever accounts were slowest to start — leaving them permanently
+        // showing "chưa rõ gói · — tín dụng". Those go through token_captured
+        // below instead.
+        if (message.flowKeyPresent) void refreshCredits(ctx, slot);
         return;
       }
       if (!assignedCredentialId) throw new Error('Extension must handshake first');
@@ -115,6 +121,10 @@ export function attachSocket(ctx: FlowSocketContext, socket: WebSocket): void {
           state.slot.ownerScopeId = state.slot.accountId;
         }
         ctx.emitStatus();
+        // The token just landed, so this is the first moment /v1/credits can
+        // succeed. Every later renewal comes back through here too, which is
+        // also the only thing that keeps the credit count from going stale.
+        void refreshCredits(ctx, state.slot);
         return;
       }
       if (message.type === 'ping') {
@@ -339,16 +349,49 @@ export async function pollWorkflowVideo(ctx: FlowSocketContext, slot: FlowCreden
   throw new Error('Google Flow low-priority video generation timed out');
 }
 
+/**
+ * Backoff between /v1/credits attempts. A token that just arrived can still be
+ * a beat behind the account's cookies, and the request also has to survive
+ * whatever the account's Chrome is doing at startup, so one shot is not enough
+ * — that single unretried attempt is what used to leave an account blank until
+ * the app was restarted.
+ */
+const CREDITS_RETRY_DELAYS_MS = [5_000, 20_000, 60_000];
+
+/** Credential ids with a refresh already running, so triggers cannot pile up. */
+const creditsInFlight = new Set<string>();
+
 export async function refreshCredits(ctx: FlowSocketContext, slot: FlowCredentialSlot): Promise<void> {
+  if (creditsInFlight.has(slot.credentialId)) return;
+  creditsInFlight.add(slot.credentialId);
   try {
-    const response = await ctx.apiRequest(slot, { url: ctx.apiUrl(slot, '/v1/credits'), method: 'GET' }, 15_000);
-    const record = (response && typeof response === 'object' ? response : {}) as Record<string, unknown>;
-    const text = JSON.stringify(record);
-    const tier = /PAYGATE_TIER_(ONE|TWO)/.exec(text)?.[0];
-    const creditsMatch = /"(?:credits|balance|subscriptionCredits)"\s*:\s*(\d+)/i.exec(text);
-    if (tier) slot.tier = tier;
-    if (creditsMatch) slot.credits = Number(creditsMatch[1]);
-    ctx.emitStatus();
-  } catch { /* status remains usable without credits */ }
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const response = await ctx.apiRequest(slot, { url: ctx.apiUrl(slot, '/v1/credits'), method: 'GET' }, 15_000);
+        const record = (response && typeof response === 'object' ? response : {}) as Record<string, unknown>;
+        const text = JSON.stringify(record);
+        const tier = /PAYGATE_TIER_(ONE|TWO)/.exec(text)?.[0];
+        const creditsMatch = /"(?:credits|balance|subscriptionCredits)"\s*:\s*(\d+)/i.exec(text);
+        if (tier) slot.tier = tier;
+        if (creditsMatch) slot.credits = Number(creditsMatch[1]);
+        // A reply we cannot read is not a transport problem, so retrying it
+        // just burns requests — say so once and stop.
+        if (!tier && !creditsMatch) {
+          console.warn(`[video-studio][google-flow] /v1/credits của ${slot.credentialId.slice(0, 8)} trả về dạng lạ, không đọc được gói/tín dụng`);
+        }
+        ctx.emitStatus();
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (attempt >= CREDITS_RETRY_DELAYS_MS.length) {
+          console.warn(`[video-studio][google-flow] không lấy được gói/tín dụng cho ${slot.credentialId.slice(0, 8)} sau ${attempt + 1} lần: ${message}`);
+          return;
+        }
+        await sleep(CREDITS_RETRY_DELAYS_MS[attempt]);
+      }
+    }
+  } finally {
+    creditsInFlight.delete(slot.credentialId);
+  }
 }
 

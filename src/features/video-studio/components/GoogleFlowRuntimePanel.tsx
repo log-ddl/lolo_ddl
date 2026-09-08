@@ -7,6 +7,7 @@ import { useGoogleFlowRuntimeStore } from '@/features/video-studio/stores/google
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { useProjectStore } from '@/features/video-studio/stores/project-store';
 import type { GoogleFlowProjectBinding } from '@/features/video-studio/packages/ai-core/providers/google-flow/types';
+import { getModelDisplayName } from '@/features/video-studio/lib/api-key-manager';
 import type { VideoStudioInAppAccount } from '@/shared/types/electron';
 import { toast } from 'sonner';
 
@@ -36,6 +37,25 @@ const credentialStateLabel: Record<string, string> = {
 // accountSlotId. Với tài khoản in-app thì accountSlotId cũng chính là
 // extensionInstanceId của credential, nên cùng một tên hiển thị được ở cả khối
 // "Tài khoản trong app" lẫn khối "Tiện ích" bên dưới.
+/**
+ * Locks grouped the way they are shown: one row per model name, keeping every
+ * runtime key behind it so unlocking clears the whole group. A single model the
+ * user picked can be locked under several resolved keys — durations and
+ * orientations are separate keys — and listing them raw would repeat the same
+ * model several times.
+ */
+function groupQuotaLocks(locks: Array<{ modelKey: string; until: number }> | undefined) {
+  const groups = new Map<string, { name: string; until: number; modelKeys: string[] }>();
+  for (const lock of locks || []) {
+    const name = getModelDisplayName(lock.modelKey);
+    const group = groups.get(name);
+    if (!group) { groups.set(name, { name, until: lock.until, modelKeys: [lock.modelKey] }); continue; }
+    group.modelKeys.push(lock.modelKey);
+    group.until = Math.min(group.until, lock.until);
+  }
+  return [...groups.values()];
+}
+
 const ACCOUNT_LABELS_KEY = 'googleFlowAccountLabels';
 function readAccountLabels(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(ACCOUNT_LABELS_KEY) || '{}'); } catch { return {}; }
@@ -140,6 +160,20 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
     return grouped;
   }, [projectBindings]);
 
+  /**
+   * accountSlotId → signed-in address. The in-app rows above and the credential
+   * rows below are the same accounts seen from two sides, and the bridge reports
+   * a credential's extensionInstanceId as the account's slot id, so one map
+   * names both.
+   */
+  const emailBySlotId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const credential of status?.credentials || []) {
+      if (credential.email) map.set(credential.extensionInstanceId, credential.email);
+    }
+    return map;
+  }, [status?.credentials]);
+
   const createFlowProject = useCallback(async (credentialId: string) => {
     if (!activeProjectId || !window.googleFlowRuntime) return;
     setProjectBusy(credentialId);
@@ -169,12 +203,20 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
     } finally { setProjectBusy(null); }
   }, [activeProjectId, refreshProjectBindings]);
 
-  const clearQuotaLocks = useCallback(async (credentialId: string) => {
+  /**
+   * Unlocks one model on one account. The runtime records a lock per resolved
+   * key, and one model the user knows by name can sit behind several of them
+   * (durations, orientations), so every key in the group has to be cleared or
+   * the model would come back still locked.
+   */
+  const clearQuotaLocks = useCallback(async (credentialId: string, group: { name: string; modelKeys: string[] }) => {
     if (!window.googleFlowRuntime) return;
     try {
-      await window.googleFlowRuntime.clearQuotaLocks({ credentialId });
+      for (const modelKey of group.modelKeys) {
+        await window.googleFlowRuntime.clearQuotaLocks({ credentialId, modelKey });
+      }
       await refresh();
-      toast.success('Đã bỏ khoá hạn mức. Tài khoản quay lại vòng luân phiên.');
+      toast.success(`Đã bỏ khoá ${group.name}. Model này quay lại vòng luân phiên.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể bỏ khoá hạn mức.');
     }
@@ -220,6 +262,7 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
           {inAppAccounts.map((account) => {
             const shortId = account.accountSlotId.slice(0, 8);
             const custom = accountLabels[account.accountSlotId]?.trim();
+            const email = emailBySlotId.get(account.accountSlotId);
             const editing = editingSlot === account.accountSlotId;
             return (
               <div key={account.accountSlotId} className="flex items-center justify-between gap-2 rounded border bg-background/70 px-2 py-1.5 text-2xs">
@@ -229,7 +272,7 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
                     className="h-6 min-w-0 flex-1 rounded border bg-background px-1.5 text-2xs"
                     value={draftName}
                     maxLength={40}
-                    placeholder={`Tài khoản ${shortId}`}
+                    placeholder={email || `Tài khoản ${shortId}`}
                     onChange={(event) => setDraftName(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') saveAccountLabel(account.accountSlotId, draftName);
@@ -237,8 +280,9 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
                     }}
                   />
                 ) : (
-                  <span className="min-w-0 flex-1 truncate">
-                    {custom ? `${custom} · ${shortId}` : `Tài khoản trong app · ${shortId}`}
+                  <span className="min-w-0 flex-1 truncate" title={account.accountSlotId}>
+                    {custom ? `${custom} · ` : ''}
+                    {email || `Tài khoản trong app · ${shortId}`}
                   </span>
                 )}
                 <div className="flex shrink-0 gap-1">
@@ -286,26 +330,27 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
         return (
           <div key={credential.credentialId} className="rounded border bg-background/70 px-2 py-1.5 text-2xs space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <span>
+              <span className="min-w-0 truncate" title={`Tiện ích ${credential.extensionInstanceId.slice(0, 8)} · tài khoản ${credential.credentialId.slice(0, 8)}`}>
                 {accountLabels[credential.extensionInstanceId]?.trim() ? `${accountLabels[credential.extensionInstanceId].trim()} · ` : ''}
-                Tiện ích {credential.extensionInstanceId.slice(0, 8)} · tài khoản {credential.credentialId.slice(0, 8)}
+                {credential.email
+                  || `Tiện ích ${credential.extensionInstanceId.slice(0, 8)} · tài khoản ${credential.credentialId.slice(0, 8)}`}
               </span>
               <span className="text-muted-foreground">{credential.tier || 'chưa rõ gói'} · {credential.credits ?? '—'} tín dụng · {credentialStateLabel[credential.state] || credential.state}</span>
             </div>
-            {credential.quotaLocks?.length ? (
-              <div className="flex items-start justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1">
+            {groupQuotaLocks(credential.quotaLocks).map((group) => (
+              <div key={group.name} className="flex items-start justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1">
                 <span className="min-w-0 text-amber-700 dark:text-amber-500">
-                  Hết hạn mức ngày: {credential.quotaLocks.map((lock) => `${lock.modelKey} (mở lại ${new Date(lock.until).toLocaleString('vi-VN')})`).join(' · ')}
+                  Hết hạn mức ngày: {group.name} (mở lại {new Date(group.until).toLocaleString('vi-VN')})
                 </span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="h-6 shrink-0 px-2 text-2xs"
-                  onClick={() => void clearQuotaLocks(credential.credentialId)}
+                  onClick={() => void clearQuotaLocks(credential.credentialId, group)}
                 >Bỏ khoá</Button>
               </div>
-            ) : null}
+            ))}
             {alwaysVisible && activeProjectId && (
               <div className="flex items-end gap-2 rounded border bg-muted/20 p-2">
                 <label className="min-w-0 flex-1 space-y-1">

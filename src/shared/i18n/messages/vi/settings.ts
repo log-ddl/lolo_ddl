@@ -164,7 +164,7 @@ const settings = {
   "featureBindings.videoGenerationDesc": "Chuyển ảnh thành video.",
   "featureBindings.imageUnderstanding": "Hiểu ảnh",
   "featureBindings.imageUnderstandingDesc": "Phân tích nội dung ảnh và tạo mô tả.",
-  "featureBindings.imageRec": "Khuyên dùng Nano Banana Pro (Gemini 3 Pro) vì chất lượng ảnh và độ nhất quán tốt.",
+  "featureBindings.imageRec": "Khuyên dùng Nano Pro vì chất lượng ảnh và độ nhất quán tốt.",
   "featureBindings.videoRec": "Khuyên thử doubao-seedance-1-0-lite-t2v-250428 để kiểm tra nhanh toàn bộ quy trình.",
   "featureBindings.modelCount": "{count} mô hình",
   "featureBindings.noModels": "Chưa có mô hình nào để chọn. Hãy cấu hình danh sách mô hình trong mục Nhà cung cấp trước.",

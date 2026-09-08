@@ -15,7 +15,7 @@ import {
   assertString,
   isUuid,
 } from './protocol';
-import { GOOGLE_FLOW_IMAGE_MODELS, flowImageRatio, flowVideoEndpoint, flowVideoRatio, isOmniFlashRequest, resolveFlowVideoModel } from './models';
+import { GOOGLE_FLOW_IMAGE_MODELS, flowImageRatio, flowModelDisplayName, flowVideoEndpoint, flowVideoRatio, isOmniFlashRequest, resolveFlowVideoModel } from './models';
 import {
   extractFlowMediaId,
   extractFlowOperations,
@@ -153,6 +153,10 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       state: slot.state === 'ready' && tokenAgeMs && tokenAgeMs > 70 * 60_000 ? 'stale' as const : slot.state,
       tokenAgeMs,
       tokenFingerprint: undefined,
+      // Merged here rather than stored on the slot: the email arrives from the
+      // session endpoint whenever it arrives, which may be before or after the
+      // credential itself exists.
+      email: this.accountEmails.get(slot.extensionInstanceId),
       quotaLocks: this.quotaLocks.list(slot.ownerScopeId).map(({ modelKey, until }) => ({ modelKey, until })),
     }); });
     const ready = credentials.filter((item) => item.state === 'ready' && this.sockets.has(item.credentialId)).length;
@@ -693,7 +697,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         // depth and chaining. selectLane's lock filter is what keeps this model
         // off these lanes.
         exhausted.add(lane.credentialId);
-        queuedMessage = `Tài khoản ${slot.extensionInstanceId.slice(0, 8)} hết hạn mức ngày cho ${modelKey} — đã chuyển sang tài khoản khác`;
+        queuedMessage = `Tài khoản ${slot.extensionInstanceId.slice(0, 8)} hết hạn mức ngày cho ${flowModelDisplayName(modelKey)} — đã chuyển sang tài khoản khác`;
       }
     }
   }
@@ -730,7 +734,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       const modelKey = modelKeyFor ? modelKeyFor(connected[0].slot) : '';
       const until = Math.min(...connected.map(({ slot }) => this.quotaLocks.lockedUntil(slot.ownerScopeId, modelKeyFor ? modelKeyFor(slot) : '') || Infinity));
       const resetAt = Number.isFinite(until) ? new Date(until).toLocaleString('vi-VN') : '';
-      throw new Error(`${FLOW_ALL_ACCOUNTS_QUOTA_LOCKED}: Mọi tài khoản Google Flow đã hết hạn mức ngày cho model ${modelKey || 'này'}${resetAt ? ` (mở lại khoảng ${resetAt})` : ''}. Hãy đổi model hoặc thêm tài khoản.`);
+      throw new Error(`${FLOW_ALL_ACCOUNTS_QUOTA_LOCKED}: Mọi tài khoản Google Flow đã hết hạn mức ngày cho model ${modelKey ? flowModelDisplayName(modelKey) : 'này'}${resetAt ? ` (mở lại khoảng ${resetAt})` : ''}. Hãy đổi model hoặc thêm tài khoản.`);
     }
     const preferred = preferredCredentialId ? ready.filter(({ slot }) => slot.credentialId === preferredCredentialId) : [];
     // A stored credential id can become stale after an extension reinstall. In
@@ -953,6 +957,20 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     if (this.apiKeys.get(extensionInstanceId) === key) return;
     console.log(`[video-studio][google-flow] API key updated for account ${extensionInstanceId.slice(0, 8)} (${key.slice(0, 12)}…)`);
     this.apiKeys.set(extensionInstanceId, key);
+  }
+
+  // Signed-in Google address per account, read off the labs.google session
+  // endpoint. The ids the UI used to show (a random slot uuid and a hash of it)
+  // say nothing about which account is which, which stops being workable once
+  // there are more than a couple of them.
+  private readonly accountEmails = new Map<string, string>();
+
+  updateAccountEmail(extensionInstanceId: string, email: string): void {
+    if (!extensionInstanceId || typeof email !== 'string' || !email.includes('@')) return;
+    if (this.accountEmails.get(extensionInstanceId) === email) return;
+    this.accountEmails.set(extensionInstanceId, email);
+    console.log(`[video-studio][google-flow] account ${extensionInstanceId.slice(0, 8)} is ${email}`);
+    this.emitStatus();
   }
 
   apiUrl(slot: FlowCredentialSlot, endpoint: string, extra = ''): string {

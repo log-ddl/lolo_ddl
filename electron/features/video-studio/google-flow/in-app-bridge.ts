@@ -215,9 +215,20 @@ export class GoogleFlowInAppBridge {
       if (!cookie) return false
       const response = await fetch(FLOW_SESSION_URL, { headers: { cookie, accept: 'application/json' } })
       if (!response.ok) return false
-      const session = await response.json() as { access_token?: unknown; expires?: unknown }
+      const session = await response.json() as { access_token?: unknown; expires?: unknown; error?: unknown; user?: { email?: unknown } }
+      // Reported before the token is validated on purpose: an account whose token
+      // is unusable is exactly the one the user needs to recognise by name.
+      const email = typeof session.user?.email === 'string' ? session.user.email : ''
+      if (email) this.runtime.updateAccountEmail(this.handle.accountSlotId, email)
       const token = typeof session.access_token === 'string' ? session.access_token : ''
       if (!token.startsWith('ya29.')) return false
+      // Google hands back the last token it had together with this flag when the
+      // profile needs a fresh sign-in. The token is still used — it sometimes
+      // works, and refusing it would take an otherwise fine account offline — but
+      // an account that fails everything while looking "ready" is explained here.
+      if (session.error) {
+        console.warn(`[video-studio][google-flow] session của ${email || this.handle.accountSlotId.slice(0, 8)} báo "${String(session.error)}" — có thể phải đăng nhập lại tài khoản này`)
+      }
       const expiresAt = typeof session.expires === 'string' ? Date.parse(session.expires) : Number.NaN
       this.applyToken(token, expiresAt)
       return true

@@ -28,6 +28,7 @@ import {
   GOOGLE_FLOW_IMAGE_MODELS,
   GOOGLE_FLOW_VIDEO_MODELS,
   getModelDisplayName,
+  modelGroupKey,
 } from "@/features/video-studio/lib/api-key-manager";
 import { useGoogleFlowRuntimeStore } from "@/features/video-studio/stores/google-flow-runtime-store";
 import { buildAccountRouting, type AccountVideoModelMap } from "@/features/video-studio/autopilot/account-routing";
@@ -57,6 +58,31 @@ function toChain(primary: string | undefined, fallbacks: string[]): string[] {
 }
 
 /**
+ * Locks as the user reads them: one entry per model name, keeping the earliest
+ * reset. One picked video model expands into several runtime keys that all read
+ * back as the same name, so without this a single locked model would be listed
+ * — and counted — several times.
+ */
+function lockedModelList(locks: Array<{ modelKey: string; until: number }> | undefined) {
+  const byName = new Map<string, number>();
+  for (const lock of locks || []) {
+    const name = getModelDisplayName(lock.modelKey);
+    const current = byName.get(name);
+    if (current === undefined || lock.until < current) byName.set(name, lock.until);
+  }
+  return [...byName].map(([name, until]) => ({ name, until }));
+}
+
+/** Quota resets can land tomorrow, so the date only shows when it is not today. */
+function formatUnlockAt(until: number): string {
+  const at = new Date(until);
+  const time = at.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return at.toDateString() === new Date().toDateString()
+    ? time
+    : `${time} ${at.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })}`;
+}
+
+/**
  * One row of model chips whose click order is the run order.
  *
  * Clicking appends, so the numbers say what the user picked rather than where the
@@ -64,7 +90,7 @@ function toChain(primary: string | undefined, fallbacks: string[]): string[] {
  * and the rest renumber.
  */
 function ModelOrderPicker({
-  label, hint, emptyHint, models, chain, onChange, warning,
+  label, hint, emptyHint, models, chain, onChange, warning, lockedUntil,
 }: {
   label: string;
   hint: string;
@@ -73,7 +99,17 @@ function ModelOrderPicker({
   chain: string[];
   onChange: (chain: string[]) => void;
   warning?: string;
+  /**
+   * modelId → when it frees up, for models out of daily quota on *every* enabled
+   * account. Dimmed rather than disabled on purpose: this row is the plan a job
+   * runs by, and a job started after that time uses the model normally, so
+   * blocking the click here would block work that is perfectly valid.
+   */
+  lockedUntil?: Record<string, number>;
 }) {
+  const lockedNow = models
+    .map((model) => ({ model, until: lockedUntil?.[model] }))
+    .filter((item): item is { model: string; until: number } => typeof item.until === "number");
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -101,13 +137,15 @@ function ModelOrderPicker({
         {models.map((model) => {
           const index = chain.indexOf(model);
           const picked = index >= 0;
+          const locked = lockedUntil?.[model];
           return (
             <Button
               key={model}
               type="button"
               variant={picked ? "default" : "outline"}
               size="sm"
-              className="h-7 rounded-full px-2.5 text-2xs"
+              className={`h-7 rounded-full px-2.5 text-2xs ${locked ? "opacity-45" : ""}`}
+              title={locked ? `Hết hạn mức trên mọi tài khoản đang bật — mở lại ${formatUnlockAt(locked)}` : undefined}
               onClick={() => onChange(picked ? chain.filter((item) => item !== model) : [...chain, model])}
             >
               {picked ? `${index + 1}. ` : ""}{getModelDisplayName(model)}
@@ -118,6 +156,11 @@ function ModelOrderPicker({
       <p className="text-2xs leading-4 text-muted-foreground">
         {chain.length > 0 ? `${hint}: ${chain.map(getModelDisplayName).join(" → ")}` : emptyHint}
       </p>
+      {lockedNow.length > 0 && (
+        <p className="text-2xs leading-4 text-amber-500">
+          {`Hết hạn mức trên mọi tài khoản đang bật: ${lockedNow.map((item) => `${getModelDisplayName(item.model)} (mở lại ${formatUnlockAt(item.until)})`).join(" · ")}. Vẫn chọn được — job chạy sau giờ đó dùng lại bình thường.`}
+        </p>
+      )}
       {warning && <p className="text-2xs leading-4 text-amber-500">{warning}</p>}
     </div>
   );
@@ -172,9 +215,10 @@ export function MediaRoutingPicker({
   const accounts = useMemo(() => (status?.credentials || []).map((credential) => ({
     ownerScopeId: credential.ownerScopeId,
     label: accountLabels[credential.extensionInstanceId]?.trim()
+      || credential.email
       || `Tài khoản ${credential.extensionInstanceId.slice(0, 8)}`,
     state: credential.state,
-    lockedModels: (credential.quotaLocks || []).map((lock) => lock.modelKey),
+    lockedModels: lockedModelList(credential.quotaLocks),
   })), [accountLabels, status?.credentials]);
 
   const patch = (next: Partial<MediaRoutingValue>) => onChange({ ...value, ...next });
@@ -197,6 +241,27 @@ export function MediaRoutingPicker({
   // the rest — otherwise turning one off would read as turning everything off.
   const isUsed = (ownerScopeId: string) => value.flowAccounts.length === 0 || value.flowAccounts.includes(ownerScopeId);
   const usedIds = accountIds.filter(isUsed);
+
+  /**
+   * modelId → when it frees up, for models every enabled account is out of daily
+   * quota for. Only then does a lock actually stop anything: with one account
+   * still free the runtime simply routes there, so marking a model on a single
+   * account's lock would be telling the user something untrue. The moment it
+   * frees up is the earliest of the accounts' resets, since the first account to
+   * come back is enough.
+   */
+  const lockedEverywhere = useMemo(() => {
+    const enabled = accounts.filter((account) => isUsed(account.ownerScopeId));
+    if (enabled.length === 0) return {} as Record<string, number>;
+    const result: Record<string, number> = {};
+    for (const model of [...imageModels, ...videoModels]) {
+      const group = modelGroupKey(model);
+      const untils = enabled.map((account) => account.lockedModels.find((lock) => lock.name === group)?.until);
+      if (untils.some((until) => until === undefined)) continue;
+      result[model] = Math.min(...(untils as number[]));
+    }
+    return result;
+  }, [accounts, value.flowAccounts, imageModels, videoModels]);
 
   const toggleAccount = (ownerScopeId: string) => {
     const current = value.flowAccounts.length ? value.flowAccounts : accountIds;
@@ -259,6 +324,7 @@ export function MediaRoutingPicker({
           models={imageModels}
           chain={imageChain}
           onChange={(chain) => setChain("image", chain)}
+          lockedUntil={lockedEverywhere}
         />
         <ModelOrderPicker
           label="Model video — bấm theo thứ tự chạy"
@@ -267,6 +333,7 @@ export function MediaRoutingPicker({
           models={videoModels}
           chain={videoChain}
           onChange={(chain) => setChain("video", chain)}
+          lockedUntil={lockedEverywhere}
           warning={droppedVideoModels.length > 0
             ? `Bỏ qua ${droppedVideoModels.map(getModelDisplayName).join(", ")}: không tài khoản nào đang bật có model này.`
             : undefined}
@@ -318,13 +385,12 @@ export function MediaRoutingPicker({
                     >
                       {used ? "✓ " : ""}{account.label}
                     </Button>
-                    <span
-                      className="text-2xs text-muted-foreground"
-                      title={account.lockedModels.length ? `Hết hạn mức ngày: ${account.lockedModels.join(", ")}` : undefined}
-                    >
+                    <span className="text-2xs text-muted-foreground">
                       {account.state !== "ready" && "chưa sẵn sàng"}
                       {account.state !== "ready" && account.lockedModels.length > 0 && " · "}
-                      {account.lockedModels.length > 0 && `hết hạn mức ${account.lockedModels.length} model hôm nay`}
+                      {account.lockedModels.length > 0 && `hết hạn mức: ${account.lockedModels
+                        .map((lock) => `${lock.name} (mở lại ${formatUnlockAt(lock.until)})`)
+                        .join(" · ")}`}
                     </span>
                   </div>
                   {used && videoOnGoogleFlow && (

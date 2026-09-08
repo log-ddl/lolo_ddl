@@ -100,6 +100,29 @@ function resolveRequestedProfile(requestedModel: string | undefined, accountTier
   return accountTier === 'PAYGATE_TIER_ONE' ? 'FAST' as const : 'LITE_LOW_PRIORITY' as const;
 }
 
+/**
+ * Human name for a resolved Flow model key, for messages a user reads. The keys
+ * themselves (`GEM_PIX_2`, `veo_3_1_i2v_s_fast_4s_fl`) mean nothing to anyone
+ * who has not read this file.
+ *
+ * Mirrors MODEL_DISPLAY_NAMES + runtimeModelDisplayName in
+ * src/features/video-studio/lib/api-key-manager.ts — main and renderer cannot
+ * share a module, so the two must be kept identical. Order of the veo checks
+ * matches resolveRequestedProfile above: low-priority keys also say "fast".
+ */
+export function flowModelDisplayName(modelKey: string): string {
+  const key = (modelKey || '').toLowerCase();
+  if (key === 'gem_pix_2') return 'Nano Pro';
+  if (key === 'narwhal') return 'Nano 2';
+  if (key.startsWith('abra')) return 'Gemini Omni Flash';
+  if (key.startsWith('veo')) {
+    if (key.includes('low_priority') || key.includes('ultra_relaxed')) return 'Veo 3.1 Lite – Lower Priority';
+    if (key.includes('lite')) return 'Veo 3.1 Lite';
+    if (key.includes('fast')) return 'Veo 3.1 Fast';
+  }
+  return modelKey;
+}
+
 export function flowImageRatio(ratio: string): string {
   if (ratio === '16:9' || ratio === '4:3' || ratio === '3:2' || ratio === '21:9') return 'IMAGE_ASPECT_RATIO_LANDSCAPE';
   if (ratio === '1:1') return 'IMAGE_ASPECT_RATIO_SQUARE';

@@ -51,17 +51,50 @@ export function getRuntimeProviderModels(platform: string): string[] | null {
 }
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  GEM_PIX_2: 'Google Nano Banana Pro',
-  NARWHAL: 'Nano Banana 2',
+  GEM_PIX_2: 'Nano Pro',
+  NARWHAL: 'Nano 2',
   Gemini_Omni_Flash: 'Gemini Omni Flash',
   'Veo_3.1-Fast': 'Veo 3.1 Fast',
   'Veo_3.1-Lite': 'Veo 3.1 Lite',
   'Veo_3.1-Lite_Lower_Priority': 'Veo 3.1 Lite – Lower Priority',
 };
 
+/**
+ * Names for the keys the runtime actually sends to Flow, as opposed to the ones
+ * the user picks. One picked video model expands into a whole family — duration,
+ * orientation, start/end frame — so these are matched by shape instead of being
+ * listed. Needed because a quota lock records the resolved key, and
+ * `veo_3_1_i2v_s_fast_4s_fl` is not something to put in front of a user.
+ *
+ * Order mirrors resolveRequestedProfile in
+ * electron/features/video-studio/google-flow/models.ts and must stay that way: a
+ * low-priority key also contains "fast", and a lite key must not read as fast.
+ */
+function runtimeModelDisplayName(model: string): string | undefined {
+  const key = model.toLowerCase();
+  if (key.startsWith('abra')) return MODEL_DISPLAY_NAMES.Gemini_Omni_Flash;
+  if (!key.startsWith('veo')) return undefined;
+  if (key.includes('low_priority') || key.includes('ultra_relaxed')) return MODEL_DISPLAY_NAMES['Veo_3.1-Lite_Lower_Priority'];
+  if (key.includes('lite')) return MODEL_DISPLAY_NAMES['Veo_3.1-Lite'];
+  if (key.includes('fast')) return MODEL_DISPLAY_NAMES['Veo_3.1-Fast'];
+  return undefined;
+}
+
 /** UI-only model label. Internal model ids sent to providers stay unchanged. */
 export function getModelDisplayName(model: string): string {
-  return MODEL_DISPLAY_NAMES[model] || model;
+  return MODEL_DISPLAY_NAMES[model] || runtimeModelDisplayName(model) || model;
+}
+
+/**
+ * Key for "these two ids are the same model as far as the user is concerned".
+ *
+ * A quota lock is recorded under the key the runtime resolved
+ * (`veo_3_1_i2v_s_fast_4s_fl`) while the picker works in the id the user chose
+ * (`Veo_3.1-Fast`), so the two cannot be compared directly. The display name is
+ * exactly the level at which they meet, which is why it doubles as the join key.
+ */
+export function modelGroupKey(model: string): string {
+  return getModelDisplayName(model);
 }
 
 /**
