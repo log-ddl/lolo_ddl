@@ -117,6 +117,8 @@ export function AutopilotPanel() {
       videoModelFallbacks: defaults.videoModelFallbacks.filter((model) => model !== videoHead),
       flowAccounts: defaults.flowAccounts,
       accountVideoModels: defaults.accountVideoModels,
+      accountImageModels: defaults.accountImageModels,
+      routingMode: defaults.routingMode,
     };
   });
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
@@ -219,6 +221,8 @@ export function AutopilotPanel() {
       videoModelFallbacks: mediaRouting.videoModelFallbacks.length ? mediaRouting.videoModelFallbacks : undefined,
       flowAccounts: mediaRouting.flowAccounts.length ? mediaRouting.flowAccounts : undefined,
       accountVideoModels: Object.keys(mediaRouting.accountVideoModels).length ? mediaRouting.accountVideoModels : undefined,
+      accountImageModels: Object.keys(mediaRouting.accountImageModels).length ? mediaRouting.accountImageModels : undefined,
+      routingMode: mediaRouting.routingMode,
       resolution: "1920x1080",
       executionMode,
       stopAfterStep: mergeAfterCreate ? undefined : "videos",

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { fileStorage } from "@/shared/lib/indexed-db-storage";
+import type { MediaRoutingMode } from "@/features/video-studio/autopilot/account-routing";
 
 export interface ResourceSharingSettings {
   shareCharacters: boolean;
@@ -80,11 +81,18 @@ export interface MediaRoutingSettings {
   imageModelFallbacks: string[];
   videoModelFallbacks: string[];
   /**
-   * ownerScopeId → video models that account owns. A missing entry means it owns
-   * every model, so an account nobody configured behaves exactly as before.
-   * Images need no such map: every Flow account runs every image model.
+   * ownerScopeId → the models that account runs, in that account's own run order.
+   * A missing entry means it runs every model in the shared order above, so an
+   * account nobody configured behaves exactly as before.
    */
   accountVideoModels: Record<string, string[]>;
+  accountImageModels: Record<string, string[]>;
+  /**
+   * What gives way first when an account runs out of daily quota — see
+   * MediaRoutingMode in autopilot/account-routing.ts. Defaults to `quality`,
+   * which is how everything routed before the mode existed.
+   */
+  routingMode: MediaRoutingMode;
 }
 
 interface VideoStudioSettingsState {
@@ -167,6 +175,8 @@ const defaultMediaRoutingSettings: MediaRoutingSettings = {
   imageModelFallbacks: [],
   videoModelFallbacks: [],
   accountVideoModels: {},
+  accountImageModels: {},
+  routingMode: 'quality',
 };
 
 function cleanModelList(value: unknown): string[] {
@@ -175,16 +185,18 @@ function cleanModelList(value: unknown): string[] {
   return [...new Set(cleaned)];
 }
 
-function cleanAccountVideoModels(value: unknown): Record<string, string[]> {
+function cleanAccountModels(value: unknown): Record<string, string[]> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const cleaned: Record<string, string[]> = {};
   for (const [ownerScopeId, models] of Object.entries(value as Record<string, unknown>)) {
     const owner = ownerScopeId.trim();
     if (!owner) continue;
-    // An empty list is a real answer ("owns nothing"), so it is kept; only a
-    // non-list is dropped, since that would silently mean "owns everything".
     if (!Array.isArray(models)) continue;
-    cleaned[owner] = cleanModelList(models);
+    // cleanModelList keeps the order, which is the point: it is the run order.
+    // An empty list is dropped, not stored: no entry is what "follows the shared
+    // order" looks like, and it is the only one the picker can show or undo.
+    const list = cleanModelList(models);
+    if (list.length) cleaned[owner] = list;
   }
   return cleaned;
 }
@@ -194,7 +206,9 @@ function mergeMediaRoutingSettings(settings?: Partial<MediaRoutingSettings>): Me
     flowAccounts: cleanModelList(settings?.flowAccounts),
     imageModelFallbacks: cleanModelList(settings?.imageModelFallbacks),
     videoModelFallbacks: cleanModelList(settings?.videoModelFallbacks),
-    accountVideoModels: cleanAccountVideoModels(settings?.accountVideoModels),
+    accountVideoModels: cleanAccountModels(settings?.accountVideoModels),
+    accountImageModels: cleanAccountModels(settings?.accountImageModels),
+    routingMode: settings?.routingMode === 'speed' ? 'speed' : 'quality',
   };
 }
 

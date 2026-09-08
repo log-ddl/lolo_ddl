@@ -172,6 +172,7 @@ export function MediaModelSelectors() {
           imageModels={imageSelection ? getProviderMediaModels(imageSelection.provider, 'image') : []}
           videoModels={videoSelection ? getProviderMediaModels(videoSelection.provider, 'video') : []}
           videoOnGoogleFlow={videoSelection?.provider.platform === 'googleflow'}
+          imageOnGoogleFlow={imageSelection?.provider.platform === 'googleflow'}
           value={{
             // Model đầu chuỗi chính là binding: một nguồn duy nhất, không còn hai
             // ô chọn model song song nhau.
@@ -181,6 +182,8 @@ export function MediaModelSelectors() {
             videoModelFallbacks: mediaRouting.videoModelFallbacks,
             flowAccounts: mediaRouting.flowAccounts,
             accountVideoModels: mediaRouting.accountVideoModels,
+            accountImageModels: mediaRouting.accountImageModels,
+            routingMode: mediaRouting.routingMode,
           }}
           onChange={(next) => {
             if (imageSelection && next.imageModel && next.imageModel !== imageSelection.model) {
@@ -194,6 +197,8 @@ export function MediaModelSelectors() {
               videoModelFallbacks: next.videoModelFallbacks,
               flowAccounts: next.flowAccounts,
               accountVideoModels: next.accountVideoModels,
+              accountImageModels: next.accountImageModels,
+              routingMode: next.routingMode,
             });
           }}
         />

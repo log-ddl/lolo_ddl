@@ -21,6 +21,13 @@ export type ImageGenerationInput = {
   preferredCredentialId?: string;
   /** Restrict this request to these accounts (Google Flow `ownerScopeId`s). Empty = any. */
   allowedOwnerScopeIds?: string[];
+  /**
+   * `ownerScopeId` → that account's own run order, best model first. The account
+   * is picked first (by lane load), then its own order decides the model, so one
+   * account being out of quota never drags the others onto a weaker model.
+   * Accounts with no entry use `model`.
+   */
+  modelChainByOwnerScope?: Record<string, string[]>;
   // Caller-supplied task id, so the caller can correlate this call's live
   // phase updates (useGoogleFlowRuntimeStore tasks[taskId]) before the
   // promise resolves. Falls back to an internally generated id when unset.
@@ -42,6 +49,13 @@ export type VideoGenerationInput = {
   preferredCredentialId?: string;
   /** Restrict this request to these accounts (Google Flow `ownerScopeId`s). Empty = any. */
   allowedOwnerScopeIds?: string[];
+  /**
+   * `ownerScopeId` → that account's own run order, best model first. The account
+   * is picked first (by lane load), then its own order decides the model, so one
+   * account being out of quota never drags the others onto a weaker model.
+   * Accounts with no entry use `model`.
+   */
+  modelChainByOwnerScope?: Record<string, string[]>;
   taskId?: string;
   onSubmitted?: () => void;
   signal?: AbortSignal;

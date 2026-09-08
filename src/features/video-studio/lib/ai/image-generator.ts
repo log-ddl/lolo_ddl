@@ -51,7 +51,7 @@ async function generateImage(
   const projectId = useProjectStore.getState().activeProjectId || 'default-project';
   // Same accounts and same fallback order AutoPilot uses — read now rather than
   // frozen, because this call has no job to be frozen into.
-  const { chain, routing } = await resolveSettingsMediaRouting(
+  const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting(
     'image',
     featureConfig.model || featureConfig.models?.[0] || 'GEM_PIX_2',
   );
@@ -62,7 +62,8 @@ async function generateImage(
     aspectRatio: params.aspectRatio || '1:1',
     references: params.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
     preferredCredentialId: params.preferredCredentialId,
-    allowedOwnerScopeIds: routing.imageAccounts,
+    allowedOwnerScopeIds: accountsFor(model),
+    modelChainByOwnerScope: modelChains,
     onSubmitted: params.onSubmitted,
     signal: params.signal,
   }));
@@ -114,7 +115,7 @@ export async function submitGridImageRequest(params: {
   }
 
   const projectId = useProjectStore.getState().activeProjectId || 'default-project';
-  const { chain, routing } = await resolveSettingsMediaRouting('image', model);
+  const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('image', model);
   const { result } = await runWithModelFallback(chain, (chainModel) => googleFlowProvider.generateImage({
     projectId,
     prompt,
@@ -127,7 +128,8 @@ export async function submitGridImageRequest(params: {
         : { source, provider: 'googleflow' as const };
     }),
     preferredCredentialId: params.preferredCredentialId,
-    allowedOwnerScopeIds: routing.imageAccounts,
+    allowedOwnerScopeIds: accountsFor(chainModel),
+    modelChainByOwnerScope: modelChains,
     taskId: params.taskId,
     onSubmitted,
     signal,

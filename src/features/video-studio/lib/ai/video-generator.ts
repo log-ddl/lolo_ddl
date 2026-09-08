@@ -70,7 +70,7 @@ export async function generateProviderVideo(params: VideoGenerationParams): Prom
   const projectId = params.projectId || useProjectStore.getState().activeProjectId || 'default-project';
   // Accounts and fallback order come from Settings, exactly as they do for an
   // AutoPilot job — the only difference is that this reads them at press time.
-  const { chain, routing } = await resolveSettingsMediaRouting('video', params.model);
+  const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('video', params.model);
   const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
     projectId,
     sceneId: String(params.sceneId),
@@ -84,7 +84,8 @@ export async function generateProviderVideo(params: VideoGenerationParams): Prom
     preferredCredentialId: params.preferredCredentialId
       || params.startImageFlowState?.preferredCredentialId
       || params.referenceImageUrls?.map((source) => params.referenceImageFlowStates?.[source]?.preferredCredentialId).find(Boolean),
-    allowedOwnerScopeIds: routing.videoAccountsFor(model),
+    allowedOwnerScopeIds: accountsFor(model),
+    modelChainByOwnerScope: modelChains,
     taskId: params.taskId,
     onSubmitted: params.onSubmitted,
     signal: params.signal,

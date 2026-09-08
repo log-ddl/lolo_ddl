@@ -125,10 +125,19 @@ export interface AutopilotJobInput {
    * and the low-priority Veo keys are missing on some Flow accounts, and asking
    * for a model an account does not have answers 404 — an error no retry and no
    * account failover can fix, so those pairs are routed around instead.
-   * A missing entry means "owns everything", which is what jobs created before
-   * this field did. Images need no map: every account runs every image model.
+   * The list is that account's run order, best model first, so one account
+   * running out never drags the others onto a weaker model. A missing entry
+   * means "runs everything in the shared order", which is what jobs created
+   * before this field did.
    */
   accountVideoModels?: Record<string, string[]>;
+  /** Same, for image models. There the list is the user's own policy rather than a 404 to avoid. */
+  accountImageModels?: Record<string, string[]>;
+  /**
+   * `quality` (default) uses every account up on one model before moving to the
+   * next; `speed` lets each account drop to its own next model and keep running.
+   */
+  routingMode?: 'quality' | 'speed';
   /** Existing narration file. When present it replaces TTS and its Whisper transcript becomes the locked script. */
   importedAudioPath?: string;
   /** Optional raw SRT for the imported narration file. When present it replaces Whisper: its segments lock timing and become the primary script. */

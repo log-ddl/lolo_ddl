@@ -58,6 +58,8 @@ export async function runMediaStage(
     connectedOwnerScopeIds: await listKnownOwnerScopeIds(runtime),
     flowAccounts: job.input.flowAccounts,
     accountVideoModels: job.input.accountVideoModels,
+    accountImageModels: job.input.accountImageModels,
+    routingMode: job.input.routingMode,
   });
   const imageModelChain = buildModelChain(imageModel, job.input.imageModelFallbacks);
   const requestedVideoChain = buildModelChain(videoModel, job.input.videoModelFallbacks);
@@ -68,7 +70,12 @@ export async function runMediaStage(
   if (skippedVideoModels.length) {
     ctx.log(job.id, 'media', `Bỏ qua model video ${skippedVideoModels.join(', ')}: không tài khoản nào đang bật có model này`);
   }
-  const allowedOwnerScopeIds = routing.imageAccounts;
+  // Which accounts a model may run on depends on the routing mode, so it is asked
+  // per model rather than resolved once: in quality mode only the accounts that
+  // run this exact model, in speed mode every account still switched on.
+  const imageAccountsFor = (model: string) => routing.accountsFor('image', model);
+  const imageModelChains = routing.modelChainsFor('image', imageModelChain);
+  const videoModelChains = routing.modelChainsFor('video', videoModelChain);
   const allowRealImageResearch = skillAllowsRealImageResearch(job.input.skill)
     || job.input.importedPlan?.allowRealImageResearch === true
     || job.input.importedPlan?.shots.some((shot) => Boolean(shot.realImageQuery?.trim())) === true;
@@ -267,7 +274,8 @@ export async function runMediaStage(
               model,
               aspectRatio,
               references,
-              allowedOwnerScopeIds,
+              allowedOwnerScopeIds: imageAccountsFor(model),
+              modelChainByOwnerScope: imageModelChains,
               taskId: item.imageTaskId,
               onSubmitted: () => {
                 item.imageStatus = 'generating';
@@ -360,7 +368,8 @@ export async function runMediaStage(
               aspectRatio,
               duration: item.shot.videoLength,
               startImage: { source: item.imagePath, provider: 'googleflow', flowProjectId },
-              allowedOwnerScopeIds: routing.videoAccountsFor(model),
+              allowedOwnerScopeIds: routing.accountsFor('video', model),
+              modelChainByOwnerScope: videoModelChains,
               taskId: item.videoTaskId,
               onSubmitted: () => {
                 item.videoStatus = 'generating';

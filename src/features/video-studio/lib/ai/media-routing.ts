@@ -15,9 +15,13 @@ import { buildAccountRouting, listKnownOwnerScopeIds, type AccountRouting } from
 import { buildModelChain } from '@/features/video-studio/autopilot/model-fallback';
 
 export interface SettingsMediaRouting {
-  /** Models to try in order, head first. */
+  /** Models to try in order, head first. The shared order, for accounts with none of their own. */
   chain: string[];
   routing: AccountRouting;
+  /** Accounts this model may run on. Hand straight to `allowedOwnerScopeIds`. */
+  accountsFor(model: string): string[] | undefined;
+  /** Each account's own order. Hand straight to `modelChainByOwnerScope`. */
+  modelChains: Record<string, string[]>;
 }
 
 /**
@@ -44,11 +48,19 @@ export async function resolveSettingsMediaRouting(
     connectedOwnerScopeIds: runtime ? await listKnownOwnerScopeIds(runtime) : [],
     flowAccounts: mediaRouting.flowAccounts,
     accountVideoModels: mediaRouting.accountVideoModels,
+    accountImageModels: mediaRouting.accountImageModels,
+    routingMode: mediaRouting.routingMode,
   });
-  const chain = buildModelChain(
+  const requested = buildModelChain(
     headModel,
     kind === 'image' ? mediaRouting.imageModelFallbacks : mediaRouting.videoModelFallbacks,
   );
   // Video models no enabled account owns answer 404, which no retry fixes.
-  return { chain: kind === 'video' ? routing.filterVideoChain(chain) : chain, routing };
+  const chain = kind === 'video' ? routing.filterVideoChain(requested) : routing.filterImageChain(requested);
+  return {
+    chain,
+    routing,
+    accountsFor: (model: string) => routing.accountsFor(kind, model),
+    modelChains: routing.modelChainsFor(kind, chain),
+  };
 }

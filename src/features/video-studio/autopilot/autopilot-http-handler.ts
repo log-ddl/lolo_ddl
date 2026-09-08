@@ -255,14 +255,15 @@ async function route(request: AutopilotHttpRequest, emit: Emit): Promise<Autopil
     const body = isObject(request.body) ? request.body : {};
     try {
       const { longddProjectId } = await resolveFlowProject();
-      const { chain, routing } = await resolveSettingsMediaRouting('image', String(body.model ?? 'GEM_PIX_2'));
+      const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('image', String(body.model ?? 'GEM_PIX_2'));
       const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateImage({
         projectId: longddProjectId,
         sceneId: String(body.sceneId ?? 'http-image'),
         prompt: String(body.prompt ?? ''),
         model,
         aspectRatio: String(body.aspectRatio ?? '16:9'),
-        allowedOwnerScopeIds: routing.imageAccounts,
+        allowedOwnerScopeIds: accountsFor(model),
+        modelChainByOwnerScope: modelChains,
         taskId: `http-img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       }));
       return json(200, result);
@@ -275,7 +276,7 @@ async function route(request: AutopilotHttpRequest, emit: Emit): Promise<Autopil
     const body = isObject(request.body) ? request.body : {};
     try {
       const { flowProjectId, longddProjectId } = await resolveFlowProject();
-      const { chain, routing } = await resolveSettingsMediaRouting('video', String(body.model ?? ''));
+      const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('video', String(body.model ?? ''));
       const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
         projectId: longddProjectId,
         sceneId: String(body.sceneId ?? 'http-video'),
@@ -284,7 +285,8 @@ async function route(request: AutopilotHttpRequest, emit: Emit): Promise<Autopil
         aspectRatio: String(body.aspectRatio ?? '16:9'),
         duration: typeof body.duration === 'number' ? body.duration : 6,
         startImage: body.startImage ? { source: String(body.startImage), provider: 'googleflow', flowProjectId } : undefined,
-        allowedOwnerScopeIds: routing.videoAccountsFor(model),
+        allowedOwnerScopeIds: accountsFor(model),
+        modelChainByOwnerScope: modelChains,
         taskId: `http-vid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       }));
       return json(200, result);

@@ -57,4 +57,75 @@ const messy = buildAccountRouting({
 assert.deepEqual(messy.videoAccountsFor('Gemini_Omni_Flash'), []);
 assert.deepEqual(messy.videoAccountsFor('Veo_3.1-Fast'), undefined);
 
+// ---- images get the same per-account treatment as videos ----
+const perImage = buildAccountRouting({
+  connectedOwnerScopeIds: ALL,
+  accountImageModels: { 'acc-b': ['NARWHAL'] },
+});
+assert.deepEqual(perImage.imageAccountsFor('GEM_PIX_2'), ['acc-a', 'acc-c'], 'acc-b was told not to run it');
+assert.equal(perImage.imageAccountsFor('NARWHAL'), undefined, 'every account runs it = no restriction');
+assert.deepEqual(perImage.filterImageChain(['GEM_PIX_2', 'NARWHAL']), ['GEM_PIX_2', 'NARWHAL']);
+assert.equal(perImage.videoAccountsFor('Gemini_Omni_Flash'), undefined, 'the image map never restricts videos');
+
+// ---- an empty list is not "runs nothing": it is no setting at all ----
+// The picker shows a row with nothing picked as "follows the shared order", so a
+// stored empty list would be a rule the user can neither see nor undo.
+const emptied = buildAccountRouting({
+  connectedOwnerScopeIds: ALL,
+  accountImageModels: { 'acc-b': [] },
+});
+assert.equal(emptied.accountsFor('image', 'NARWHAL'), undefined, 'acc-b is back to running everything');
+assert.deepEqual(emptied.modelChainsFor('image', ['NARWHAL']), {}, 'quality mode still hands out no chains');
+
+// ---- speed mode: the account is picked first, so the model does not narrow it ----
+const speed = buildAccountRouting({
+  connectedOwnerScopeIds: ALL,
+  routingMode: 'speed',
+  accountImageModels: { 'acc-c': ['GEM_PIX_2'] },
+});
+assert.equal(speed.accountsFor('image', 'NARWHAL'), undefined, 'acc-c runs only GEM_PIX_2 but is not excluded here');
+assert.equal(speed.accountsFor('image', 'GEM_PIX_2'), undefined, 'same answer whatever the model');
+assert.deepEqual(
+  speed.modelChainsFor('image', ['NARWHAL']),
+  { 'acc-a': ['NARWHAL'], 'acc-b': ['NARWHAL'], 'acc-c': ['GEM_PIX_2'] },
+  'the chain is what keeps acc-c off NARWHAL, not the account list',
+);
+
+// ---- quality mode: the shared chain drives, so accounts do narrow per model ----
+const quality = buildAccountRouting({
+  connectedOwnerScopeIds: ALL,
+  accountImageModels: { 'acc-c': ['GEM_PIX_2'] },
+});
+assert.deepEqual(quality.accountsFor('image', 'NARWHAL'), ['acc-a', 'acc-b'], 'acc-c runs only GEM_PIX_2');
+assert.equal(quality.accountsFor('image', 'GEM_PIX_2'), undefined, 'every account runs it');
+assert.deepEqual(
+  quality.modelChainsFor('image', ['NARWHAL', 'GEM_PIX_2']),
+  {},
+  'quality mode hands out no per-account chain — the order belongs to the job',
+);
+
+// ---- per-account order: explicit wins, unset inherits, order is preserved ----
+const ordered = buildAccountRouting({
+  connectedOwnerScopeIds: ALL,
+  routingMode: 'speed',
+  accountImageModels: { 'acc-a': ['GEM_PIX_2', 'NARWHAL'], 'acc-b': [] },
+});
+const chains = ordered.modelChainsFor('image', ['NARWHAL', 'GEM_PIX_2']);
+assert.deepEqual(chains['acc-a'], ['GEM_PIX_2', 'NARWHAL'], 'its own order, not the shared one');
+assert.deepEqual(chains['acc-c'], ['NARWHAL', 'GEM_PIX_2'], 'no list of its own = the shared order');
+assert.deepEqual(chains['acc-b'], ['NARWHAL', 'GEM_PIX_2'], 'an empty list is no list, so it inherits too');
+
+// A shared chain of nothing leaves every account chainless, so the runtime falls
+// back to the model on the request itself instead of inventing one.
+assert.deepEqual(ordered.modelChainsFor('video', []), {});
+
+// An account outside the allowlist never gets a chain, however it is configured.
+const scoped = buildAccountRouting({
+  connectedOwnerScopeIds: ALL,
+  routingMode: 'speed',
+  flowAccounts: ['acc-a'],
+  accountImageModels: { 'acc-c': ['NARWHAL'] },
+});
+assert.deepEqual(Object.keys(scoped.modelChainsFor('image', ['GEM_PIX_2'])), ['acc-a']);
+
 console.log('account-routing tests passed');

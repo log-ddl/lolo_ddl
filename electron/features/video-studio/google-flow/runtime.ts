@@ -29,6 +29,7 @@ import {
   type FlowAccountAllowlist,
   type FlowImageInput,
   type FlowMediaRefInput,
+  type FlowModelChainMap,
   type FlowProjectBindingInfo,
   type FlowVideoInput,
   type GenerationResult,
@@ -399,8 +400,14 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     validateImageInput(input);
     const taskId = input.taskId || randomUUID();
     // Same key the request below sends as imageModelName, so a daily-quota lock
-    // covers exactly the model Google rejected.
-    const imageModelName = GOOGLE_FLOW_IMAGE_MODELS[input.model] || input.model || 'GEM_PIX_2';
+    // covers exactly the model Google rejected. Resolved per account, because
+    // each one runs its own order.
+    const imageModelKeyFor = (slot: FlowCredentialSlot) => this.pickAccountModel(
+      slot,
+      input.modelChainByOwnerScope,
+      (model) => GOOGLE_FLOW_IMAGE_MODELS[model] || model || 'GEM_PIX_2',
+      input.model,
+    );
     return this.runOnLane('image', taskId, input.preferredCredentialId, async (slot, lane, signal) => {
       const binding = await this.ensureProject(input.projectId, slot, signal);
       const hasMediaInput = Boolean(input.baseImage || input.references?.length);
@@ -427,7 +434,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           seed: now % 1_000_000,
           structuredPrompt: { parts: [{ text: input.prompt }] },
           imageAspectRatio: flowImageRatio(input.aspectRatio),
-          imageModelName,
+          imageModelName: imageModelKeyFor(slot),
         };
         if (imageInputs.length) request.imageInputs = imageInputs;
         const body: Record<string, unknown> = { clientContext: context, requests: [request] };
@@ -458,7 +465,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           ownerScopeId: slot.ownerScopeId, flowProjectId: binding.flowProjectId, mediaId, remoteUrl,
         };
       }
-    }, () => imageModelName, input.allowedOwnerScopeIds);
+    }, imageModelKeyFor, input.allowedOwnerScopeIds);
   }
 
   async generateVideo(input: FlowVideoInput): Promise<GenerationResult> {
@@ -473,7 +480,12 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     // The resolved key varies per account: the same request lands on a Fast key
     // for a paid tier and a Lite/low-priority key for a free one, and Google
     // meters each key separately.
-    const videoModelKeyFor = (slot: FlowCredentialSlot) => resolveFlowVideoModel(slot.tier, mode, input.aspectRatio, input.model, input.duration);
+    const videoModelKeyFor = (slot: FlowCredentialSlot) => this.pickAccountModel(
+      slot,
+      input.modelChainByOwnerScope,
+      (model) => resolveFlowVideoModel(slot.tier, mode, input.aspectRatio, model, input.duration),
+      input.model,
+    );
     return this.runOnLane('video', taskId, input.preferredCredentialId, async (slot, lane, signal) => {
       const binding = await this.ensureProject(input.projectId, slot, signal);
       const reportUpload = () => this.emitLaneTask(taskId, 'video', 'uploading', slot, lane, 12, undefined, 'uploading_media');
@@ -696,8 +708,18 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         // so other models still generating on this account keep their queue
         // depth and chaining. selectLane's lock filter is what keeps this model
         // off these lanes.
-        exhausted.add(lane.credentialId);
-        queuedMessage = `Tài khoản ${slot.extensionInstanceId.slice(0, 8)} hết hạn mức ngày cho ${flowModelDisplayName(modelKey)} — đã chuyển sang tài khoản khác`;
+        //
+        // Park the account only when its own chain has nothing left. With another
+        // model still open on it, modelKeyFor now returns that one, so the next
+        // pass can come straight back here — which is the whole point of a
+        // per-account order. The loop still terminates: every pass through this
+        // branch locks one more (account × model) pair, and the chains are finite.
+        const nextModel = modelKeyFor(slot);
+        const accountDone = this.quotaLocks.isLocked(slot.ownerScopeId, nextModel);
+        if (accountDone) exhausted.add(lane.credentialId);
+        queuedMessage = accountDone
+          ? `Tài khoản ${slot.extensionInstanceId.slice(0, 8)} hết hạn mức ngày cho ${flowModelDisplayName(modelKey)} — đã chuyển sang tài khoản khác`
+          : `Tài khoản ${slot.extensionInstanceId.slice(0, 8)} hết hạn mức ngày cho ${flowModelDisplayName(modelKey)} — chuyển sang ${flowModelDisplayName(nextModel)} trên chính tài khoản này`;
       }
     }
   }
@@ -975,6 +997,31 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
 
   apiUrl(slot: FlowCredentialSlot, endpoint: string, extra = ''): string {
     return `${GOOGLE_FLOW_API_ROOT}${endpoint}?key=${this.getApiKey(slot.extensionInstanceId)}${extra}`;
+  }
+
+  /**
+   * The model this account should be asked for right now.
+   *
+   * Each account walks its own order, so one account dropping to a weaker model
+   * never drags the others down with it. The first entry that is not already out
+   * of daily quota on this account wins.
+   *
+   * When the whole chain is locked the last entry is returned rather than
+   * undefined: runOnLane and selectLane both decide "this account is done" by
+   * asking whether the model they get back is locked, so handing back a locked
+   * key is what makes the account step aside — and keeps the failure the user
+   * sees as the usual quota message.
+   */
+  private pickAccountModel(
+    slot: FlowCredentialSlot,
+    chains: FlowModelChainMap | undefined,
+    resolve: (model: string) => string,
+    requestedModel: string,
+  ): string {
+    const chain = (chains?.[slot.ownerScopeId] || []).filter(Boolean);
+    if (!chain.length) return resolve(requestedModel);
+    const keys = chain.map(resolve);
+    return keys.find((key) => !this.quotaLocks.isLocked(slot.ownerScopeId, key)) || keys[keys.length - 1];
   }
 
   emitLaneTask(taskId: string, kind: 'image' | 'video', status: FlowTaskEvent['status'], slot: FlowCredentialSlot, lane: Lane, progress?: number, message?: string, phase?: FlowTaskEvent['phase']) {

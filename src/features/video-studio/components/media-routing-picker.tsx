@@ -31,7 +31,7 @@ import {
   modelGroupKey,
 } from "@/features/video-studio/lib/api-key-manager";
 import { useGoogleFlowRuntimeStore } from "@/features/video-studio/stores/google-flow-runtime-store";
-import { buildAccountRouting, type AccountVideoModelMap } from "@/features/video-studio/autopilot/account-routing";
+import { buildAccountRouting, type AccountVideoModelMap, type MediaRoutingMode } from "@/features/video-studio/autopilot/account-routing";
 import type { VideoStudioInAppAccount } from "@/shared/types/electron";
 
 export interface MediaRoutingValue {
@@ -42,9 +42,29 @@ export interface MediaRoutingValue {
   videoModelFallbacks: string[];
   /** Accounts (`ownerScopeId`) the job may use. Empty = every connected account. */
   flowAccounts: string[];
-  /** ownerScopeId → video models that account owns. Missing entry = owns everything. */
+  /** ownerScopeId → that account's own run order. Missing entry = follows the shared order. */
   accountVideoModels: AccountVideoModelMap;
+  accountImageModels: AccountVideoModelMap;
+  routingMode: MediaRoutingMode;
 }
+
+/**
+ * The two ways a job can spend quota, in the user's words rather than the
+ * engine's. Both are legitimate — this is a trade, not a right answer — so the
+ * cost of each is spelled out next to it instead of only the benefit.
+ */
+const ROUTING_MODES: Array<{ id: MediaRoutingMode; label: string; hint: string }> = [
+  {
+    id: "quality",
+    label: "Chất lượng",
+    hint: "Dùng hết model 1 trên mọi tài khoản rồi mới xuống model 2. Cả video dùng chung một model, đổi lại tài khoản nào hết hạn mức thì ngồi chờ nên chậm hơn.",
+  },
+  {
+    id: "speed",
+    label: "Tốc độ",
+    hint: "Tài khoản nào hết model 1 thì tự xuống model 2 và chạy tiếp. Không tài khoản nào ngồi chờ, đổi lại các shot trong cùng một video có thể ra từ hai model khác nhau.",
+  },
+];
 
 const ACCOUNT_LABELS_KEY = "googleFlowAccountLabels";
 
@@ -166,11 +186,95 @@ function ModelOrderPicker({
   );
 }
 
+/**
+ * One account's run order for one kind.
+ *
+ * Exactly the interaction of the shared picker above: nothing is picked to begin
+ * with and clicking appends, so a click always adds and the numbers are the order
+ * this account tries models in.
+ *
+ * Nothing picked means "follows the shared order", not "runs nothing". Showing
+ * the inherited models pre-picked would read better but breaks the interaction —
+ * the first click would then *remove* a model, the opposite of what the same
+ * click does everywhere else — and clicking them all off would silently switch
+ * the account off for this kind. So the row starts empty and says what it does.
+ */
+function AccountModelOrder({
+  title, models, chain, sharedChain, showOrder, onChange,
+}: {
+  title: string;
+  models: string[];
+  /** This account's own order. Empty = none set, so it follows `sharedChain`. */
+  chain: string[];
+  sharedChain: string[];
+  /**
+   * False in quality mode, where the shared order decides and only the tick
+   * counts. The numbers are hidden rather than shown-and-ignored, because a
+   * number the engine does not read is worse than no number at all.
+   */
+  showOrder: boolean;
+  onChange: (chain: string[] | undefined) => void;
+}) {
+  if (models.length === 0) return null;
+  const configured = chain.length > 0;
+  const copyable = sharedChain.filter((model) => models.includes(model));
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-2xs text-muted-foreground">{title}</span>
+      {models.map((model) => {
+        const index = chain.indexOf(model);
+        const picked = index >= 0;
+        return (
+          <Button
+            key={model}
+            type="button"
+            variant={picked ? "secondary" : "outline"}
+            size="sm"
+            className="h-6 rounded-full px-2 text-2xs"
+            onClick={() => {
+              const next = picked ? chain.filter((item) => item !== model) : [...chain, model];
+              // Back to nothing picked is back to following the shared order, which
+              // is the state with no entry at all — never an empty list, which the
+              // routing would read as "this account runs nothing".
+              onChange(next.length > 0 ? next : undefined);
+            }}
+          >
+            {picked && showOrder ? `${index + 1}. ` : ""}{getModelDisplayName(model)}
+          </Button>
+        );
+      })}
+      {configured ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-2xs"
+          onClick={() => onChange(undefined)}
+        >Bỏ riêng</Button>
+      ) : copyable.length > 0 ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-2xs"
+          onClick={() => onChange(copyable)}
+        >Chép thứ tự chung</Button>
+      ) : null}
+      {!configured && (
+        <span className="text-2xs text-muted-foreground">
+          {showOrder ? "— đang theo thứ tự chung" : "— chạy mọi model"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function MediaRoutingPicker({
   value, onChange,
   imageModels = GOOGLE_FLOW_IMAGE_MODELS,
   videoModels = GOOGLE_FLOW_VIDEO_MODELS,
   videoOnGoogleFlow = true,
+  imageOnGoogleFlow = true,
 }: {
   value: MediaRoutingValue;
   onChange: (next: MediaRoutingValue) => void;
@@ -183,6 +287,7 @@ export function MediaRoutingPicker({
    * the panel would be describing accounts the request never touches.
    */
   videoOnGoogleFlow?: boolean;
+  imageOnGoogleFlow?: boolean;
 }) {
   const { status, initialize, refresh } = useGoogleFlowRuntimeStore();
   const [accountLabels, setAccountLabels] = useState<Record<string, string>>({});
@@ -275,25 +380,23 @@ export function MediaRoutingPicker({
     patch({ flowAccounts: isEveryone ? [] : next });
   };
 
-  // Settings persisted before this field existed come back without the map.
+  // Settings persisted before these fields existed come back without the maps.
   const capabilities = value.accountVideoModels || {};
+  const imageCapabilities = value.accountImageModels || {};
+  const mapOf = (kind: "image" | "video") => (kind === "image" ? imageCapabilities : capabilities);
 
-  const ownsModel = (ownerScopeId: string, model: string) => {
-    const owned = capabilities[ownerScopeId];
-    return !owned || owned.includes(model);
-  };
+  /** This account's own order, empty when it has none and follows the shared one. */
+  const accountChain = (kind: "image" | "video", ownerScopeId: string) => [...(mapOf(kind)[ownerScopeId] || [])];
 
-  const toggleModel = (ownerScopeId: string, model: string) => {
-    const owned = capabilities[ownerScopeId] || videoModels;
-    const next = owned.includes(model)
-      ? owned.filter((item) => item !== model)
-      : videoModels.filter((item) => owned.includes(item) || item === model);
-    const map = { ...capabilities };
-    // Owning everything is the default, so store nothing rather than a full list
-    // that would silently freeze if a new model is added later.
-    if (next.length === videoModels.length) delete map[ownerScopeId];
+  const setAccountChain = (kind: "image" | "video", ownerScopeId: string, next: string[] | undefined) => {
+    const map = { ...mapOf(kind) };
+    // A full list in a custom order is a real answer now that the list is ordered,
+    // so unlike the old owns-everything shortcut it has to be stored as written.
+    // An empty one never is: the row hands back undefined instead, so "nothing
+    // picked" stays "follows the shared order" rather than "runs nothing".
+    if (next === undefined || next.length === 0) delete map[ownerScopeId];
     else map[ownerScopeId] = next;
-    patch({ accountVideoModels: map });
+    patch(kind === "image" ? { accountImageModels: map } : { accountVideoModels: map });
   };
 
   // Same resolver the engine runs, so the warning here cannot drift from what a
@@ -302,7 +405,8 @@ export function MediaRoutingPicker({
     connectedOwnerScopeIds: accountIds,
     flowAccounts: value.flowAccounts,
     accountVideoModels: capabilities,
-  }), [accountIds.join("|"), value.flowAccounts, capabilities]);
+    accountImageModels: imageCapabilities,
+  }), [accountIds.join("|"), value.flowAccounts, capabilities, imageCapabilities]);
 
   const droppedVideoModels = videoOnGoogleFlow
     ? videoChain.filter((model) => routing.videoAccountsFor(model)?.length === 0)
@@ -314,8 +418,33 @@ export function MediaRoutingPicker({
   const connectedSlotIds = new Set((status?.credentials || []).map((credential) => credential.extensionInstanceId));
   const pendingAccounts = inAppAccounts.filter((account) => !connectedSlotIds.has(account.accountSlotId));
 
+  const mode: MediaRoutingMode = value.routingMode === "speed" ? "speed" : "quality";
+  const activeMode = ROUTING_MODES.find((item) => item.id === mode) || ROUTING_MODES[0];
+
   return (
     <div className="space-y-4 rounded-lg border border-border bg-muted/10 p-3">
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Label className="text-xs">Khi một tài khoản hết hạn mức</Label>
+          <div className="flex gap-1">
+            {ROUTING_MODES.map((item) => (
+              <Button
+                key={item.id}
+                type="button"
+                variant={item.id === mode ? "default" : "outline"}
+                size="sm"
+                className="h-7 rounded-full px-3 text-2xs"
+                onClick={() => patch({ routingMode: item.id })}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+        {/* Only the chosen mode's trade-off is shown: two paragraphs side by side
+            reads like a quiz, one reads like an answer. */}
+        <p className="text-2xs leading-4 text-muted-foreground">{activeMode.hint}</p>
+      </div>
       <div className="grid gap-4 md:grid-cols-2">
         <ModelOrderPicker
           label="Model ảnh — bấm theo thứ tự chạy"
@@ -340,7 +469,9 @@ export function MediaRoutingPicker({
         />
       </div>
       <p className="text-2xs leading-4 text-muted-foreground">
-        Hết hạn mức model đầu trên mọi tài khoản thì tự chạy tiếp model kế — xếp đủ model để vét hết hạn mức.
+        {mode === "speed"
+          ? "Thứ tự này áp cho tài khoản chưa đặt thứ tự riêng ở dưới — xếp đủ model để vét hết hạn mức."
+          : "Hết hạn mức model đầu trên mọi tài khoản thì tự chạy tiếp model kế — xếp đủ model để vét hết hạn mức."}
       </p>
 
       <div className="space-y-2">
@@ -393,25 +524,25 @@ export function MediaRoutingPicker({
                         .join(" · ")}`}
                     </span>
                   </div>
+                  {used && imageOnGoogleFlow && (
+                    <AccountModelOrder
+                      title="Model ảnh:"
+                      models={imageModels}
+                      chain={accountChain("image", account.ownerScopeId)}
+                      sharedChain={imageChain}
+                      showOrder={mode === "speed"}
+                      onChange={(next) => setAccountChain("image", account.ownerScopeId, next)}
+                    />
+                  )}
                   {used && videoOnGoogleFlow && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <span className="text-2xs text-muted-foreground">Có model video:</span>
-                      {videoModels.map((model) => {
-                        const owns = ownsModel(account.ownerScopeId, model);
-                        return (
-                          <Button
-                            key={model}
-                            type="button"
-                            variant={owns ? "secondary" : "outline"}
-                            size="sm"
-                            className={`h-6 rounded-full px-2 text-2xs ${owns ? "" : "text-muted-foreground line-through"}`}
-                            onClick={() => toggleModel(account.ownerScopeId, model)}
-                          >
-                            {getModelDisplayName(model)}
-                          </Button>
-                        );
-                      })}
-                    </div>
+                    <AccountModelOrder
+                      title="Model video:"
+                      models={videoModels}
+                      chain={accountChain("video", account.ownerScopeId)}
+                      sharedChain={videoChain}
+                      showOrder={mode === "speed"}
+                      onChange={(next) => setAccountChain("video", account.ownerScopeId, next)}
+                    />
                   )}
                 </div>
               );
@@ -433,8 +564,11 @@ export function MediaRoutingPicker({
           {value.flowAccounts.length === 0
             ? "Đang dùng mọi tài khoản đang kết nối."
             : `Chỉ chạy trên ${usedIds.length} tài khoản đang bật — không tài khoản nào trong số đó kết nối thì job dừng.`}
+          {mode === "speed"
+            ? " Số trên chip là thứ tự riêng của tài khoản đó; model không bấm là model nó không chạy."
+            : " Model không bấm là model tài khoản đó không chạy. Thứ tự thì lấy ở khối trên — chế độ Chất lượng không dùng thứ tự riêng."}
           {videoOnGoogleFlow
-            ? " Bỏ tick model video mà tài khoản đó không có."
+            ? " Nhớ bỏ tick model video mà tài khoản đó không có."
             : " Video đang chạy bằng nhà cung cấp khác nên không dùng tài khoản Google Flow."}
         </p>
       </div>

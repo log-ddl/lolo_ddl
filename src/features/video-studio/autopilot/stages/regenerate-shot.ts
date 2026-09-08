@@ -46,12 +46,16 @@ export async function runSingleShotRegeneration(
       connectedOwnerScopeIds: await listKnownOwnerScopeIds(runtime),
       flowAccounts: job.input.flowAccounts,
       accountVideoModels: job.input.accountVideoModels,
+      accountImageModels: job.input.accountImageModels,
+      routingMode: job.input.routingMode,
     });
     const imageModelChain = buildModelChain(imageModel, job.input.imageModelFallbacks);
     // Models no enabled account owns would only answer 404 — routed around, same
     // as in the media stage, so a regenerate behaves like the run it repairs.
     const videoModelChain = routing.filterVideoChain(buildModelChain(videoModel, job.input.videoModelFallbacks));
-    const allowedOwnerScopeIds = routing.imageAccounts;
+    const imageAccountsFor = (model: string) => routing.accountsFor('image', model);
+    const imageModelChains = routing.modelChainsFor('image', imageModelChain);
+    const videoModelChains = routing.modelChainsFor('video', videoModelChain);
     const laneSettings = useVideoStudioSettingsStore.getState().maxStudioLanes;
     const retryAttempts = Math.max(0, Math.floor(laneSettings.generationRetryAttempts ?? 1));
     const visualStyleLine = job.visualStylePrompt ? `Visual style: ${job.visualStylePrompt}.` : '';
@@ -112,7 +116,9 @@ export async function runSingleShotRegeneration(
               projectId: longddProjectId,
               sceneId: `autopilot-${job.id}-${shot.index - 1}`,
               prompt: `${sceneLine}${identityLine}${researchLine}${shot.imagePrompt || ''} ${visualStyleLine}`.trim(),
-              model, aspectRatio, references, allowedOwnerScopeIds,
+              model, aspectRatio, references,
+              allowedOwnerScopeIds: imageAccountsFor(model),
+              modelChainByOwnerScope: imageModelChains,
               taskId: mediaOutput.imageTaskId,
               onSubmitted: () => { mediaOutput.imageStatus = 'generating'; syncMediaOutputs(); },
               signal,
@@ -160,7 +166,8 @@ export async function runSingleShotRegeneration(
               prompt: `${shot.videoPrompt || ''} Preserve the exact visual style, palette, line quality, materials, and character identity of the supplied first frame.`.trim(),
               model, aspectRatio, duration: shot.videoLength,
               startImage: { source: mediaOutput.imagePath, provider: 'googleflow', flowProjectId },
-              allowedOwnerScopeIds: routing.videoAccountsFor(model),
+              allowedOwnerScopeIds: routing.accountsFor('video', model),
+              modelChainByOwnerScope: videoModelChains,
               taskId: mediaOutput.videoTaskId,
               onSubmitted: () => { mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
               signal,

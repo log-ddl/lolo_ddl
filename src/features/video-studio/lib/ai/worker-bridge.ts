@@ -336,11 +336,12 @@ export class AIWorkerBridge {
       // what to try when they run out is Settings' business, same as everywhere.
       const result = payload.kind === 'image'
         ? await (async () => {
-          const { chain, routing } = await resolveSettingsMediaRouting('image', payload.model);
+          const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('image', payload.model);
           return (await runWithModelFallback(chain, (model) => googleFlowProvider.generateImage({
             projectId, prompt: payload.prompt, model, aspectRatio: payload.aspectRatio,
             references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
-            allowedOwnerScopeIds: routing.imageAccounts,
+            allowedOwnerScopeIds: accountsFor(model),
+            modelChainByOwnerScope: modelChains,
           }))).result;
         })()
         : payload.provider === 'grok'
@@ -350,13 +351,14 @@ export class AIWorkerBridge {
             startImage: payload.imageUrl ? { source: payload.imageUrl, provider: 'grok' } : undefined,
           })
           : await (async () => {
-            const { chain, routing } = await resolveSettingsMediaRouting('video', payload.model);
+            const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('video', payload.model);
             return (await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
               projectId, sceneId: payload.requestId, prompt: payload.prompt, model,
               aspectRatio: payload.aspectRatio, duration: payload.duration,
               startImage: payload.imageUrl ? { source: payload.imageUrl, provider: 'googleflow' } : undefined,
               references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
-              allowedOwnerScopeIds: routing.videoAccountsFor(model),
+              allowedOwnerScopeIds: accountsFor(model),
+              modelChainByOwnerScope: modelChains,
             }))).result;
           })();
       const url = result.localUrl || result.remoteUrl;

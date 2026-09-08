@@ -30,15 +30,27 @@ export type FlowMediaRefInput = {
  */
 export type FlowAccountAllowlist = string[] | undefined;
 
+/**
+ * Per-account run order: `ownerScopeId` → models that account tries, best first.
+ *
+ * Accounts differ — one is out of Nano Pro for the day while another still has
+ * it, one owns Omni Flash and another does not — so each carries its own order
+ * instead of the whole job sharing one. An account with no entry uses the
+ * request's own `model`. Empty or missing map = the old single-model behaviour.
+ */
+export type FlowModelChainMap = Record<string, string[]>;
+
 export type FlowImageInput = {
   taskId?: string; projectId: string; sceneId?: string; prompt: string; model: string; aspectRatio: string;
   baseImage?: FlowMediaRefInput; references?: FlowMediaRefInput[]; preferredCredentialId?: string;
   allowedOwnerScopeIds?: FlowAccountAllowlist;
+  modelChainByOwnerScope?: FlowModelChainMap;
 };
 export type FlowVideoInput = {
   taskId?: string; projectId: string; sceneId: string; prompt: string; model: string; aspectRatio: string; duration?: number;
   startImage?: FlowMediaRefInput; endImage?: FlowMediaRefInput; references?: FlowMediaRefInput[]; preferredCredentialId?: string;
   allowedOwnerScopeIds?: FlowAccountAllowlist;
+  modelChainByOwnerScope?: FlowModelChainMap;
 };
 
 export type ProjectBinding = {
