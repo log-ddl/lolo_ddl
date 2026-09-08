@@ -4,6 +4,7 @@ import { fileStorage } from '@/shared/lib/indexed-db-storage';
 import { generateUUID } from '@/shared/lib/utils';
 import { switchProject } from '@/features/video-studio/lib/project-switcher';
 import { autopilotEngine, hydrateAutopilotProject } from '@/features/video-studio/stores/autopilot-store';
+import { pickNextEntry } from './batch-queue-order';
 import type { AutopilotJobInput, AutopilotJobStatus, AutopilotStage, AutopilotStep } from '@/features/video-studio/autopilot/types';
 
 /**
@@ -104,6 +105,18 @@ interface BatchQueueState {
 // Module-scoped runner state (not persisted, not part of React state).
 let betweenDelayTimer: ReturnType<typeof setTimeout> | null = null;
 let jobWatchOff: (() => void) | null = null;
+/**
+ * Settles the job the runner is currently awaiting. `waitForJob` only ever
+ * resolves from inside its own engine listener, so pausing — which removes that
+ * listener — used to leave the await hanging for the rest of the session.
+ */
+let settleJobWait: ((status: AutopilotJobStatus) => void) | null = null;
+/**
+ * How many runner chains are alive. A counter, not a flag: a chain hands over to
+ * the next one before its own `finally` runs, and a flag would be cleared by the
+ * outgoing chain right after the incoming one set it.
+ */
+let runnerDepth = 0;
 /** Set by the store initializer so the background scheduler can trigger the runner. */
 let runNextRef: (() => void) | null = null;
 /** Longest single setTimeout we use; longer waits re-poll so clock changes are tolerated. */
@@ -114,6 +127,18 @@ function clearBetweenDelay(): void {
     clearTimeout(betweenDelayTimer);
     betweenDelayTimer = null;
   }
+}
+
+/**
+ * The queue says it is running, but nothing is actually driving it: no chain in
+ * flight, no timer armed, no job being awaited. Something died mid-run.
+ *
+ * Worth naming rather than inlining, because `running` alone must never be the
+ * test for "leave it alone" — that is what let a dead queue sit untouched while
+ * the watchdog kept politely returning.
+ */
+function isStalled(): boolean {
+  return useBatchQueueStore.getState().running && runnerDepth === 0 && !betweenDelayTimer && !jobWatchOff;
 }
 
 function mapJobStatusToEntry(status: AutopilotJobStatus): BatchEntryStatus {
@@ -141,6 +166,8 @@ export const useBatchQueueStore = create<BatchQueueState>()(
             if (settled) return;
             settled = true;
             off();
+            jobWatchOff = null;
+            settleJobWait = null;
             resolve(status);
           };
           const check = () => {
@@ -171,27 +198,66 @@ export const useBatchQueueStore = create<BatchQueueState>()(
             if (eventJobId === jobId) check();
           });
           jobWatchOff = off;
+          // Pausing settles this wait instead of orphaning it: `off()` alone would
+          // remove the only thing that can ever resolve the promise.
+          settleJobWait = finish;
           check();
         });
 
+      /**
+       * Run one step of the queue. A throw in here must never take the queue with
+       * it: everything from creating the job to awaiting it used to sit outside
+       * any try/catch, so a single bad entry escaped an un-awaited promise and
+       * parked the runner for the rest of the session, with `running` still true.
+       */
+      const startChain = (): void => {
+        runnerDepth += 1;
+        void (async () => {
+          try {
+            await runNext();
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('[BatchQueue] mục trong hàng chờ lỗi, bỏ qua và chạy tiếp:', error);
+            const activeId = get().activeEntryId;
+            set((state) => ({
+              entries: state.entries.map((item) =>
+                item.id === activeId ? { ...item, status: 'failed' as const, error: message } : item,
+              ),
+            }));
+            try {
+              await afterEntry();
+            } catch (followUp) {
+              console.error('[BatchQueue] không tiếp tục được hàng chờ:', followUp);
+              set({ running: false, waiting: false, activeEntryId: null });
+            }
+          } finally {
+            runnerDepth -= 1;
+          }
+        })();
+      };
+
+      /** Park the runner on a timer, then pick up again. */
+      const armWait = (entryId: string | null, ms: number): void => {
+        set({ activeEntryId: entryId, waiting: true });
+        clearBetweenDelay();
+        betweenDelayTimer = setTimeout(() => {
+          betweenDelayTimer = null;
+          startChain();
+        }, ms);
+      };
+
       const runNext = async (): Promise<void> => {
         if (!get().running) return;
-        const entry = get().entries.find((item) => item.status === 'pending');
+        const now = Date.now();
+        const entry = pickNextEntry(get().entries, now);
         if (!entry) {
           set({ running: false, activeEntryId: null, waiting: false });
           return;
         }
 
         // Hold until the entry's scheduled start time, if any.
-        const now = Date.now();
         if (entry.scheduledAt && entry.scheduledAt > now) {
-          set({ activeEntryId: entry.id, waiting: true });
-          clearBetweenDelay();
-          const wait = Math.min(entry.scheduledAt - now, MAX_WAIT_MS);
-          betweenDelayTimer = setTimeout(() => {
-            betweenDelayTimer = null;
-            void runNext();
-          }, wait);
+          armWait(entry.id, Math.min(entry.scheduledAt - now, MAX_WAIT_MS));
           return;
         }
 
@@ -278,28 +344,31 @@ export const useBatchQueueStore = create<BatchQueueState>()(
           set({ activeEntryId: null, waiting: false });
           return;
         }
+        const now = Date.now();
+        const next = pickNextEntry(get().entries, now);
+        // A scheduled entry was given an exact time, so parking until that time is
+        // the pause — adding the random rest on top of it would only ever make the
+        // entry start late, which is the opposite of what the time was for.
+        if (!next || (next.scheduledAt && next.scheduledAt > now)) {
+          set({ waiting: false });
+          startChain();
+          return;
+        }
         // Randomize the pause within [min, max] for more human-like pacing.
         const minSec = Math.max(0, get().betweenDelayMinSec);
         const maxSec = Math.max(minSec, get().betweenDelayMaxSec);
         const delaySec = minSec + Math.random() * (maxSec - minSec);
         const delayMs = Math.max(0, Math.round(delaySec * 1000));
-        const hasMore = get().entries.some((item) => item.status === 'pending');
-        if (!hasMore || delayMs === 0) {
+        if (delayMs === 0) {
           set({ waiting: false });
-          void runNext();
+          startChain();
           return;
         }
-        set({ waiting: true });
-        clearBetweenDelay();
-        betweenDelayTimer = setTimeout(() => {
-          betweenDelayTimer = null;
-          set({ waiting: false });
-          void runNext();
-        }, delayMs);
+        armWait(get().activeEntryId, delayMs);
       };
 
       // Expose the runner so the background scheduler can start it.
-      runNextRef = () => void runNext();
+      runNextRef = startChain;
 
       return {
         entries: [],
@@ -394,17 +463,25 @@ export const useBatchQueueStore = create<BatchQueueState>()(
         },
 
         startAll: () => {
-          if (get().running) return;
-          // Requeue any paused/failed entries so a fresh start re-runs them.
+          // A stalled queue still reports running, so that flag alone must not be
+          // the reason to do nothing — that is what made the button dead after a
+          // chain died, leaving an app restart as the only way out.
+          if (get().running && !isStalled()) return;
+          // Requeue paused/failed entries so a fresh start re-runs them — and any
+          // left stuck on 'running' by a chain that died, which nothing else puts
+          // back and which `pending` searches skip straight past.
+          clearBetweenDelay();
           set((state) => ({
             running: true,
+            activeEntryId: null,
+            waiting: false,
             entries: state.entries.map((item) =>
-              item.status === 'paused' || item.status === 'failed'
+              item.status === 'paused' || item.status === 'failed' || item.status === 'running'
                 ? { ...item, status: 'pending', jobId: undefined, error: undefined }
                 : item,
             ),
           }));
-          void runNext();
+          startChain();
         },
 
         pauseAll: () => {
@@ -422,10 +499,15 @@ export const useBatchQueueStore = create<BatchQueueState>()(
               item.status === 'running' ? { ...item, status: 'paused' } : item,
             ),
           }));
+          // Last, so the runner sees running:false and stops instead of advancing.
+          // Without this the await inside runNext never settles and that chain is
+          // parked for good, leaving a second one to start on top of it later.
+          settleJobWait?.('paused');
+          settleJobWait = null;
         },
 
         resumeAll: () => {
-          if (get().running) return;
+          if (get().running && !isStalled()) return;
           if (!get().entries.some((item) => item.status === 'pending' || item.status === 'paused')) return;
           set((state) => ({
             running: true,
@@ -433,7 +515,7 @@ export const useBatchQueueStore = create<BatchQueueState>()(
               item.status === 'paused' ? { ...item, status: 'pending' } : item,
             ),
           }));
-          void runNext();
+          startChain();
         },
       };
     },
@@ -467,6 +549,24 @@ export const useBatchQueueStore = create<BatchQueueState>()(
  * scheduled entry becomes due (even if the user never pressed "Bắt đầu").
  */
 function maybeAutoStart(): void {
+  // A stalled queue first: it reports running, so the due-entry check below would
+  // never be reached for it. Whatever died left its entry on 'running', where no
+  // pending search will ever find it again — put it back and carry on from the
+  // checkpoint it already has.
+  if (isStalled()) {
+    console.warn('[BatchQueue] hàng chờ đang kẹt — khởi động lại vòng chạy');
+    useBatchQueueStore.setState((state) => ({
+      activeEntryId: null,
+      waiting: false,
+      entries: state.entries.map((entry) =>
+        entry.status === 'running'
+          ? { ...entry, status: 'pending' as const, resume: entry.jobId ? true : undefined }
+          : entry,
+      ),
+    }));
+    runNextRef?.();
+    return;
+  }
   const state = useBatchQueueStore.getState();
   if (state.running) return;
   const now = Date.now();

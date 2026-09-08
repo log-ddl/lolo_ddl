@@ -36,6 +36,7 @@
     "test:planner-beats": "node --experimental-strip-types src/features/video-studio/autopilot/planner-beat-map.test.ts",
     "test:model-fallback": "node --experimental-strip-types src/features/video-studio/autopilot/model-fallback.test.ts",
     "test:account-routing": "node --experimental-strip-types src/features/video-studio/autopilot/account-routing.test.ts",
+    "test:batch-queue": "node --experimental-strip-types src/features/video-studio/stores/batch-queue-order.test.ts",
     "test:long-form": "node --experimental-strip-types src/features/video-studio/lib/long-form/orchestrator.test.ts",
     "test:render-transitions": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test-render-transitions.ps1",
     "preview": "vite preview",
