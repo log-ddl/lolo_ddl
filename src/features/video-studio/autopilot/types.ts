@@ -344,6 +344,12 @@ export interface AutopilotJob {
   mediaOutputs?: AutopilotMediaOutput[];
   audioPath?: string;
   audioDurationMs?: number;
+  /**
+   * Measured length of each narration block inside the audio (spoken + trailing
+   * silence). Persisted because resume skips TTS: without it a resumed job would
+   * re-plan its shots on estimated timings and land them off the voice.
+   */
+  audioBlockDurationsMs?: number[];
   srtSegments?: AutopilotSrtSegment[];
   outputVideoPath?: string;
   /** Media-library id of the final MP4, so re-stitching overwrites it instead of piling up duplicates. */

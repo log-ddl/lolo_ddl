@@ -121,12 +121,19 @@ export async function generateSplit(
   const isLine = payload.splitMode === 'line'
   const unitLabel = options?.unitLabel || (isLine ? 'dòng' : 'câu')
   const stage = options?.stage || (isLine ? 'line-generating' : 'sentence-generating')
+  // Must mirror mergeLineAudios' own default, because the caller reconstructs the
+  // merged timeline from these two numbers alone.
+  const gapSec = options?.gapSec ?? 0.25
   const subIds = parts.map((_part, index) => `${parentJobId}-${index}`)
   lineJobs.set(parentJobId, subIds)
   try {
     fs.mkdirSync(outputRoot(), { recursive: true })
     const emitParent = (event: TtsRuntimeProgress) => emit({ ...event, jobId: parentJobId })
     const outputs: string[] = []
+    // Measured here and nowhere else: once the parts are merged and deleted, where
+    // each one starts inside the finished audio can only be guessed at. AutoPilot
+    // lays its shots on exactly these numbers instead of estimating from word count.
+    const partDurationsSec: number[] = []
     for (let index = 0; index < parts.length; index += 1) {
       emit({
         jobId: parentJobId,
@@ -140,17 +147,27 @@ export async function generateSplit(
         return { success: false, canceled: result.canceled, error: result.error || `Không thể đọc ${unitLabel} ${index + 1}` }
       }
       outputs.push(result.outputPath)
+      partDurationsSec.push(await probeMediaDuration(result.outputPath) || result.durationSec || 0)
     }
     const outputPath = path.join(outputRoot(), `${parentJobId}.wav`)
     emit({ jobId: parentJobId, kind: 'generate', stage: 'merging', percent: 94, message: 'Đang ghép các phần lại...' })
-    const merged = await mergeLineAudios(parentJobId, outputs, outputPath, options?.gapSec, payload.model.capability === 'vieneu' ? 48000 : 24000)
+    const merged = await mergeLineAudios(parentJobId, outputs, outputPath, gapSec, payload.model.capability === 'vieneu' ? 48000 : 24000)
     if (!merged.ok) {
       return { success: false, canceled: merged.canceled, error: merged.canceled ? 'Đã hủy tạo giọng' : 'Không thể ghép các phần audio' }
     }
     for (const output of outputs) fs.rmSync(output, { force: true })
     const durationSec = await probeMediaDuration(outputPath)
     emit({ jobId: parentJobId, kind: 'generate', stage: 'saving', percent: 100, message: 'Đã lưu audio' })
-    return { success: true, outputPath, durationSec: durationSec || undefined }
+    // All-or-nothing: one unreadable part would shift every shot after it, so a
+    // partial measurement is worse than none and the caller falls back instead.
+    const measured = partDurationsSec.length === parts.length && partDurationsSec.every((value) => value > 0)
+    return {
+      success: true,
+      outputPath,
+      durationSec: durationSec || undefined,
+      partDurationsSec: measured ? partDurationsSec : undefined,
+      partGapSec: measured ? gapSec : undefined,
+    }
   } finally {
     lineJobs.delete(parentJobId)
   }

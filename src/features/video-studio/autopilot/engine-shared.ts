@@ -70,6 +70,13 @@ export interface PendingShot {
 export interface AudioResult {
   path: string;
   durationMs: number;
+  /**
+   * How long each narration block actually occupies in the finished audio — its
+   * spoken length plus the silence padded after it. Present only when the TTS
+   * runtime read block by block and measured every one, so the shot timeline can
+   * be laid on real timings instead of a word-count estimate.
+   */
+  blockDurationsMs?: number[];
 }
 
 export interface CharacterReference {
@@ -150,6 +157,17 @@ export class StepCheckpointReached extends Error {
   }
 }
 
+/**
+ * Wait before the next generation attempt (doubled per extra attempt).
+ *
+ * Not zero: the failure this retry exists for is Google's reCAPTCHA risk score
+ * ("reCAPTCHA evaluation failed" / PUBLIC_ERROR_UNUSUAL_ACTIVITY), which is
+ * scored on request frequency, not on the request itself. Retrying immediately
+ * lands in the same risk window Google just refused, so it burns the only
+ * attempt left for nothing. Idling the lane this long is the point.
+ */
+export const GENERATION_RETRY_BASE_DELAY_MS = 10000;
+
 export async function runGenerationWithRetries<T>(
   retryAttempts: number,
   signal: AbortSignal,
@@ -160,7 +178,7 @@ export async function runGenerationWithRetries<T>(
   return withRetry(
     {
       attempts: totalAttempts,
-      baseDelayMs: 0,
+      baseDelayMs: GENERATION_RETRY_BASE_DELAY_MS,
       signal,
       // A daily-quota wall stands until midnight Pacific and a disconnected account
       // will not reconnect between two immediate attempts: retrying either one just

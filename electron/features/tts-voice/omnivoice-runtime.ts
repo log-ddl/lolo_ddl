@@ -231,6 +231,14 @@ class PersistentOmniVoiceWorker {
 const omniWorker = new PersistentOmniVoiceWorker()
 
 export async function generateTts(payload: TtsGeneratePayload, emit: Emit) {
+  // Checked before any provider branch: an explicit "read line by line" is the
+  // user's choice and used to be dropped on the floor for Vbee, whose own branch
+  // returned first. It also produces the per-part measurements AutoPilot lays its
+  // shots on. `default` still means "let the provider send the text its own way".
+  if (payload.splitMode && payload.splitMode !== 'default') {
+    const parts = payload.splitMode === 'line' ? splitLines(payload.text) : splitSentences(payload.text)
+    if (parts.length > 1) return generateSplit(generateTts, payload, parts, emit)
+  }
   if (payload.model.capability === 'vbee') {
     const parts = splitVbeeText(payload.text)
     if (parts.length > 1) {
@@ -259,10 +267,6 @@ export async function generateTts(payload: TtsGeneratePayload, emit: Emit) {
     }, emit)
   }
 
-  if (payload.splitMode && payload.splitMode !== 'default') {
-    const parts = payload.splitMode === 'line' ? splitLines(payload.text) : splitSentences(payload.text)
-    if (parts.length > 1) return generateSplit(generateTts, payload, parts, emit)
-  }
   if (payload.model.capability === 'vieneu') {
     assertAllowedModel(payload.model)
     return generateVieneu({

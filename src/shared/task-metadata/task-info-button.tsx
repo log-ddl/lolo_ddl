@@ -97,11 +97,15 @@ export function TaskInfoButton({ taskId, outputUrl, prompt, kind, className, tit
           {(record.prompt || record.instruction) && (
             <section>
               <div className="mb-1 flex items-center justify-between"><h4 className="text-xs font-semibold">{t('taskInfo.actualPrompt')}</h4><Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={copyPrompt}>{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copied ? t('taskInfo.copied') : t('taskInfo.copy')}</Button></div>
-              <pre className="max-h-64 whitespace-pre-wrap break-words rounded-lg border bg-muted/30 p-3 font-sans text-xs leading-relaxed">{record.prompt || record.instruction}</pre>
+              {/* overflow-y-auto, not just max-h: capping the height without a scroller
+                  lets a long prompt spill out of the box and paint over the sections below. */}
+              <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/30 p-3 font-sans text-xs leading-relaxed">{record.prompt || record.instruction}</pre>
             </section>
           )}
           {details.length > 0 && <details className="rounded-lg border px-3 py-2"><summary className="cursor-pointer text-xs font-semibold">{t('taskInfo.technical')}</summary><div className="mt-2 border-t pt-1">{details.map(([label, value]) => <Row key={label} label={label} value={String(value)} />)}<Row label="Task ID" value={<span className="font-mono text-2xs">{record.id}</span>} /></div></details>}
-          {record.error && <section className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">{record.error}</section>}
+          {/* Provider errors arrive as one unbroken JSON blob with nowhere to wrap, so
+              without break-words it runs straight out of the dialog and the tail is lost. */}
+          {record.error && <section className="whitespace-pre-wrap break-words rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">{record.error}</section>}
             </>
           )}
         </div>

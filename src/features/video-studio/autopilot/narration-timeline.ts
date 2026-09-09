@@ -171,20 +171,108 @@ function attachLockedNarration(beats: TimedNarrationBeat[], narrationBlocks: str
   });
 }
 
+/**
+ * Lay blocks end to end on their measured lengths. The last block absorbs any
+ * leftover so the timeline always ends exactly on the audio, and returns
+ * undefined when the measurements do not cover the blocks we were given.
+ */
+function segmentsFromMeasuredBlocks(
+  blocks: string[],
+  blockDurationsMs: number[] | undefined,
+  safeDuration: number,
+): AutopilotSrtSegment[] | undefined {
+  if (!blockDurationsMs || blockDurationsMs.length !== blocks.length || blocks.length === 0) return undefined;
+  if (!blockDurationsMs.every((value) => Number.isFinite(value) && value > 0)) return undefined;
+  let cursor = 0;
+  return blocks.map((text, index) => {
+    const isLast = index === blocks.length - 1;
+    const endMs = isLast ? Math.max(cursor + 1, safeDuration) : cursor + blockDurationsMs[index];
+    const segment = { index, startMs: cursor, endMs: Math.max(cursor + 1, endMs), text };
+    cursor = segment.endMs;
+    return segment;
+  });
+}
+
+/**
+ * Cut the blocks on subtitle timings instead of on a flat words-per-second guess.
+ *
+ * Every boundary is placed by asking the captions when that share of the narration
+ * has been spoken, so it is anchored to a real timestamp on every caption line and
+ * only interpolated inside the line it lands in. The share is a fraction of the
+ * total rather than an absolute word index, so captions that spell things
+ * differently from the script (digits vs words, a Whisper transcript) still map.
+ *
+ * A boundary that falls on a caption's first word lands on that caption's start,
+ * which puts any silence before it at the end of the previous shot — the image
+ * changes when the next line is spoken, not during the pause.
+ */
+function segmentsFromSubtitleAlignment(
+  blocks: string[],
+  subtitles: AutopilotSrtSegment[],
+  safeDuration: number,
+): AutopilotSrtSegment[] | undefined {
+  if (blocks.length === 0) return undefined;
+  const captions = subtitles
+    .filter((seg) => seg.text.trim() && seg.endMs > seg.startMs)
+    .map((seg) => ({ startMs: seg.startMs, endMs: seg.endMs, words: wordCount(seg.text) }))
+    .sort((a, b) => a.startMs - b.startMs);
+  if (captions.length === 0) return undefined;
+  const captionWords = captions.reduce((sum, caption) => sum + caption.words, 0);
+  const blockWords = blocks.map(wordCount);
+  const totalBlockWords = blockWords.reduce((sum, count) => sum + count, 0);
+  if (captionWords === 0 || totalBlockWords === 0) return undefined;
+
+  const timeAtWord = (target: number): number => {
+    if (target <= 0) return captions[0].startMs;
+    let consumed = 0;
+    for (const caption of captions) {
+      if (target <= consumed + caption.words) {
+        const within = (target - consumed) / caption.words;
+        return caption.startMs + within * (caption.endMs - caption.startMs);
+      }
+      consumed += caption.words;
+    }
+    return captions[captions.length - 1].endMs;
+  };
+
+  let spokenWords = 0;
+  let cursor = 0;
+  return blocks.map((text, index) => {
+    spokenWords += blockWords[index];
+    const isLast = index === blocks.length - 1;
+    // Every later block still needs a millisecond of its own, so a run of boundaries
+    // landing on the same caption cannot eat the rest of the film.
+    const remaining = blocks.length - index - 1;
+    const endMs = isLast
+      ? Math.max(cursor + 1, safeDuration)
+      : Math.min(
+          Math.max(cursor + 1, Math.round(timeAtWord((spokenWords / totalBlockWords) * captionWords))),
+          Math.max(cursor + 1, safeDuration - remaining),
+        );
+    const segment = { index, startMs: cursor, endMs, text };
+    cursor = segment.endMs;
+    return segment;
+  });
+}
+
 export function buildNarrationTimeline(
   narrationBlocks: string[],
   durationMs: number,
   subtitles: AutopilotSrtSegment[],
   maxShots?: number,
+  blockDurationsMs?: number[],
 ): TimedNarrationBeat[] {
   const safeDuration = Math.max(1_000, Math.round(durationMs));
+  const blocks = narrationBlocks.filter((text) => text.trim());
+  const measured = segmentsFromMeasuredBlocks(blocks, blockDurationsMs, safeDuration);
   let source: AutopilotSrtSegment[];
   if (subtitles.length > 0) {
     source = subtitles.map((seg, index) => ({ ...seg, index }));
     source[0].startMs = 0;
     source[source.length - 1].endMs = Math.max(source[source.length - 1].endMs, safeDuration);
+  } else if (measured) {
+    source = measured;
   } else {
-    const blocks = narrationBlocks.filter((text) => text.trim());
     const totalWords = blocks.reduce((sum, text) => sum + wordCount(text), 0) || 1;
     let cursor = 0;
     source = blocks.map((text, index) => {
@@ -196,14 +284,35 @@ export function buildNarrationTimeline(
     });
   }
   const beats = applyShotSafetyCap(mergeToVisualBeats(source), maxShots);
+  // Only Whisper needs its beats re-worded: its transcript is its own text, so the
+  // script has to be redistributed over it. Estimated and measured sources already
+  // carry the script's own words.
   return subtitles.length > 0 ? attachLockedNarration(beats, narrationBlocks) : beats;
 }
 
 /** Preserve exactly one timed beat per imported JSON shot. */
-export function buildImportedPlanTimeline(voiceOvers: string[], durationMs: number): TimedNarrationBeat[] {
+export function buildImportedPlanTimeline(
+  voiceOvers: string[],
+  durationMs: number,
+  blockDurationsMs?: number[],
+  subtitles: AutopilotSrtSegment[] = [],
+): TimedNarrationBeat[] {
   const blocks = voiceOvers.map(cleanNarrationText).filter(Boolean);
   if (blocks.length === 0) return [];
   const safeDuration = Math.max(1_000, Math.round(durationMs));
+  // Best available truth first: parts we measured ourselves (exact), then the
+  // caption timings (anchored per line), and only then a words-per-second guess.
+  // An imported voice file has no parts to measure, so captions are all it gets.
+  const timed = segmentsFromMeasuredBlocks(blocks, blockDurationsMs, safeDuration)
+    || segmentsFromSubtitleAlignment(blocks, subtitles, safeDuration);
+  if (timed) {
+    return timed.map((segment, index) => ({
+      index: index + 1,
+      startMs: segment.startMs,
+      endMs: segment.endMs,
+      text: segment.text,
+    }));
+  }
   const weights = blocks.map(wordCount);
   const total = weights.reduce((sum, count) => sum + count, 0) || blocks.length;
   let words = 0;

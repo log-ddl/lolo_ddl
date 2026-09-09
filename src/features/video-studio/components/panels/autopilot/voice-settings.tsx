@@ -44,6 +44,7 @@ export function useAutopilotVoiceSettings() {
   const [geminiLanguage, setGeminiLanguage] = useState("vi-VN");
   const [geminiVoiceName, setGeminiVoiceName] = useState("Puck");
   const [omniLanguage, setOmniLanguage] = useState("vi");
+  const [omniLanguageSearch, setOmniLanguageSearch] = useState("");
   const [omniProfileId, setOmniProfileId] = useState("");
   const omniProfiles = useTtsStore((s) => s.voiceProfiles).filter((profile) => profile.providerId === "omnivoice-local");
   const vieneuProfiles = useTtsStore((s) => s.voiceProfiles).filter((profile) => profile.providerId === "vieneu-local");
@@ -107,6 +108,27 @@ export function useAutopilotVoiceSettings() {
     const selected = vbeeVoices.find((voice) => voice.code === vbeeVoiceCode);
     return selected ? [selected, ...filteredVbeeVoices] : filteredVbeeVoices;
   }, [filteredVbeeVoices, vbeeVoiceCode, vbeeVoices]);
+
+  // OmniVoice ships 600+ languages, which is far past what a native <select> can be
+  // scrolled through. Matched on the English name, the code and the ISO 639-3 code so
+  // "vie", "vi" and "Vietnamese" all find the same row.
+  const filteredOmniLanguages = useMemo(() => {
+    const query = omniLanguageSearch.trim().toLocaleLowerCase();
+    if (!query) return OMNIVOICE_LANGUAGES;
+    return OMNIVOICE_LANGUAGES.filter((language) => (
+      language.name.toLocaleLowerCase().includes(query)
+      || language.code.toLocaleLowerCase().includes(query)
+      || language.iso6393.toLocaleLowerCase().includes(query)
+    ));
+  }, [omniLanguageSearch]);
+
+  // Same reason as vbeeVoiceOptions: a selection filtered out of the list would be
+  // replaced on screen by the first option, silently and without a change event.
+  const omniLanguageOptions = useMemo(() => {
+    if (filteredOmniLanguages.some((language) => language.code === omniLanguage)) return filteredOmniLanguages;
+    const selected = OMNIVOICE_LANGUAGES.find((language) => language.code === omniLanguage);
+    return selected ? [selected, ...filteredOmniLanguages] : filteredOmniLanguages;
+  }, [filteredOmniLanguages, omniLanguage]);
 
   useEffect(() => {
     if (!capcutVoices.some((voice) => voice.voiceType === capcutVoiceType)) {
@@ -238,6 +260,8 @@ export function useAutopilotVoiceSettings() {
     vieneuStyle, setVieneuStyle,
     vieneuProfiles, vieneuProfileId, setVieneuProfileId,
     omniLanguage, setOmniLanguage,
+    omniLanguageSearch, setOmniLanguageSearch,
+    filteredOmniLanguages, omniLanguageOptions,
     omniProfiles, omniProfileId, setOmniProfileId,
     omniMode, setOmniMode,
     omniInstruction, setOmniInstruction,
@@ -459,12 +483,26 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
           </select>
         </div>
         <div>
-          <Label className="text-xs mb-1.5 block">{t("autopilot.panel.language")}</Label>
+          <Label className="text-xs mb-1.5 block">
+            {t("autopilot.panel.language")} ({s.filteredOmniLanguages.length}/{OMNIVOICE_LANGUAGES.length})
+          </Label>
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={s.omniLanguageSearch}
+              onChange={(event) => s.setOmniLanguageSearch(event.target.value)}
+              placeholder="Tìm ngôn ngữ theo tên hoặc mã…"
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
           <select value={s.omniLanguage} onChange={(e) => s.setOmniLanguage(e.target.value)} className={SELECT_CLASS}>
-            {OMNIVOICE_LANGUAGES.map((language) => (
+            {s.omniLanguageOptions.map((language) => (
               <option key={language.code} value={language.code}>{language.name} ({language.code})</option>
             ))}
           </select>
+          {s.filteredOmniLanguages.length === 0 && (
+            <p className="mt-1 text-2xs text-muted-foreground">Không có ngôn ngữ nào khớp — đang giữ nguyên lựa chọn hiện tại.</p>
+          )}
         </div>
       </div>
 

@@ -133,6 +133,14 @@ export interface TtsGenerateResult {
   durationSec?: number;
   canceled?: boolean;
   error?: string;
+  /**
+   * Measured duration of each part, in reading order, when the text was split
+   * before synthesis. Present only when every part was measured — a partial list
+   * would silently shift everything after the missing one.
+   */
+  partDurationsSec?: number[];
+  /** Silence padded after every part except the last, in seconds. */
+  partGapSec?: number;
 }
 
 export interface VoiceProfile {

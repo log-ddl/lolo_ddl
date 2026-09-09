@@ -652,7 +652,13 @@ export class AutopilotEngine {
         if (narrationBlocks.length === 0) throw new Error('Kịch bản không có lời thuyết minh để tạo giọng đọc');
         this.log(job.id, 'script', `Khóa ${narrationBlocks.length} khối lời thuyết minh trước khi tạo media`);
         audio = checkpointAudioDuration > 0
-          ? { path: job.audioPath!, durationMs: Math.round(checkpointAudioDuration * 1000) }
+          ? {
+              path: job.audioPath!,
+              durationMs: Math.round(checkpointAudioDuration * 1000),
+              // Resume skips TTS, so the measurements have to come back from the
+              // checkpoint or the shots would be re-planned on estimated timings.
+              blockDurationsMs: job.audioBlockDurationsMs,
+            }
           : await runAudioStage(this.ctx, job, narrationBlocks, controller.signal);
         if (checkpointAudioDuration > 0) this.log(job.id, 'resume', 'Bỏ qua voice đã hoàn thành');
         srtSegments = job.srtSegments !== undefined
@@ -661,10 +667,22 @@ export class AutopilotEngine {
       }
       this.completeStep(job, 'audio');
       const beats = job.input.importedPlan
-        ? buildImportedPlanTimeline(job.input.importedPlan.shots.map((shot) => shot.voiceOver), audio.durationMs)
-        : buildNarrationTimeline(narrationBlocks, audio.durationMs, srtSegments, job.input.maxShots);
+        ? buildImportedPlanTimeline(
+            job.input.importedPlan.shots.map((shot) => shot.voiceOver),
+            audio.durationMs,
+            audio.blockDurationsMs,
+            srtSegments,
+          )
+        : buildNarrationTimeline(narrationBlocks, audio.durationMs, srtSegments, job.input.maxShots, audio.blockDurationsMs);
       if (beats.length === 0) throw new Error('Không lập được timeline hình ảnh từ narration');
-      this.log(job.id, 'shots', `Audio ${(audio.durationMs / 1000).toFixed(1)}s → ${beats.length} shot theo timing thật`);
+      // Say which of the three it actually was: "timing thật" used to be printed even
+      // when every boundary had been guessed from word count.
+      const timingSource = audio.blockDurationsMs?.length === narrationBlocks.length
+        ? 'đo từ thời lượng thật của từng khối lời đọc'
+        : srtSegments.length > 0
+          ? 'căn theo mốc SRT/caption'
+          : 'ƯỚC LƯỢNG theo số từ (hình có thể lệch giọng)';
+      this.log(job.id, 'shots', `Audio ${(audio.durationMs / 1000).toFixed(1)}s → ${beats.length} shot, mốc ${timingSource}`);
 
       const longFormThresholdMinutes = Math.min(120, Math.max(1,
         Math.round(job.input.longFormThresholdMinutes || DEFAULT_LONG_FORM_THRESHOLD_MINUTES),

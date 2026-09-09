@@ -50,6 +50,30 @@ export async function runScriptStage(ctx: EngineContext, job: AutopilotJob, sign
   return scriptText;
 }
 
+/**
+ * Turn the TTS runtime's per-part measurements into one slot length per narration
+ * block: the part's own spoken length plus the silence padded after it, which is
+ * exactly where the next block starts speaking.
+ *
+ * Returns undefined unless the parts line up one-for-one with the blocks we sent.
+ * They only do when the runtime read block by block (splitMode `line`); Vbee sends
+ * the whole script as one request, and a sentence split cuts finer than a block.
+ * A mismatched list would slide every shot after the first difference, so the
+ * caller falls back to estimating rather than trusting it.
+ */
+function toBlockDurationsMs(
+  partDurationsSec: number[] | undefined,
+  partGapSec: number | undefined,
+  blockCount: number,
+): number[] | undefined {
+  if (!partDurationsSec || partDurationsSec.length !== blockCount || blockCount === 0) return undefined;
+  if (!partDurationsSec.every((value) => Number.isFinite(value) && value > 0)) return undefined;
+  const gapMs = Math.max(0, Math.round((partGapSec ?? 0) * 1000));
+  return partDurationsSec.map((seconds, index) => (
+    Math.max(1, Math.round(seconds * 1000) + (index < partDurationsSec.length - 1 ? gapMs : 0))
+  ));
+}
+
 export async function runAudioStage(
   ctx: EngineContext,
   job: AutopilotJob,
@@ -123,10 +147,14 @@ export async function runAudioStage(
     if (!result?.success || !result.outputPath) throw new Error(result?.error || 'Không tạo được giọng đọc');
     const probed = result.durationSec || (await window.ffmpegRuntime?.probeDuration(result.outputPath))?.durationSec || 0;
     const durationMs = Math.max(1_000, Math.round(probed * 1000));
-    ctx.updateJob(job.id, { audioPath: result.outputPath, audioDurationMs: durationMs });
+    const blockDurationsMs = toBlockDurationsMs(result.partDurationsSec, result.partGapSec, narrationBlocks.length);
+    ctx.updateJob(job.id, { audioPath: result.outputPath, audioDurationMs: durationMs, audioBlockDurationsMs: blockDurationsMs });
     ctx.log(job.id, 'audio', `Audio khóa timeline: ${result.outputPath} (${(durationMs / 1000).toFixed(1)}s)`);
+    ctx.log(job.id, 'audio', blockDurationsMs
+      ? `Đo được thời lượng thật của ${blockDurationsMs.length} khối lời đọc — shot sẽ bám đúng giọng`
+      : 'Không đo được thời lượng từng khối (giọng đọc không tách khối) — timeline shot phải ước lượng theo số từ');
     ctx.stageProgress(job.id, 'audio', 100);
-    return { path: result.outputPath, durationMs };
+    return { path: result.outputPath, durationMs, blockDurationsMs };
   } finally {
     signal.removeEventListener('abort', abort);
   }
