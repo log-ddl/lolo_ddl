@@ -8,8 +8,14 @@ export const GOOGLE_FLOW_API_ROOT = 'https://aisandbox-pa.googleapis.com';
 // followed that move and every call died as "TypeError: Failed to fetch".
 // A relative path resolves against whatever origin the tab is on, so it stays
 // same-origin across the move — and any future one.
-// Ordered by likelihood: /fx/api/trpc is what labs.google serves today.
-export const GOOGLE_FLOW_TRPC_PATHS = ['/fx/api/trpc', '/api/trpc'] as const;
+// One mount, not a guess list. Probed directly:
+//   labs.google/fx/api/trpc   → tRPC's own JSON (401 UNAUTHORIZED without a session)
+//   labs.google/api/trpc      → 405 HTML, for everyone, signed in or not
+//   flow.google.com/*/trpc    → 405 HTML on both paths; it serves no tRPC at all
+// '/api/trpc' used to sit here as a fallback. It could never succeed, and worse: the
+// project-creation loop reported only its LAST failure, so that guaranteed 405 buried
+// the real reason from the first path every single time.
+export const GOOGLE_FLOW_TRPC_PATHS = ['/fx/api/trpc'] as const;
 // tRPC still lives on labs.google even though the signed-in UI moved to
 // flow.google.com. The bridge sends these from the Electron main process, where
 // there is no CORS at all, so the origin split stops mattering.

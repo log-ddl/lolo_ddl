@@ -790,13 +790,16 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private async createFlowProject(longddProjectId: string, slot: FlowCredentialSlot, signal?: AbortSignal, requestedTitle?: string): Promise<ProjectBinding> {
     const cleanTitle = requestedTitle?.replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, 80);
     const projectTitle = cleanTitle || `LONGDD ${longddProjectId}`;
-    // Try each known tRPC mount until one answers with a real project. A path the
-    // app does not serve returns its HTML shell (or a 404 page), never a project
-    // id, so a wrong guess costs one request and creates nothing. The winner is
-    // remembered so later projects go straight to it.
+    // GOOGLE_FLOW_TRPC_PATHS holds one entry today, but the loop stays: if Google
+    // moves the mount again, adding the new one here is the whole fix. A path the app
+    // does not serve answers with its HTML shell, never a project id, so a wrong guess
+    // costs one request and creates nothing. The winner is remembered for later projects.
     const paths = this.trpcPath ? [this.trpcPath, ...GOOGLE_FLOW_TRPC_PATHS.filter((path) => path !== this.trpcPath)] : [...GOOGLE_FLOW_TRPC_PATHS];
     let flowProjectId: string | undefined;
-    let lastError: unknown;
+    // Every attempt is kept, not just the last one. Reporting only the last turned a
+    // real "this account is not signed in" into whatever the final probe happened to
+    // say, which is how a dead fallback path hid the actual cause for good.
+    const failures: string[] = [];
     for (const path of paths) {
       let response: unknown;
       try {
@@ -806,16 +809,26 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           body: { json: { projectTitle, toolName: 'PINHOLE' } },
         }, 30_000, signal);
       } catch (error) {
-        lastError = error;
+        failures.push(`${path}: ${error instanceof Error ? error.message : String(error)}`);
         continue;
       }
       flowProjectId = extractFlowProjectId(response);
       if (flowProjectId) { this.trpcPath = path; break; }
-      lastError = response;
+      // A 2xx with no project id in it: say so rather than reporting nothing at all.
+      let body: string;
+      try { body = typeof response === 'string' ? response : JSON.stringify(response); } catch { body = String(response); }
+      failures.push(`${path}: trả lời không có project ID: ${(body || '').slice(0, 300)}`);
     }
     if (!flowProjectId) {
-      const detail = lastError instanceof Error ? `: ${lastError.message}` : '';
-      throw new Error(`Google Flow không trả về project ID (đã thử ${paths.join(', ')})${detail}`);
+      const account = slot.extensionInstanceId.slice(0, 8);
+      // The overwhelmingly common cause, and the one the user can actually fix: the
+      // account has a session on flow.google.com but none on labs.google, which is
+      // where project creation lives.
+      const unauthorized = failures.some((failure) => /HTTP 40[13]\b|UNAUTHORIZED|PERMISSION_DENIED/i.test(failure));
+      const hint = unauthorized
+        ? ` — tài khoản ${account} chưa được labs.google chấp nhận phiên đăng nhập. Đăng nhập lại tài khoản này rồi bấm "Tạo project mới", hoặc bỏ nó ra khỏi danh sách khi chạy.`
+        : ` — tài khoản ${account}.`;
+      throw new Error(`Google Flow không tạo được project. ${failures.join(' | ')}${hint}`);
     }
     for (const item of this.bindings) {
       if (item.longddProjectId === longddProjectId && item.ownerScopeId === slot.ownerScopeId) item.active = false;
