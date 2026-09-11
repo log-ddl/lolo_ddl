@@ -64,22 +64,13 @@ export function isDeadBearerError(error: unknown): boolean {
   return DEAD_BEARER_REASON.test(message);
 }
 
-// This account cannot sign anything right now — no token, no page token, or its
-// browser is simply not there. None of it is about the request, so another
-// account can run exactly the same work.
-const ACCOUNT_UNUSABLE_REASON = /NO_AT_TOKEN|NO_FLOW_KEY|extension disconnected|No ready Google Flow extension|FLOW_TAB_DISCARDED/i;
-
 /**
- * True when the failure belongs to the account rather than to the request, so the
- * work should move to a different account instead of being reported as failed.
- *
- * Deliberately NOT included: captcha verdicts (a retry on the same account passes
- * them), moderation, and anything the prompt caused — failing those over would
- * just burn every account on the same doomed request.
+ * True when the user stopped the work. The only failure that must never be
+ * retried anywhere: a cancelled job asked for nothing more.
  */
-export function isAccountUnusableError(error: unknown): boolean {
+export function isCancelledError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return DEAD_BEARER_REASON.test(message) || ACCOUNT_UNUSABLE_REASON.test(message);
+  return (error as Error)?.name === 'AbortError' || /Cancelled by user/i.test(message);
 }
 
 const PACIFIC_CLOCK = new Intl.DateTimeFormat('en-US', {

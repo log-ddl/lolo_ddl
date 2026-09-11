@@ -63,7 +63,7 @@ import {
   FLOW_ALL_ACCOUNTS_QUOTA_LOCKED,
   FLOW_NO_ALLOWED_ACCOUNT,
   FlowQuotaLockStore,
-  isAccountUnusableError,
+  isCancelledError,
   isDailyQuotaError,
   isDeadBearerError,
 } from './quota-locks';
@@ -749,6 +749,9 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     const exhausted = new Set<string>();
     let lastAttempt: { slot: FlowCredentialSlot; lane: Lane } | undefined;
     let queuedMessage: string | undefined;
+    // The last thing an account actually said, kept so it can be reported once
+    // they have all been tried.
+    let lastFailure: Error | undefined;
     for (;;) {
       let lane: Lane;
       try {
@@ -757,8 +760,12 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         // On the first pass nothing was queued yet, so the thrown error is the
         // caller's whole story. After a failover the UI already shows this task
         // sitting on a lane — mark it failed now that no account is left.
-        if (lastAttempt) this.emitLaneTask(taskId, kind, 'failed', lastAttempt.slot, lastAttempt.lane, undefined, safeMessage(error));
-        throw error;
+        //
+        // And report what Google said on the last account rather than "no lane
+        // available": running out of accounts is the consequence, never the cause.
+        const reported = lastFailure || (error instanceof Error ? error : new Error(String(error)));
+        if (lastAttempt) this.emitLaneTask(taskId, kind, 'failed', lastAttempt.slot, lastAttempt.lane, undefined, safeMessage(reported));
+        throw reported;
       }
       const slot = this.sockets.get(lane.credentialId)?.slot;
       if (!slot) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
@@ -778,20 +785,25 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           return executor(laneSlot, currentLane, signal);
         }, isDailyQuotaError, queuedMessage);
       } catch (error) {
-        // The account is the problem, not the request: park it for this task and
-        // run the same work somewhere else. Losing a session used to kill the shot
-        // outright, even with four healthy accounts sitting idle next to it.
-        if (isAccountUnusableError(error)) {
+        // Cancelling means the user wants nothing more, so it never travels.
+        if (isCancelledError(error)) throw error;
+        if (!isDailyQuotaError(error)) {
+          // Any other failure, whatever it was: this ONE piece of work does not go
+          // back to this account, and another account gets it. No classifying —
+          // batchexecute answers with bare numeric codes like `[3]` that match no
+          // pattern, so demanding a recognised reason before failing over meant
+          // nothing ever failed over at all.
+          //
+          // Scope matters: `exhausted` lives for this task alone, so the account
+          // keeps taking every other shot. Only a daily-quota lock parks an account
+          // for longer, and that one is read straight out of Google's own wording.
+          lastFailure = this.withAccountLabel(error, slot);
           exhausted.add(lane.credentialId);
           const label = this.accountLabel(slot);
-          console.warn(`[video-studio][google-flow] ${label} không dùng được (${safeMessage(error)}) — chuyển việc sang tài khoản khác`);
-          queuedMessage = `Tài khoản ${label} mất phiên — đã chuyển sang tài khoản khác`;
+          console.warn(`[video-studio][google-flow] ${taskId}: ${label} lỗi (${safeMessage(error)}) — thử việc này trên tài khoản khác`);
+          queuedMessage = `${label} lỗi — đang thử tài khoản khác`;
           continue;
         }
-        // Everything else is the caller's to see, and it must say which account it
-        // happened on: with five accounts running, "session expired" alone tells
-        // the user nothing about which one to fix.
-        if (!isDailyQuotaError(error)) throw this.withAccountLabel(error, slot);
         const modelKey = modelKeyFor(slot);
         // Only the first job through the wall records the lock. The rest of that
         // account's in-flight batch lands here too, and re-locking each time
