@@ -22,6 +22,15 @@ import path from 'node:path';
 export const FLOW_ALL_ACCOUNTS_QUOTA_LOCKED = 'FLOW_ALL_ACCOUNTS_QUOTA_LOCKED';
 export const FLOW_NO_ALLOWED_ACCOUNT = 'FLOW_NO_ALLOWED_ACCOUNT';
 
+/**
+ * Opens the tag naming the account a failure happened on, e.g.
+ * `… [tài khoản: a@gmail.com]`. Appended to the message so the renderer can map
+ * the part before it to a readable sentence and put the tag back afterwards —
+ * with five accounts running, "session expired" alone names no culprit.
+ * Mirrored for the renderer alongside the codes above.
+ */
+export const FLOW_ACCOUNT_TAG_OPEN = '[tài khoản: ';
+
 export type FlowQuotaLock = {
   /** Account identity (`slot.ownerScopeId`) — stable across app restarts. */
   ownerScopeId: string;
@@ -41,6 +50,36 @@ const DAILY_QUOTA_REASON = /PER_MODEL_DAILY_QUOTA|DAILY_QUOTA_REACHED|DAILY_QUOT
 export function isDailyQuotaError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return DAILY_QUOTA_REASON.test(message);
+}
+
+// The bearer is gone, not merely unlucky. Google stopped minting these in the
+// September 2026 migration, so a 401 here is permanent for this account and the
+// only cure is the batchexecute path. 403 is deliberately excluded: on the
+// generate endpoints that is the reCAPTCHA verdict, which a retry can pass.
+const DEAD_BEARER_REASON = /HTTP 401\b|UNAUTHENTICATED|ACCESS_TOKEN_REFRESH_NEEDED|NO_FLOW_KEY/i;
+
+/** True when a call failed because this account has no usable bearer token left. */
+export function isDeadBearerError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return DEAD_BEARER_REASON.test(message);
+}
+
+// This account cannot sign anything right now — no token, no page token, or its
+// browser is simply not there. None of it is about the request, so another
+// account can run exactly the same work.
+const ACCOUNT_UNUSABLE_REASON = /NO_AT_TOKEN|NO_FLOW_KEY|extension disconnected|No ready Google Flow extension|FLOW_TAB_DISCARDED/i;
+
+/**
+ * True when the failure belongs to the account rather than to the request, so the
+ * work should move to a different account instead of being reported as failed.
+ *
+ * Deliberately NOT included: captcha verdicts (a retry on the same account passes
+ * them), moderation, and anything the prompt caused — failing those over would
+ * just burn every account on the same doomed request.
+ */
+export function isAccountUnusableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return DEAD_BEARER_REASON.test(message) || ACCOUNT_UNUSABLE_REASON.test(message);
 }
 
 const PACIFIC_CLOCK = new Intl.DateTimeFormat('en-US', {

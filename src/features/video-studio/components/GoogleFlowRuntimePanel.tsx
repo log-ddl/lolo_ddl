@@ -375,8 +375,9 @@ export function GoogleFlowRuntimePanel({ alwaysVisible = false }: { alwaysVisibl
                   size="sm"
                   className="h-8 shrink-0 text-2xs"
                   disabled={busy || credential.state !== 'ready'}
+                  title="Tạo project mới nếu tài khoản còn quyền; nếu không thì dùng lại project sẵn có của tài khoản đó"
                   onClick={() => void createFlowProject(credential.credentialId)}
-                >{busy ? 'Đang xử lý…' : 'Tạo project mới'}</Button>
+                >{busy ? 'Đang xử lý…' : 'Lấy Flow project'}</Button>
               </div>
             )}
           </div>

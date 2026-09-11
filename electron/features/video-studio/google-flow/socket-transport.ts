@@ -7,6 +7,14 @@ import {
   isAllowedFlowUrl,
   isUuid,
 } from './protocol';
+import {
+  RPC_GEN_IMAGE,
+  RPC_GEN_VIDEO,
+  RPC_MEDIA,
+  RPC_OPERATION,
+  RPC_PROJECT_MEDIA,
+  RPC_UPLOAD_IMAGE,
+} from './flow-batch';
 import { randomBetween, sleep } from '../browser-session/runtime-utils';
 import { decodeVerifiedMp4, extractFlowOperations, operationStatus } from './result-parser';
 import { downloadVideoBytes } from './media-io';
@@ -20,6 +28,11 @@ import { safeMessage, type Lane, type PendingRequest, type SocketState } from '.
  * Both functions take a {@link FlowSocketContext} instead of `this` so the
  * transport can live outside the runtime class while still sharing its state.
  */
+
+/** The only batchexecute RPCs this app issues. Anything else is refused up front. */
+const KNOWN_FLOW_RPC_IDS = new Set<string>([
+  RPC_GEN_IMAGE, RPC_GEN_VIDEO, RPC_OPERATION, RPC_PROJECT_MEDIA, RPC_MEDIA, RPC_UPLOAD_IMAGE,
+]);
 
 export interface FlowSocketContext {
   readonly protocolVersion: number;
@@ -219,11 +232,20 @@ export async function runOnLane<T>(ctx: FlowSocketContext, kind: 'image' | 'vide
 }
 
 
-export function proxyRequest(ctx: FlowSocketContext, slot: FlowCredentialSlot, type: 'api_request' | 'trpc_request', params: Record<string, unknown>, timeout: number, signal?: AbortSignal): Promise<unknown> {
+export function proxyRequest(ctx: FlowSocketContext, slot: FlowCredentialSlot, type: 'api_request' | 'trpc_request' | 'batch_rpc', params: Record<string, unknown>, timeout: number, signal?: AbortSignal): Promise<unknown> {
   const state = ctx.sockets.get(slot.credentialId);
   if (!state || state.socket.readyState !== WebSocket.OPEN) return Promise.reject(new Error('Google Flow extension disconnected'));
+  // A batch RPC has no url to vet: the endpoint is a fixed path on the Flow app's
+  // own origin, built inside the page, so it cannot be pointed anywhere else. What
+  // it does carry is an rpcid, and only the ids this app knows are allowed through.
   const url = String(params.url || '');
-  if (!isAllowedFlowUrl(url)) return Promise.reject(new Error('Google Flow URL is not allowed'));
+  if (type === 'batch_rpc') {
+    if (!KNOWN_FLOW_RPC_IDS.has(String(params.rpcid || ''))) {
+      return Promise.reject(new Error(`Google Flow rpcid không hợp lệ: ${String(params.rpcid || '')}`));
+    }
+  } else if (!isAllowedFlowUrl(url)) {
+    return Promise.reject(new Error('Google Flow URL is not allowed'));
+  }
   const requestId = randomUUID();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => { ctx.pending.delete(requestId); reject(new Error(`Google Flow request timed out after ${timeout}ms`)); }, timeout);

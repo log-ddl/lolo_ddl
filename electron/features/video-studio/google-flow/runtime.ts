@@ -59,13 +59,49 @@ import {
   type FlowSocketContext,
 } from './socket-transport';
 import {
+  FLOW_ACCOUNT_TAG_OPEN,
   FLOW_ALL_ACCOUNTS_QUOTA_LOCKED,
   FLOW_NO_ALLOWED_ACCOUNT,
   FlowQuotaLockStore,
+  isAccountUnusableError,
   isDailyQuotaError,
+  isDeadBearerError,
 } from './quota-locks';
+import {
+  RPC_GEN_IMAGE,
+  RPC_GEN_VIDEO,
+  RPC_MEDIA,
+  RPC_OPERATION,
+  RPC_PROJECT_MEDIA,
+  RPC_UPLOAD_IMAGE,
+  STATUS_DONE,
+  findMediaId,
+  findMediaIdInText,
+  firstPayload,
+  imageRequest,
+  mediaRequest,
+  operationRequest,
+  projectMediaRequest,
+  readImages,
+  readMediaUrls,
+  readOperation,
+  readUploadedMediaId,
+  uploadRequest,
+  videoRequest,
+} from './flow-batch';
 
 const UPSCALE_MODEL_KEY = 'veo_3_1_upsampler_4k';
+
+/** firstPayload, but a malformed envelope yields nothing instead of throwing mid-poll. */
+function safeFirstPayload(text: string, rpcid: string): unknown {
+  try { return firstPayload(text, rpcid); } catch { return undefined; }
+}
+
+/** What the runtime needs from an account's own Flow tab once the create-project API is gone. */
+interface InAppPageAccess {
+  listPageProjectIds(): Promise<string[]>;
+  createPageProject(): Promise<string | undefined>;
+}
 
 export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext {
   readonly protocolVersion = GOOGLE_FLOW_PROTOCOL_VERSION;
@@ -214,7 +250,11 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     if (!state || state.socket.readyState !== WebSocket.OPEN || state.slot.state !== 'ready') {
       throw new Error('Tiện ích Google Flow đã chọn hiện không sẵn sàng');
     }
-    const binding = await this.createFlowProject(input.longddProjectId, state.slot, undefined, input.title);
+    // Same path the generation flow takes, not a bare createFlowProject: since
+    // Google retired project creation, pressing this button on a migrated account
+    // could only ever answer 401 — while the very project it needed was sitting on
+    // that account's own Flow tab.
+    const binding = await this.resolveProjectBinding(input.longddProjectId, state.slot, undefined, input.title);
     return this.toProjectBindingInfo(binding);
   }
 
@@ -442,18 +482,37 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           body.mediaGenerationContext = { batchId: randomUUID() };
           body.useNewMedia = true;
         }
-        let response: unknown;
+        let mediaId: string | undefined;
+        let remoteUrl: string | undefined;
+        const batchInput = {
+          prompt: input.prompt,
+          aspectRatio: input.aspectRatio,
+          model: imageModelKeyFor(slot),
+          referenceMediaIds: [...(baseMediaId ? [baseMediaId] : []), ...referenceIds],
+        };
         try {
-          response = await this.apiRequest(slot, {
-            url: this.apiUrl(slot, `/v1/projects/${encodeURIComponent(binding.flowProjectId)}/flowMedia:batchGenerateImages`),
-            method: 'POST', body, captchaAction: 'IMAGE_GENERATION', activityId: taskId, activityKind: 'image',
-          }, 180_000, signal);
+          if (this.usesBatchTransport(slot)) {
+            ({ mediaId, remoteUrl } = await this.batchGenerateImage(slot, binding.flowProjectId, batchInput, signal));
+          } else {
+            const response = await this.apiRequest(slot, {
+              url: this.apiUrl(slot, `/v1/projects/${encodeURIComponent(binding.flowProjectId)}/flowMedia:batchGenerateImages`),
+              method: 'POST', body, captchaAction: 'IMAGE_GENERATION', activityId: taskId, activityKind: 'image',
+            }, 180_000, signal);
+            mediaId = extractFlowMediaId(response);
+            remoteUrl = extractFlowUrl(response);
+          }
         } catch (error) {
           if (attempt === 0 && hasMediaInput && !signal.aborted && this.isStaleMediaError(error)) continue;
-          throw error;
+          // The bearer just died mid-job. Nothing was generated and nothing was
+          // charged on a 401, so this account moves to batchexecute and the shot
+          // is tried once more there instead of being reported as a failure.
+          if (!signal.aborted && !this.usesBatchTransport(slot) && isDeadBearerError(error)) {
+            this.markLegacyTransportDead(slot.extensionInstanceId, error instanceof Error ? error.message : String(error));
+            ({ mediaId, remoteUrl } = await this.batchGenerateImage(slot, binding.flowProjectId, batchInput, signal));
+          } else {
+            throw error;
+          }
         }
-        const mediaId = extractFlowMediaId(response);
-        const remoteUrl = extractFlowUrl(response);
         if (!mediaId && !remoteUrl) throw new Error('Google Flow image response contained no media ID or URL');
         this.sendActivityUpdate(slot.credentialId, {
           activityId: taskId, kind: 'image', status: 'completed', progress: 100,
@@ -493,6 +552,9 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       // Trust the media cache first; on a stale-media submit failure re-upload
       // every reference/frame and retry once before giving up.
       let submit: unknown;
+      // Set only on the batch path, where the submit answers with a ticket to poll
+      // rather than with the operation records the REST body carries.
+      let batchOperationId: string | undefined;
       for (let attempt = 0; ; attempt += 1) {
         const forceReupload = attempt > 0;
         this.emitLaneTask(taskId, 'video', 'uploading', slot, lane, 8, undefined, 'checking_media');
@@ -529,6 +591,23 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         await this.reserveSubmitWindow(slot.credentialId, 'video', signal);
         this.emitLaneTask(taskId, 'video', 'submitting', slot, lane, 20);
         try {
+          if (this.usesBatchTransport(slot)) {
+            // The batch path has one captured video shape: a still plus a prompt.
+            // Reference-to-video and start+end chaining were never captured off the
+            // new UI, so they degrade to that one rather than failing the shot —
+            // and say so, because the result will not be what the prompt asked for.
+            const source = startId || refs[0];
+            if (!source) throw new Error('Batchexecute cần ít nhất một ảnh nguồn để tạo video');
+            if (refs.length) console.warn(`[video-studio][google-flow] ${taskId}: batchexecute chưa có đường reference-to-video — dùng ảnh tham chiếu đầu tiên làm frame đầu`);
+            if (endId) console.warn(`[video-studio][google-flow] ${taskId}: batchexecute chưa có đường nối frame đầu-cuối — bỏ qua frame cuối`);
+            batchOperationId = await this.batchSubmitVideo(slot, binding.flowProjectId, {
+              prompt: input.prompt,
+              sourceMediaId: source,
+              aspectRatio: input.aspectRatio,
+              model: resolvedVideoModel,
+            }, signal);
+            break;
+          }
           submit = await this.apiRequest(slot, {
             url: this.apiUrl(slot, endpoint), method: 'POST', captchaAction: 'VIDEO_GENERATION', activityId: taskId, activityKind: 'video',
             body: {
@@ -545,18 +624,26 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         }
         break;
       }
-      const operations = extractFlowOperations(submit);
-      if (!operations.length) throw new Error('Google Flow video response contained no operation');
-      this.emitLaneTask(taskId, 'video', 'polling', slot, lane, 25);
-      const result = operations.every((item) => item.workflowMode)
-        ? await this.pollWorkflowVideo(slot, operations, taskId, lane, signal, binding.flowProjectId)
-        : await this.pollOperations(slot, operations.map((item) => item.raw), taskId, lane, signal);
-      const mediaId = extractFlowMediaId(result);
-      let remoteUrl = extractFlowUrl(result);
+      let mediaId: string | undefined;
+      let remoteUrl: string | undefined;
       let localUrl: string | undefined;
-      if (Buffer.isBuffer(result)) {
-        localUrl = saveVideoBytes(this.options.mediaRoot, result, mediaId || randomUUID());
-      } else if (remoteUrl) {
+      if (batchOperationId) {
+        this.emitLaneTask(taskId, 'video', 'polling', slot, lane, 25);
+        ({ mediaId, remoteUrl } = await this.batchPollVideo(slot, batchOperationId, binding.flowProjectId, taskId, lane, signal));
+      } else {
+        const operations = extractFlowOperations(submit);
+        if (!operations.length) throw new Error('Google Flow video response contained no operation');
+        this.emitLaneTask(taskId, 'video', 'polling', slot, lane, 25);
+        const result = operations.every((item) => item.workflowMode)
+          ? await this.pollWorkflowVideo(slot, operations, taskId, lane, signal, binding.flowProjectId)
+          : await this.pollOperations(slot, operations.map((item) => item.raw), taskId, lane, signal);
+        mediaId = extractFlowMediaId(result);
+        remoteUrl = extractFlowUrl(result);
+        if (Buffer.isBuffer(result)) {
+          localUrl = saveVideoBytes(this.options.mediaRoot, result, mediaId || randomUUID());
+        }
+      }
+      if (!localUrl && remoteUrl) {
         this.emitLaneTask(taskId, 'video', 'downloading', slot, lane, 96);
         localUrl = await downloadVideo(this.options.mediaRoot, remoteUrl, mediaId || randomUUID(), signal);
       }
@@ -691,7 +778,20 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           return executor(laneSlot, currentLane, signal);
         }, isDailyQuotaError, queuedMessage);
       } catch (error) {
-        if (!isDailyQuotaError(error)) throw error;
+        // The account is the problem, not the request: park it for this task and
+        // run the same work somewhere else. Losing a session used to kill the shot
+        // outright, even with four healthy accounts sitting idle next to it.
+        if (isAccountUnusableError(error)) {
+          exhausted.add(lane.credentialId);
+          const label = this.accountLabel(slot);
+          console.warn(`[video-studio][google-flow] ${label} không dùng được (${safeMessage(error)}) — chuyển việc sang tài khoản khác`);
+          queuedMessage = `Tài khoản ${label} mất phiên — đã chuyển sang tài khoản khác`;
+          continue;
+        }
+        // Everything else is the caller's to see, and it must say which account it
+        // happened on: with five accounts running, "session expired" alone tells
+        // the user nothing about which one to fix.
+        if (!isDailyQuotaError(error)) throw this.withAccountLabel(error, slot);
         const modelKey = modelKeyFor(slot);
         // Only the first job through the wall records the lock. The rest of that
         // account's in-flight batch lands here too, and re-locking each time
@@ -784,7 +884,96 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     const existing = this.bindings.find((item) => item.longddProjectId === longddProjectId && item.ownerScopeId === slot.ownerScopeId && item.active === true)
       || this.bindings.find((item) => item.longddProjectId === longddProjectId && item.ownerScopeId === slot.ownerScopeId);
     if (existing) { existing.lastCredentialId = slot.credentialId; existing.lastVerifiedAt = Date.now(); this.saveBindings(); return existing; }
-    return this.createFlowProject(longddProjectId, slot, signal, requestedTitle);
+    return this.resolveProjectBinding(longddProjectId, slot, signal, requestedTitle);
+  }
+
+  /**
+   * Get this account a Flow project to work in, by whatever route still exists.
+   *
+   * Shared by the generation flow and by the button in Settings, because they want
+   * exactly the same thing and only one of them used to know how to get it.
+   */
+  private async resolveProjectBinding(longddProjectId: string, slot: FlowCredentialSlot, signal?: AbortSignal, requestedTitle?: string): Promise<ProjectBinding> {
+    // Creating a project only exists on the labs.google tRPC mount, which answers
+    // 401 for an account Google stopped renewing. Adopting one the account already
+    // owns is the only way to get an id for it without making the user paste one,
+    // so a migrated account goes straight there instead of paying for the 401.
+    if (this.usesBatchTransport(slot)) {
+      const adopted = await this.adoptPageProject(longddProjectId, slot, requestedTitle);
+      if (adopted) return adopted;
+    }
+    try {
+      return await this.createFlowProject(longddProjectId, slot, signal, requestedTitle);
+    } catch (error) {
+      const adopted = await this.adoptPageProject(longddProjectId, slot, requestedTitle);
+      if (adopted) {
+        console.warn(`[video-studio][google-flow] không tạo được project mới (${error instanceof Error ? error.message : String(error)}) — dùng project sẵn có của tài khoản`);
+        return adopted;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Bind to a project this account already owns, read off its own Flow tab.
+   *
+   * Media generated into it lands beside whatever the user made by hand there,
+   * which is the same trade every Flow automation makes once project creation is
+   * gone — and it is strictly better than stopping the job.
+   */
+  private async adoptPageProject(longddProjectId: string, slot: FlowCredentialSlot, requestedTitle?: string): Promise<ProjectBinding | undefined> {
+    const account = slot.extensionInstanceId.slice(0, 8);
+    const bridge = this.inAppBridges.get(slot.extensionInstanceId);
+    if (!bridge) {
+      console.warn(`[video-studio][google-flow] ${account}: không có bridge để đọc project từ tab`);
+      return undefined;
+    }
+    let ids: string[] = [];
+    try {
+      ids = await bridge.listPageProjectIds();
+    } catch (error) {
+      console.warn(`[video-studio][google-flow] ${account}: đọc project từ tab lỗi — ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+    if (!ids.length) {
+      // Nothing to adopt, so press the app's own button rather than sending the
+      // user off to do it by hand. Only reached for an account that owns no Flow
+      // project at all, which is once in its lifetime.
+      console.log(`[video-studio][google-flow] ${account}: chưa có project nào — thử tự bấm "New project" trên trang Flow`);
+      const created = await bridge.createPageProject().catch(() => undefined);
+      if (!created) {
+        console.warn(`[video-studio][google-flow] ${account}: không tự tạo được project — hãy mở Google Flow bằng tài khoản này và tạo một project bất kỳ, một lần duy nhất`);
+        return undefined;
+      }
+      ids = [created];
+    }
+    // Prefer a Flow project no other LONGDD project is using — tidier when the
+    // account has several. But sharing one is allowed and is the whole point:
+    // Google retired project creation, so insisting on a fresh Flow project per
+    // LONGDD project would mean the user hand-making one every single time.
+    // Nothing breaks when two share: media is tracked by id per shot, never by
+    // enumerating a project, and the upload cache keyed on the project simply
+    // gets more hits.
+    const taken = new Set(this.bindings
+      .filter((item) => item.ownerScopeId === slot.ownerScopeId && item.longddProjectId !== longddProjectId)
+      .map((item) => item.flowProjectId));
+    const unused = ids.find((id) => !taken.has(id));
+    const flowProjectId = unused ?? ids[0];
+    if (!unused) {
+      console.log(`[video-studio][google-flow] ${account}: dùng chung Flow project ${flowProjectId.slice(0, 8)} với dự án LONGDD khác`);
+    }
+    for (const item of this.bindings) {
+      if (item.longddProjectId === longddProjectId && item.ownerScopeId === slot.ownerScopeId) item.active = false;
+    }
+    const binding: ProjectBinding = {
+      longddProjectId, flowProjectId, ownerScopeId: slot.ownerScopeId, accountId: slot.accountId,
+      lastCredentialId: slot.credentialId, createdAt: Date.now(), lastVerifiedAt: Date.now(),
+      title: requestedTitle || `LONGDD ${longddProjectId}`, active: true,
+    };
+    this.bindings.push(binding);
+    this.saveBindings();
+    console.log(`[video-studio][google-flow] tài khoản ${slot.extensionInstanceId.slice(0, 8)} dùng lại Flow project ${flowProjectId.slice(0, 8)} có sẵn`);
+    return binding;
   }
 
   private async createFlowProject(longddProjectId: string, slot: FlowCredentialSlot, signal?: AbortSignal, requestedTitle?: string): Promise<ProjectBinding> {
@@ -825,8 +1014,11 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       // account has a session on flow.google.com but none on labs.google, which is
       // where project creation lives.
       const unauthorized = failures.some((failure) => /HTTP 40[13]\b|UNAUTHORIZED|PERMISSION_DENIED/i.test(failure));
+      // Re-signing in does not fix this one: Google retired client-side project
+      // creation with the September 2026 migration, so the account needs a project
+      // that already exists — which adoptPageProject looks for before we get here.
       const hint = unauthorized
-        ? ` — tài khoản ${account} chưa được labs.google chấp nhận phiên đăng nhập. Đăng nhập lại tài khoản này rồi bấm "Tạo project mới", hoặc bỏ nó ra khỏi danh sách khi chạy.`
+        ? ` — tài khoản ${account} không còn quyền tạo project (Google đã bỏ endpoint này), và trên tab Flow của nó cũng không có project nào để dùng lại. Mở Google Flow bằng tài khoản này và tạo một project bất kỳ — chỉ cần một lần, từ đó app tự dùng lại.`
         : ` — tài khoản ${account}.`;
       throw new Error(`Google Flow không tạo được project. ${failures.join(' | ')}${hint}`);
     }
@@ -849,6 +1041,143 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       credentialId: connected?.slot.credentialId,
       extensionInstanceId: connected?.slot.extensionInstanceId,
     };
+  }
+
+  /**
+   * One batchexecute RPC, executed inside this account's Flow tab. Returns the
+   * raw response body; the callers hand it to flow-batch's readers.
+   */
+  private async batchRpc(slot: FlowCredentialSlot, params: {
+    rpcid: string;
+    freq: string;
+    captchaAction?: string;
+    flowProjectId?: string;
+    match?: string;
+  }, timeout: number, signal?: AbortSignal): Promise<string> {
+    const response = await proxyRequest(this.socketContext, slot, 'batch_rpc', params, timeout, signal);
+    return typeof response === 'string' ? response : String(response ?? '');
+  }
+
+  /**
+   * Put an image into the project on the batch path. Unlike the REST upload there
+   * is no separate endpoint: the bytes ride inside the RPC as plain base64, and
+   * the call carries a captcha exactly like a generate does.
+   */
+  private async batchUploadMedia(slot: FlowCredentialSlot, flowProjectId: string, base64: string, mimeType: string, fileName: string, signal: AbortSignal): Promise<string> {
+    const text = await this.batchRpc(slot, {
+      rpcid: RPC_UPLOAD_IMAGE,
+      freq: uploadRequest({ imageBase64: base64, projectId: flowProjectId, mimeType, fileName }),
+      captchaAction: 'IMAGE_GENERATION',
+      flowProjectId,
+    }, 120_000, signal);
+    return readUploadedMediaId(firstPayload(text, RPC_UPLOAD_IMAGE));
+  }
+
+  /**
+   * Generate one image through batchexecute. The signed CDN url comes back inline
+   * on this path — there is no operation to poll, which is why images were moved
+   * over first.
+   */
+  private async batchGenerateImage(slot: FlowCredentialSlot, flowProjectId: string, input: {
+    prompt: string;
+    aspectRatio: string;
+    model: string;
+    referenceMediaIds: string[];
+  }, signal: AbortSignal): Promise<{ mediaId?: string; remoteUrl?: string }> {
+    const text = await this.batchRpc(slot, {
+      rpcid: RPC_GEN_IMAGE,
+      freq: imageRequest({
+        prompt: input.prompt,
+        projectId: flowProjectId,
+        aspect: input.aspectRatio,
+        model: input.model,
+        referenceMediaIds: input.referenceMediaIds,
+      }),
+      captchaAction: 'IMAGE_GENERATION',
+      flowProjectId,
+    }, 180_000, signal);
+    const images = readImages(firstPayload(text, RPC_GEN_IMAGE));
+    if (!images.length) throw new Error('Google Flow batchexecute không trả về ảnh nào');
+    return { mediaId: images[0].mediaId, remoteUrl: images[0].url };
+  }
+
+  /**
+   * Submit a video on the batch path. Returns the operation id to poll.
+   *
+   * Unlike an image, nothing comes back inline — Flow hands over a ticket and the
+   * clip is collected later, which is the whole reason video needed more than the
+   * image switch did.
+   */
+  private async batchSubmitVideo(slot: FlowCredentialSlot, flowProjectId: string, input: {
+    prompt: string;
+    sourceMediaId: string;
+    aspectRatio: string;
+    model: string;
+  }, signal: AbortSignal): Promise<string> {
+    const text = await this.batchRpc(slot, {
+      rpcid: RPC_GEN_VIDEO,
+      freq: videoRequest({
+        prompt: input.prompt,
+        projectId: flowProjectId,
+        sourceMediaId: input.sourceMediaId,
+        aspect: input.aspectRatio,
+        model: input.model,
+      }),
+      captchaAction: 'VIDEO_GENERATION',
+      flowProjectId,
+    }, 120_000, signal);
+    const operation = readOperation(firstPayload(text, RPC_GEN_VIDEO));
+    if (!operation.operationId) throw new Error('Google Flow batchexecute không trả về operation cho video');
+    return operation.operationId;
+  }
+
+  /**
+   * Wait for a batch video and return its media id and signed url.
+   *
+   * The project listing is the authority, not the operation poll: a finished job
+   * has been seen sitting in the listing while its poll still says nothing. But
+   * the listing is also the expensive call — it runs past 17 MB — so it is only
+   * consulted when the poll reports movement, when the poll is unreadable, or
+   * every third round regardless. The 800-byte window around the operation id is
+   * cut inside the tab, so that payload never crosses the bridge.
+   */
+  private async batchPollVideo(slot: FlowCredentialSlot, operationId: string, flowProjectId: string, taskId: string, lane: Lane, signal: AbortSignal): Promise<{ mediaId?: string; remoteUrl?: string }> {
+    let complaint = '';
+    for (let round = 1; round <= 84; round += 1) {
+      await sleep(5_000, signal);
+      let worthLooking = round % 3 === 0;
+      try {
+        const text = await this.batchRpc(slot, {
+          rpcid: RPC_OPERATION, freq: operationRequest(operationId), flowProjectId,
+        }, 60_000, signal);
+        const operation = readOperation(firstPayload(text, RPC_OPERATION));
+        // A complaint is carried, not acted on: an operation can report "Media not
+        // found." and still deliver a finished clip seconds later.
+        if (operation.complaint) complaint = operation.complaint;
+        worthLooking = worthLooking || operation.status === STATUS_DONE || Boolean(operation.complaint);
+      } catch {
+        // An operation that has decayed to a bare id still shows up in the
+        // listing, so an unreadable poll is a reason to look there, not to stop.
+        worthLooking = true;
+      }
+      this.emitLaneTask(taskId, 'video', 'polling', slot, lane, Math.min(90, 25 + round));
+      if (!worthLooking) continue;
+      const listing = await this.batchRpc(slot, {
+        rpcid: RPC_PROJECT_MEDIA, freq: projectMediaRequest(flowProjectId), flowProjectId, match: operationId,
+      }, 120_000, signal).catch(() => '');
+      const mediaId = findMediaIdInText(listing, operationId)
+        // An untrimmed envelope comes back whole; parse it rather than lose the round.
+        || (listing.trimStart().startsWith(')]}') ? findMediaId(safeFirstPayload(listing, RPC_PROJECT_MEDIA), operationId) : undefined);
+      if (!mediaId) continue;
+      const media = await this.batchRpc(slot, {
+        rpcid: RPC_MEDIA, freq: mediaRequest(mediaId), flowProjectId,
+      }, 60_000, signal);
+      const urls = readMediaUrls(firstPayload(media, RPC_MEDIA), mediaId);
+      // The id can land before the clip is written; downloading now would save the
+      // poster still instead of the video.
+      if (urls.video) return { mediaId, remoteUrl: urls.video };
+    }
+    throw new Error(`Google Flow video quá thời gian chờ${complaint ? ` (${complaint})` : ''}`);
   }
 
   private async resolveMedia(ref: FlowMediaRefInput, flowProjectId: string, slot: FlowCredentialSlot, signal: AbortSignal, onUpload?: () => void, forceReupload = false): Promise<string> {
@@ -897,11 +1226,19 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     }
     onUpload?.();
     const { base64, mimeType, fileName } = await readImageSource(this.options.mediaRoot, ref.source, signal);
-    const response = await this.apiRequest(slot, {
-      url: this.apiUrl(slot, '/v1/flow/uploadImage'), method: 'POST',
-      body: { clientContext: { projectId: flowProjectId, tool: 'PINHOLE' }, fileName, imageBytes: base64, isHidden: false, isUserUploaded: true, mimeType },
-    }, 90_000, signal);
-    const mediaId = extractFlowMediaId(response);
+    // Same media id either way — it is a handle inside this Flow project, not
+    // something tied to the transport that created it — so the cache below is
+    // shared and an account that switches paths keeps its uploads.
+    let mediaId: string | undefined;
+    if (this.usesBatchTransport(slot)) {
+      mediaId = await this.batchUploadMedia(slot, flowProjectId, base64, mimeType, fileName, signal);
+    } else {
+      const response = await this.apiRequest(slot, {
+        url: this.apiUrl(slot, '/v1/flow/uploadImage'), method: 'POST',
+        body: { clientContext: { projectId: flowProjectId, tool: 'PINHOLE' }, fileName, imageBytes: base64, isHidden: false, isUserUploaded: true, mimeType },
+      }, 90_000, signal);
+      mediaId = extractFlowMediaId(response);
+    }
     if (!mediaId) throw new Error('Google Flow upload did not return a UUID media ID');
     this.mediaCache[fingerprint] = mediaId;
     fs.writeFileSync(this.mediaCachePath, JSON.stringify(this.mediaCache, null, 2), 'utf8');
@@ -985,6 +1322,58 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
 
   getApiKey(extensionInstanceId: string): string {
     return this.apiKeys.get(extensionInstanceId) || GOOGLE_FLOW_BROWSER_API_KEY;
+  }
+
+  /**
+   * Accounts whose bearer Google refuses to renew, and the in-app bridges that can
+   * reach each account's own Flow tab.
+   *
+   * Kept on the runtime rather than on the slot because both outlive a socket: an
+   * account that reconnects must not quietly go back to the path already proven
+   * dead, and the tab is how a batch-transport account finds a project id at all.
+   */
+  private readonly deadLegacyAccounts = new Set<string>();
+  private readonly inAppBridges = new Map<string, InAppPageAccess>();
+
+  registerInAppBridge(extensionInstanceId: string, bridge: InAppPageAccess): void {
+    if (extensionInstanceId) this.inAppBridges.set(extensionInstanceId, bridge);
+  }
+
+  unregisterInAppBridge(extensionInstanceId: string): void {
+    this.inAppBridges.delete(extensionInstanceId);
+  }
+
+  /** Google said the bearer cannot be renewed: this account speaks batchexecute from now on. */
+  markLegacyTransportDead(extensionInstanceId: string, reason: string): void {
+    if (!extensionInstanceId || this.deadLegacyAccounts.has(extensionInstanceId)) return;
+    this.deadLegacyAccounts.add(extensionInstanceId);
+    console.log(`[video-studio][google-flow] tài khoản ${extensionInstanceId.slice(0, 8)}: đường REST cũ đã chết (${reason}) — chuyển sang batchexecute`);
+    for (const { slot } of this.sockets.values()) {
+      if (slot.extensionInstanceId === extensionInstanceId) slot.transport = 'batch';
+    }
+    this.emitStatus();
+  }
+
+  usesBatchTransport(slot: FlowCredentialSlot): boolean {
+    return slot.transport === 'batch' || this.deadLegacyAccounts.has(slot.extensionInstanceId);
+  }
+
+  /** How an account is named to the user: its email when known, its short id otherwise. */
+  accountLabel(slot: FlowCredentialSlot): string {
+    return this.accountEmails.get(slot.extensionInstanceId) || slot.extensionInstanceId.slice(0, 8);
+  }
+
+  /**
+   * Tag a failure with the account it happened on.
+   *
+   * Appended rather than prefixed so the message keeps starting with what went
+   * wrong — the UI maps that opening text to a readable sentence and re-attaches
+   * this tag afterwards (see getGoogleFlowUserFacingError).
+   */
+  private withAccountLabel(error: unknown, slot: FlowCredentialSlot): Error {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes(FLOW_ACCOUNT_TAG_OPEN)) return error instanceof Error ? error : new Error(message);
+    return new Error(`${message} ${FLOW_ACCOUNT_TAG_OPEN}${this.accountLabel(slot)}]`);
   }
 
   updateApiKey(extensionInstanceId: string, key: string): void {

@@ -9,6 +9,10 @@ import {
   GOOGLE_FLOW_PROTOCOL_VERSION,
   GOOGLE_FLOW_TRPC_ORIGIN,
 } from './protocol'
+import { CAPTCHA_SLOT as BATCH_CAPTCHA_SLOT, FLOW_BATCH_PATH } from './flow-batch'
+
+/** The project listing alone runs past 17 MB, so the cap has to be generous. */
+const BATCH_MAX_RESPONSE_CHARS = 32_000_000
 
 // Same site key extensions/logdd/injected.js uses — it's the public,
 // browser-restricted reCAPTCHA Enterprise key Google Flow's own web app
@@ -49,12 +53,17 @@ type OutgoingMessage = {
   sessionSecret?: string
   credentialId?: string
   params?: {
-    url: string
+    url?: string
     method?: string
     headers?: Record<string, string>
     body?: unknown
     captchaAction?: string
     responseMode?: 'json' | 'final-url'
+    /** batch_rpc only — see runBatchRpc. */
+    rpcid?: string
+    freq?: string
+    flowProjectId?: string
+    match?: string
   }
 }
 
@@ -114,6 +123,7 @@ export class GoogleFlowInAppBridge {
   private sessionSecret: string | undefined
   private credentialId: string | undefined
   private disposed = false
+  private readyAnnounced = false
   private reloadAttempts = 0
   private reloadTimer: ReturnType<typeof setTimeout> | undefined
   private refreshTimer: ReturnType<typeof setInterval> | undefined
@@ -151,6 +161,9 @@ export class GoogleFlowInAppBridge {
     })
 
     runtime.registerInAppConnection(this.socket as unknown as WebSocket)
+    // So the runtime can reach this account's own tab — the only place a
+    // batch-transport account can find a Flow project id.
+    runtime.registerInAppBridge(handle.accountSlotId, this)
     this.socket.receive(JSON.stringify({
       type: 'extension_ready',
       protocolVersion: GOOGLE_FLOW_PROTOCOL_VERSION,
@@ -180,6 +193,7 @@ export class GoogleFlowInAppBridge {
     if (this.reloadTimer) clearTimeout(this.reloadTimer)
     if (this.refreshTimer) clearInterval(this.refreshTimer)
     for (const unsubscribe of this.unsubscribers) unsubscribe()
+    this.runtime.unregisterInAppBridge(this.handle.accountSlotId)
     this.socket.close()
   }
 
@@ -221,13 +235,29 @@ export class GoogleFlowInAppBridge {
       const email = typeof session.user?.email === 'string' ? session.user.email : ''
       if (email) this.runtime.updateAccountEmail(this.handle.accountSlotId, email)
       const token = typeof session.access_token === 'string' ? session.access_token : ''
-      if (!token.startsWith('ya29.')) return false
-      // Google hands back the last token it had together with this flag when the
-      // profile needs a fresh sign-in. The token is still used — it sometimes
-      // works, and refusing it would take an otherwise fine account offline — but
-      // an account that fails everything while looking "ready" is explained here.
+      const usable = token.startsWith('ya29.')
+      const who = email || this.handle.accountSlotId.slice(0, 8)
+      // ACCESS_TOKEN_REFRESH_NEEDED means Google will not RENEW the bearer — not
+      // that the current one is dead. Accounts carrying that flag have been seen
+      // generating normally right up to the hour their token lapses, so the flag
+      // alone is a warning, and only the absence of a token is a verdict. The
+      // reactive switch on a real 401 catches the rest.
       if (session.error) {
-        console.warn(`[video-studio][google-flow] session của ${email || this.handle.accountSlotId.slice(0, 8)} báo "${String(session.error)}" — có thể phải đăng nhập lại tài khoản này`)
+        console.warn(`[video-studio][google-flow] session của ${who} báo "${String(session.error)}" — token hiện tại dùng tiếp được nhưng sẽ không được gia hạn`)
+      }
+      // Judged BEFORE the token guard below, not after. The old order returned on
+      // the missing token first, so the accounts that most needed the switch were
+      // the only ones that never got it.
+      if (!usable) {
+        const reason = session.error ? String(session.error) : 'session không còn access_token'
+        console.warn(`[video-studio][google-flow] tài khoản ${who} không còn bearer token — chuyển sang batchexecute`)
+        this.runtime.markLegacyTransportDead(this.handle.accountSlotId, reason)
+        // No bearer to report, but the account is not offline: batchexecute signs
+        // with the page's own session, so let the runtime treat it as connected
+        // instead of leaving it parked on "Cần làm mới" forever.
+        this.socket.receive(JSON.stringify({ type: 'token_captured', sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
+        this.announceReadyOnce()
+        return false
       }
       const expiresAt = typeof session.expires === 'string' ? Date.parse(session.expires) : Number.NaN
       this.applyToken(token, expiresAt)
@@ -266,8 +296,19 @@ export class GoogleFlowInAppBridge {
     this.socket.receive(JSON.stringify({ type: 'token_captured', sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
     if (isFirstToken) {
       console.log(`[video-studio][google-flow] bearer token captured for account ${this.handle.accountSlotId}`)
-      this.onFirstReady?.()
+      this.announceReadyOnce()
     }
+  }
+
+  /**
+   * Hide the login window the first time this account becomes usable — by either
+   * route. Fired once: the token poll runs every ten minutes, and a bearer-less
+   * account would otherwise ask for a hide on every one of them.
+   */
+  private announceReadyOnce(): void {
+    if (this.readyAnnounced) return
+    this.readyAnnounced = true
+    this.onFirstReady?.()
   }
 
   private onRequestWillBeSent(params: { requestId?: string; request?: { url?: string; headers?: Record<string, string> } }): void {
@@ -367,6 +408,223 @@ export class GoogleFlowInAppBridge {
     const token = result.result?.value
     if (!token) throw new Error('CAPTCHA_FAILED')
     return token
+  }
+
+  /**
+   * Run one batchexecute RPC inside the Flow tab.
+   *
+   * It cannot be sent from here: the call is signed with a per-page `at` token
+   * (WIZ_global_data.SNlM0e) that only exists in the loaded app, and a generate
+   * also carries a single-use reCAPTCHA minted moments before. So the envelope is
+   * built in the main process and the POST is executed in the page's own context.
+   *
+   * `match` exists because the project listing is tens of megabytes and all we
+   * ever want from it is one entry — cutting it down in the page keeps that
+   * payload from crossing the CDP bridge on every poll.
+   */
+  private async runBatchRpc(params: NonNullable<OutgoingMessage['params']>): Promise<{ status: number; text: string }> {
+    const rpcid = (params.rpcid || '').trim()
+    let freq = params.freq || ''
+    if (!rpcid || !freq) throw new Error('batch_rpc thiếu rpcid hoặc f.req')
+    if (params.captchaAction) {
+      const token = await this.solveCaptcha(params.captchaAction, params.flowProjectId)
+      freq = freq.split(BATCH_CAPTCHA_SLOT).join(token)
+    } else {
+      // No captcha to mint, so nothing has parked the tab on the app yet. The
+      // token only exists once flow.google.com has actually booted.
+      await this.ensureFlowAppLoaded(params.flowProjectId)
+    }
+    const expression = `(async () => {
+      const wiz = globalThis.WIZ_global_data || {};
+      const at = wiz.SNlM0e;
+      if (!at) return { error: 'NO_AT_TOKEN' };
+      const reqid = Math.floor(Math.random() * 900000) + 100000;
+      const url = ${JSON.stringify(FLOW_BATCH_PATH)}
+        + '?rpcids=' + encodeURIComponent(${JSON.stringify(rpcid)})
+        + '&f.sid=' + encodeURIComponent(wiz.FdrFJe || '')
+        + '&bl=' + encodeURIComponent(wiz.cfb2h || '')
+        + '&hl=en&_reqid=' + reqid + '&rt=c';
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'x-same-domain': '1',
+        },
+        body: new URLSearchParams({ 'f.req': ${JSON.stringify(freq)}, at }),
+      });
+      const text = await response.text();
+      const match = ${JSON.stringify(params.match ?? null)};
+      if (match) {
+        const found = text.indexOf(match);
+        return { status: response.status, text: found === -1 ? '' : text.slice(found, found + 800) };
+      }
+      return { status: response.status, text: text.slice(0, ${BATCH_MAX_RESPONSE_CHARS}) };
+    })()`
+    const result = await this.handle.cdp.send<EvaluateResult<{ status?: number; text?: string; error?: string }>>('Runtime.evaluate', {
+      expression, awaitPromise: true, returnByValue: true,
+    })
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text || 'BATCH_RPC_FAILED')
+    const value = result.result?.value
+    if (!value) throw new Error('BATCH_RPC_FAILED')
+    if (value.error) throw new Error(value.error)
+    return { status: value.status ?? 0, text: value.text ?? '' }
+  }
+
+  /**
+   * Flow project ids this account already owns, newest first where the page says so.
+   *
+   * Creating a project needs the labs.google tRPC mount, which answers 401 for any
+   * account whose session Google stopped renewing — so for those the only way to
+   * get a project id without making the user paste one is to read the ones the
+   * Flow app itself is showing. Matched by url shape rather than by any selector,
+   * so a redesign of the page cannot break it.
+   */
+  async listPageProjectIds(): Promise<string[]> {
+    // Deliberately NOT ensureFlowAppLoaded: that waits for the `at` token, which
+    // only matters for signing a request. Reading ids out of the markup needs the
+    // page and nothing else, and demanding a token here made discovery fail on
+    // exactly the accounts it exists to rescue.
+    await this.ensureOnFlowApp()
+    const expression = `(() => {
+      const found = [];
+      const seen = new Set();
+      const push = (value) => {
+        const match = /\\/project\\/([0-9a-fA-F-]{36})/.exec(value || '');
+        if (match && !seen.has(match[1])) { seen.add(match[1]); found.push(match[1]); }
+      };
+      push(location.pathname);
+      for (const anchor of document.querySelectorAll('a[href*="/project/"]')) push(anchor.getAttribute('href'));
+      // The app renders its list client-side, so the ids can be in the markup
+      // without ever becoming an <a href>.
+      const html = document.documentElement.innerHTML;
+      const re = /\\/project\\/([0-9a-fA-F-]{36})/g;
+      let m;
+      while ((m = re.exec(html)) !== null) { if (!seen.has(m[1])) { seen.add(m[1]); found.push(m[1]); } }
+      return found.slice(0, 50);
+    })()`
+    const result = await this.handle.cdp.send<EvaluateResult<string[]>>('Runtime.evaluate', { expression, returnByValue: true })
+    if (result.exceptionDetails) return []
+    return Array.isArray(result.result?.value) ? result.result.value : []
+  }
+
+  /**
+   * Park the tab on the Flow app and wait for its bootstrap data. Same reason the
+   * captcha step navigates: the site root ships no `at` token, so a tab that has
+   * not loaded the app cannot sign anything.
+   */
+  /**
+   * Last resort for an account that owns no Flow project at all: press the app's
+   * own "New project" button and read the id out of the url it lands on.
+   *
+   * Google retired the create-project API, so this is the only way left to make
+   * one without the user doing it by hand. It is best-effort by nature — it
+   * matches the button by its visible text, and a redesign can rename it — so
+   * every caller must cope with undefined rather than depend on it.
+   */
+  async createPageProject(): Promise<string | undefined> {
+    await this.ensureOnFlowApp()
+    const before = await this.currentUrl()
+    const clicked = await this.handle.cdp.send<EvaluateResult<boolean>>('Runtime.evaluate', {
+      expression: `(() => {
+        const wanted = /^(new project|create project|dự án mới|tạo dự án)$/i;
+        const nodes = document.querySelectorAll('button, a, [role="button"]');
+        for (const node of nodes) {
+          const text = (node.innerText || node.textContent || '').trim();
+          if (!wanted.test(text)) continue;
+          node.click();
+          return true;
+        }
+        return false;
+      })()`,
+      returnByValue: true,
+    }).catch(() => ({ result: { value: false } }) as EvaluateResult<boolean>)
+    if (clicked.result?.value !== true) {
+      console.warn(`[video-studio][google-flow] ${this.handle.accountSlotId.slice(0, 8)}: không tìm thấy nút tạo project trên trang Flow`)
+      return undefined
+    }
+    // The app routes to /project/<uuid> once the project exists.
+    const deadline = Date.now() + 20_000
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      const url = await this.currentUrl()
+      const match = /\/project\/([0-9a-fA-F-]{36})/.exec(url)
+      if (match && url !== before) return match[1]
+    }
+    return undefined
+  }
+
+  /**
+   * Make sure the tab is showing the Flow app, without caring whether it has
+   * finished handing out a signing token. Used by the read-only page scrapes.
+   */
+  private async ensureOnFlowApp(): Promise<void> {
+    const current = await this.currentUrl()
+    if (current.startsWith(GOOGLE_FLOW_APP_ORIGIN)) {
+      // Already there, but the project list is rendered client-side, so a tab that
+      // only just arrived may still be an empty shell.
+      await this.waitForProjectMarkup()
+      return
+    }
+    console.log(`[video-studio][google-flow] điều hướng tab sang ${GOOGLE_FLOW_APP_ORIGIN} để đọc danh sách project`)
+    await this.handle.cdp.send('Page.navigate', { url: GOOGLE_FLOW_APP_ORIGIN })
+    await this.waitForProjectMarkup()
+  }
+
+  private async currentUrl(): Promise<string> {
+    try {
+      const result = await this.handle.cdp.send<EvaluateResult<string>>('Runtime.evaluate', {
+        expression: 'String(location.href || "")', returnByValue: true,
+      })
+      return result.result?.value || ''
+    } catch {
+      return ''
+    }
+  }
+
+  /** Wait until the app has rendered at least one project link, or give up quietly. */
+  private async waitForProjectMarkup(): Promise<void> {
+    const deadline = Date.now() + 20_000
+    for (;;) {
+      try {
+        const result = await this.handle.cdp.send<EvaluateResult<boolean>>('Runtime.evaluate', {
+          expression: '/\\/project\\/[0-9a-fA-F-]{36}/.test(document.documentElement.innerHTML || "")',
+          returnByValue: true,
+        })
+        if (result.result?.value === true) return
+      } catch {
+        // Navigating tabs drop evaluations; try again until the deadline.
+      }
+      if (Date.now() >= deadline) return
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+  }
+
+  private async ensureFlowAppLoaded(projectId?: string): Promise<void> {
+    if (await this.hasAtToken()) return
+    const target = projectId
+      ? `${GOOGLE_FLOW_APP_ORIGIN}/project/${encodeURIComponent(projectId)}`
+      : GOOGLE_FLOW_APP_ORIGIN
+    console.log(`[video-studio][google-flow] điều hướng tab sang ${target} để nạp token trang`)
+    await this.handle.cdp.send('Page.navigate', { url: target })
+    const deadline = Date.now() + 30_000
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      if (await this.hasAtToken()) return
+    }
+    throw new Error('NO_AT_TOKEN')
+  }
+
+  private async hasAtToken(): Promise<boolean> {
+    try {
+      const result = await this.handle.cdp.send<EvaluateResult<boolean>>('Runtime.evaluate', {
+        expression: 'Boolean(globalThis.WIZ_global_data && globalThis.WIZ_global_data.SNlM0e)',
+        returnByValue: true,
+      })
+      return result.result?.value === true
+    } catch {
+      return false
+    }
   }
 
   /** True when the current page already exposes reCAPTCHA Enterprise. */
@@ -510,14 +768,32 @@ export class GoogleFlowInAppBridge {
       this.credentialId = message.credentialId
       return
     }
-    if (message.type !== 'api_request' && message.type !== 'trpc_request') return
+    if (message.type !== 'api_request' && message.type !== 'trpc_request' && message.type !== 'batch_rpc') return
     const requestId = message.requestId
     const params = message.params
     if (!requestId || !params) return
     this.pendingRequests += 1
+    if (message.type === 'batch_rpc') {
+      try {
+        const result = await this.runBatchRpc(params)
+        this.socket.receive(JSON.stringify({ id: requestId, status: result.status, data: result.text, sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
+      } catch (error) {
+        this.socket.receive(JSON.stringify({ id: requestId, error: error instanceof Error ? error.message : String(error), sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
+      } finally {
+        this.pendingRequests = Math.max(0, this.pendingRequests - 1)
+      }
+      return
+    }
+    // Only batch_rpc is url-less, and it returned above.
+    const url = params.url
+    if (!url) {
+      this.socket.receive(JSON.stringify({ id: requestId, error: 'Google Flow request thiếu url', sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
+      this.pendingRequests = Math.max(0, this.pendingRequests - 1)
+      return
+    }
     try {
       let captchaToken: string | undefined
-      if (params.captchaAction) captchaToken = await this.solveCaptcha(params.captchaAction, flowProjectIdOf(params.url, params.body))
+      if (params.captchaAction) captchaToken = await this.solveCaptcha(params.captchaAction, flowProjectIdOf(url, params.body))
 
       let body = params.body
       if (captchaToken && body && typeof body === 'object') {
@@ -539,7 +815,7 @@ export class GoogleFlowInAppBridge {
       if (!this.flowKey) throw new Error('NO_FLOW_KEY')
       const headers: Record<string, string> = { ...(params.headers || {}), authorization: `Bearer ${this.flowKey}` }
       const method = params.method || 'POST'
-      let requestUrl = params.url
+      let requestUrl = url
       // This account's own key (never another account's), and never the legacy
       // one — updateApiKey refuses to store it — so the swap below can no longer
       // degrade into replacing the dead key with itself.

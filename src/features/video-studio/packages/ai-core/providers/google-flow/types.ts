@@ -9,6 +9,14 @@ import type { GenerationOutput, ImageGenerationInput, VideoGenerationInput } fro
 export const FLOW_ALL_ACCOUNTS_QUOTA_LOCKED = 'FLOW_ALL_ACCOUNTS_QUOTA_LOCKED';
 export const FLOW_NO_ALLOWED_ACCOUNT = 'FLOW_NO_ALLOWED_ACCOUNT';
 
+/**
+ * Opens the tag naming the account a failure happened on, e.g.
+ * `… [tài khoản: a@gmail.com]`. The runtime appends it; the error mapper splits
+ * it off, rewrites the reason, then puts it back.
+ * Mirrors electron/features/video-studio/google-flow/quota-locks.ts.
+ */
+export const FLOW_ACCOUNT_TAG_OPEN = '[tài khoản: ';
+
 /** True when every allowed account has burned its daily quota for the requested model. */
 export function isAllAccountsQuotaLocked(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);

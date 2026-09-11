@@ -41,6 +41,20 @@ export type FlowCredentialSlot = {
   state: FlowCredentialState;
   tier?: string;
   credits?: number;
+  /**
+   * Which transport this account's calls go out on.
+   *
+   * `legacy` is the REST path on aisandbox-pa signed with a `Bearer ya29.…`.
+   * Google stopped minting those in the September 2026 migration: the session
+   * endpoint now answers ACCESS_TOKEN_REFRESH_NEEDED and hands back a dead
+   * token, so an account works only until its last good one lapses.
+   *
+   * `batch` is flow.google.com's batchexecute, signed in the page with the
+   * session cookie. An account is moved onto it the moment the old path is shown
+   * to be dead — never speculatively, so an account that still works is never
+   * put on a colder path for no reason.
+   */
+  transport?: 'legacy' | 'batch';
 };
 
 export type FlowTaskStatus = 'queued' | 'uploading' | 'submitting' | 'polling' | 'downloading' | 'completed' | 'failed' | 'cancelled';
