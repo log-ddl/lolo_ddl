@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ExternalLink, FileUp, Image as ImageIcon, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronDown, ExternalLink, FileUp, Image as ImageIcon, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/shared/lib/utils";
 import { useI18n } from "@/shared/i18n";
@@ -104,10 +104,36 @@ export function JobMediaGallery({ job }: { job: AutopilotJobListItem }) {
   const { t } = useI18n();
   const [preview, setPreview] = useState<{ type: "image" | "video"; path: string; shotIndex?: number } | null>(null);
   const updateShotImagePath = useAutopilotStore((state) => state.updateShotImagePath);
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
   const characters = job.plannedCharacters || [];
   const scenes = job.plannedScenes || [];
   const shots = job.plannedShots || [];
   const researchedImages = job.mediaOutputs?.filter((item) => item.realImagePath) || [];
+  const mediaByIndex = new Map(job.mediaOutputs?.map((item) => [item.index, item]));
+  const rows = shots.map((shot) => {
+    const media = mediaByIndex.get(shot.index);
+    const statuses = [media?.imageStatus, media?.videoStatus];
+    const active = statuses.some((status) => status === "generating" || status === "uploading" || status === "queued");
+    const attention = statuses.includes("failed") || (media?.videoStatus === "skipped" && !!media.videoError);
+    const state = active ? "active" : attention ? "attention" : media?.imagePath || media?.videoPath ? "ready" : "waiting";
+    return { shot, media, state };
+  });
+  const filters = [
+    { id: "all", label: "Tất cả", count: rows.length },
+    { id: "attention", label: "Cần xử lý", count: rows.filter((row) => row.state === "attention").length },
+    { id: "active", label: "Đang thực hiện", count: rows.filter((row) => row.state === "active").length },
+    { id: "ready", label: "Đã có media", count: rows.filter((row) => row.state === "ready").length },
+    { id: "waiting", label: "Chưa bắt đầu", count: rows.filter((row) => row.state === "waiting").length },
+  ];
+  const search = query.trim().toLocaleLowerCase();
+  const filtered = rows.filter(({ shot, state }) => (filter === "all" || filter === state)
+    && (!search || `shot ${shot.index} ${shot.sceneRefId} ${shot.voiceOver}`.toLocaleLowerCase().includes(search)));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / 24));
+  const currentPage = Math.min(page, pageCount - 1);
+  const visibleRows = filtered.slice(currentPage * 24, (currentPage + 1) * 24);
+  const attentionCount = filters[1].count;
   if (characters.length === 0 && scenes.length === 0 && shots.length === 0 && researchedImages.length === 0) return null;
   return (
     <div className="rounded-lg border border-border bg-muted/10">
@@ -165,13 +191,32 @@ export function JobMediaGallery({ job }: { job: AutopilotJobListItem }) {
         </details>
       )}
       {shots.length > 0 && (
-        <details open className="order-4 group/section">
+        <details open className="order-first group/section">
           <summary className="flex cursor-pointer items-center gap-1.5 select-none list-none text-xs font-semibold [&::-webkit-details-marker]:hidden">
             <ChevronDown className="autopilot-collapsible-chevron h-3.5 w-3.5 shrink-0" />
             {t("autopilot.panel.shotMedia")} ({shots.length})
           </summary>
-          <div className="mt-2 grid grid-cols-3 gap-3">
-            {shots.map((shot) => <AutopilotShotCard key={shot.id || shot.index} job={job} shot={shot} media={job.mediaOutputs?.find((item) => item.index === shot.index)} />)}
+          <div className="mt-3 space-y-3">
+            {attentionCount > 0 && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm" role="status">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div><p className="font-medium">{attentionCount} shot cần kiểm tra</p><p className="mt-1 text-xs text-muted-foreground">{job.status === "running" || job.status === "queued" ? "Các shot khác vẫn tiếp tục. Lọc Cần xử lý để xem lỗi; tạm dừng job trước khi sửa hoặc tạo lại từng shot." : "Mở shot để xem lỗi, thay ảnh hoặc tạo lại. Video bị lỗi có thể được ghép bằng ảnh tĩnh."}</p></div>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc trạng thái shot">
+              {filters.map((item) => <button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => { setFilter(item.id); setPage(0); }} className={cn("flex min-h-9 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", filter === item.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                {item.label}<span className="rounded bg-current/10 px-1.5 tabular-nums">{item.count}</span>
+              </button>)}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="flex min-h-10 w-full items-center gap-2 rounded-lg border bg-background px-3 sm:max-w-sm"><Search className="h-4 w-4 shrink-0 text-muted-foreground" /><input aria-label="Tìm shot theo số, cảnh hoặc lời đọc" placeholder="Tìm số shot, tên cảnh, lời đọc…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none" /></label>
+              <span className="text-xs text-muted-foreground">{filtered.length ? `${currentPage * 24 + 1}–${Math.min((currentPage + 1) * 24, filtered.length)} / ${filtered.length} shot` : "0 shot"}</span>
+            </div>
+            <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+              {visibleRows.map(({ shot, media }) => <AutopilotShotCard key={shot.id || shot.index} job={job} shot={shot} media={media} />)}
+            </div>
+            {filtered.length === 0 && <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Không có shot phù hợp bộ lọc.<Button variant="ghost" className="ml-2" onClick={() => { setFilter("all"); setQuery(""); setPage(0); }}>Xem tất cả</Button></div>}
+            {pageCount > 1 && <div className="flex items-center justify-between border-t pt-3"><Button variant="outline" size="sm" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Trang trước</Button><span className="text-xs tabular-nums text-muted-foreground">Trang {currentPage + 1} / {pageCount}</span><Button variant="outline" size="sm" disabled={currentPage === pageCount - 1} onClick={() => setPage(currentPage + 1)}>Trang sau</Button></div>}
           </div>
         </details>
       )}

@@ -50,26 +50,27 @@ export function JobCard({
   // Jobs created before startedAt existed only carry createdAt; the queue wait is
   // negligible there, so it stands in for the start.
   const startedAt = job.startedAt || job.createdAt;
+  const stageLabels: Record<string, string> = { queued: "Đang chờ", script: "Viết kịch bản", audio: "Tạo giọng đọc", subtitles: "Căn thời gian", shots: "Lập shot", research: "Tìm tư liệu", characters: "Tạo nhân vật", scenes: "Tạo cảnh", images: "Tạo ảnh", videos: "Tạo video", media: "Tạo media", render: "Ghép video", done: "Hoàn thành", failed: "Cần xử lý", paused: "Đã tạm dừng", interrupted: "Bị gián đoạn", cancelled: "Đã dừng" };
 
   return (
     <div className="bg-card border border-border rounded-lg p-3 space-y-2">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Icon className={cn("w-4 h-4 shrink-0", STATUS_STYLES[job.status], job.status === "running" && "animate-spin")} />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate">{job.title}</div>
-          <div className="text-2xs text-muted-foreground truncate">{job.id}</div>
+          <div className="text-xs text-muted-foreground">{job.plannedShots?.length || 0} shot · {job.executionMode === "step" ? "Chạy từng bước" : "Chạy tự động"}</div>
         </div>
-        <span className="text-xs text-muted-foreground">{job.stage}</span>
-        <div className="flex items-center gap-1">
+        <span className={cn("rounded-full bg-muted px-2.5 py-1 text-xs font-medium", STATUS_STYLES[job.status])}>{stageLabels[job.stage] || job.stage}</span>
+        <div className="flex flex-wrap items-center gap-1">
           {isBusy && (
             <Button variant="outline" size="sm" title={t("autopilot.panel.pause")} onClick={onCancel}>
-              <Square className="w-3.5 h-3.5" />
+              <Square className="mr-1.5 w-3.5 h-3.5" />Tạm dừng
             </Button>
           )}
           {isIdle && (
-            <Button variant="outline" size="sm" title={t("autopilot.panel.resume")} onClick={onResume}>
+            <Button variant="default" size="sm" title={t("autopilot.panel.resume")} onClick={onResume}>
               <Play className="w-3.5 h-3.5" />
-              {job.awaitingNextStep && <span className="ml-1.5">Bước tiếp theo</span>}
+              <span className="ml-1.5">{job.awaitingNextStep ? "Bước tiếp theo" : job.status === "failed" ? "Thử lại phần còn thiếu" : "Tiếp tục"}</span>
             </Button>
           )}
           {job.completedSteps?.includes("videos") && !isBusy && (
@@ -79,20 +80,21 @@ export function JobCard({
             </>
           )}
           {(job.status === "done" || isIdle) && (
-            <Button variant="ghost" size="sm" onClick={onRemove}>
+            <Button variant="ghost" size="sm" aria-label="Xóa job" title="Xóa job" onClick={onRemove}>
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={onToggleExpand}>
+          <Button variant="ghost" size="sm" aria-label={expanded ? "Thu gọn job" : "Mở chi tiết job"} aria-expanded={expanded} onClick={onToggleExpand}>
             {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           </Button>
         </div>
       </div>
       <div className="flex items-center gap-3">
         <Progress value={job.progress} className="flex-1" />
+        <span className="text-xs font-semibold tabular-nums">{Math.round(job.progress)}%</span>
         {job.status === "running" && (
           <span className="shrink-0 text-2xs tabular-nums text-muted-foreground">
-            {Math.max(0, Math.floor((now - job.createdAt) / 1000))}s
+            {formatElapsed(now - startedAt)}
           </span>
         )}
       </div>

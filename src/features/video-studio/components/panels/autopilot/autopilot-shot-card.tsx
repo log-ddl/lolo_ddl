@@ -4,7 +4,8 @@ import { cn } from "@/shared/lib/utils";
 import { useI18n } from "@/shared/i18n";
 import { useNow } from "@/shared/lib/use-now";
 import { TaskInfoButton } from "@/shared/task-metadata";
-import { Check, ChevronRight, Copy, Mic, Plus } from "lucide-react";
+import { Check, ChevronRight, Copy, ImageIcon, Mic, Plus } from "lucide-react";
+import { LocalImage } from "@/shared/components/ui/local-image";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { SplitSceneCard } from "@/features/video-studio/components/panels/director/split-scene-card";
 import { useAutopilotStore } from "@/features/video-studio/stores/autopilot-store";
@@ -40,7 +41,7 @@ function StatusBadge({ label, message, tone }: { label: string; message?: string
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const className = cn(
-    "rounded-full border px-2 py-0.5 text-2xs",
+    "rounded-full border px-2 py-1 text-xs",
     tone === "error"
       ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
       : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -74,6 +75,7 @@ function StatusBadge({ label, message, tone }: { label: string; message?: string
             {t(copied ? "taskInfo.copied" : "taskInfo.copy")}
           </button>
         </div>
+        {message.includes("PUBLIC_ERROR_UNUSUAL_ACTIVITY") && <p className="text-xs leading-relaxed">Google Flow từ chối yêu cầu vì phát hiện hoạt động bất thường. Tạm dừng và chờ vài phút trước khi thử lại.</p>}
         <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded border bg-muted/30 p-2 font-sans text-2xs leading-relaxed">{message}</pre>
       </PopoverContent>
     </Popover>
@@ -187,30 +189,32 @@ export function AutopilotShotCard({
   const videoElapsed = videoGenerating && videoStartedAt ? Math.max(0, Math.floor((now - videoStartedAt) / 1000)) : 0;
 
   return (
-    <details className="rounded-lg border border-border bg-card overflow-hidden">
-      <summary className="flex cursor-pointer items-center gap-3 select-none list-none px-3 py-2 [&::-webkit-details-marker]:hidden hover:bg-muted/30 transition-colors">
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="text-xs font-semibold text-foreground shrink-0">Shot {shot.index}</span>
-          {sceneName && <span className="text-xs font-medium text-foreground truncate">{sceneName}</span>}
+    <details className={cn("rounded-xl border bg-card overflow-hidden", imageFailed || videoFailed ? "border-red-500/40" : videoFellBackToStill ? "border-amber-500/40" : "border-border")}>
+      <summary className="group flex cursor-pointer flex-wrap items-center gap-3 select-none list-none p-3 [&::-webkit-details-marker]:hidden hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+        <div className="flex h-12 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40">
+          {hasImage ? <LocalImage src={media!.imagePath} alt={`Ảnh shot ${shot.index}`} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-center gap-2"><span className="text-sm font-semibold text-foreground shrink-0">Shot {shot.index}</span><span className="text-xs tabular-nums text-muted-foreground">{Math.max(0, (shot.endMs - shot.startMs) / 1000).toFixed(1)}s</span></div>
+          <p className="truncate text-xs text-muted-foreground" title={sceneName || shot.voiceOver}>{sceneName || shot.voiceOver || "Chưa có tên cảnh"}</p>
+        </div>
+        <ChevronRight className="autopilot-collapsible-chevron-right h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="flex w-full flex-wrap items-center gap-2 border-t border-border/60 pt-2">
           {/* Image status */}
           {hasImage ? (
             <span
               className="rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-2xs text-green-700 dark:text-green-400"
               title={media?.imageModelUsed ? `Tạo bằng model dự phòng ${media.imageModelUsed}` : undefined}
             >
-              {media?.imageModelUsed ? `Asset · ${media.imageModelUsed}` : "Asset"}
+              {media?.imageModelUsed ? `Đã có ảnh · ${media.imageModelUsed}` : "Đã có ảnh"}
             </span>
           ) : imageGenerating ? (
             <span className="rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-2xs text-primary animate-pulse">{t("autopilot.card.generating")} {imageElapsed}s</span>
           ) : imageQueued ? (
             <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-2xs text-amber-600 dark:text-amber-400">{t("autopilot.panel.waiting")}</span>
           ) : imageFailed ? (
-            <StatusBadge label={t("autopilot.card.failed")} message={media?.imageError} tone="error" />
-          ) : null}
-          {/* Duration */}
-          <span className="rounded-full bg-muted border border-border px-2 py-0.5 text-2xs text-muted-foreground">{shot.videoLength}s</span>
+            <StatusBadge label="Lỗi ảnh · Xem lý do" message={media?.imageError} tone="error" />
+          ) : <span className="text-xs text-muted-foreground">{media?.imageStatus === "uploading" ? "Đang tải ảnh lên" : "Chưa tạo ảnh"}</span>}
           {/* Video status */}
           {hasVideo ? (
             <span
@@ -224,12 +228,13 @@ export function AutopilotShotCard({
           ) : videoQueued ? (
             <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-2xs text-amber-600 dark:text-amber-400">{t("autopilot.panel.waiting")}</span>
           ) : videoFailed ? (
-            <StatusBadge label={t("autopilot.card.videoFailed")} message={media?.videoError} tone="error" />
+            <StatusBadge label="Lỗi video · Xem lý do" message={media?.videoError} tone="error" />
           ) : videoFellBackToStill ? (
             // Not an error for the job — the shot renders as a still — but the user still
             // needs to know the clip was meant to exist and why it does not.
             <StatusBadge label={t("autopilot.card.videoFallback")} message={media?.videoError} tone="warning" />
-          ) : null}
+          ) : !shot.videoPrompt?.trim() ? <span className="text-xs text-muted-foreground">Ảnh tĩnh</span> : media?.videoStatus === "uploading" ? <span className="text-xs text-muted-foreground">Đang tải video lên</span> : null}
+          <span className="ml-auto text-xs text-muted-foreground">Chi tiết</span>
           <TaskInfoButton
             taskId={infoIsVideo ? media?.videoTaskId : media?.imageTaskId}
             outputUrl={infoIsVideo ? media?.videoPath : media?.imagePath}
@@ -238,7 +243,6 @@ export function AutopilotShotCard({
             title={t(infoIsVideo ? "taskInfo.video" : "taskInfo.image")}
           />
         </div>
-        <ChevronRight className="autopilot-collapsible-chevron-right h-4 w-4 shrink-0 text-muted-foreground" />
       </summary>
       <div className="border-t border-border">
         {shot.voiceOver?.trim() && (

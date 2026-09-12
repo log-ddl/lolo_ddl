@@ -783,7 +783,9 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
             throw new Error(`Google Flow PER_MODEL_DAILY_QUOTA_REACHED (${modelKey}) trên tài khoản ${laneSlot.extensionInstanceId.slice(0, 8)}`);
           }
           return executor(laneSlot, currentLane, signal);
-        }, isDailyQuotaError, queuedMessage);
+        // Non-cancellation failures are retried on another account below. Only
+        // the outer loop knows when no account is left and may report failure.
+        }, (error) => !isCancelledError(error), queuedMessage);
       } catch (error) {
         // Cancelling means the user wants nothing more, so it never travels.
         if (isCancelledError(error)) throw error;
