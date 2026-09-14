@@ -1,3 +1,5 @@
+import autopilotUi from "./autopilot-ui";
+import canvasUi from "./canvas-ui";
 import { mergeCatalogSections } from "../merge-catalog";
 import core from "./core";
 import projects from "./projects";
@@ -17,6 +19,8 @@ import contentChat from "./content-chat";
 import autoEdit from "./auto-edit";
 
 const vi = mergeCatalogSections(
+  autopilotUi,
+  canvasUi,
   core,
   projects,
   settings,

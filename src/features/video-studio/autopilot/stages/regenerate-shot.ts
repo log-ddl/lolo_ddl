@@ -120,7 +120,7 @@ export async function runSingleShotRegeneration(
               allowedOwnerScopeIds: imageAccountsFor(model),
               modelChainByOwnerScope: imageModelChains,
               taskId: mediaOutput.imageTaskId,
-              onSubmitted: () => { mediaOutput.imageStatus = 'generating'; syncMediaOutputs(); },
+              onSubmitted: (submittedAt) => { mediaOutput.imageSubmittedAt = submittedAt ?? Date.now(); mediaOutput.imageStatus = 'generating'; syncMediaOutputs(); },
               signal,
             });
           },
@@ -169,7 +169,7 @@ export async function runSingleShotRegeneration(
               allowedOwnerScopeIds: routing.accountsFor('video', model),
               modelChainByOwnerScope: videoModelChains,
               taskId: mediaOutput.videoTaskId,
-              onSubmitted: () => { mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
+              onSubmitted: (submittedAt) => { mediaOutput.videoSubmittedAt = submittedAt ?? Date.now(); mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
               signal,
             });
           },

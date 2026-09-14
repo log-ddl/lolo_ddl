@@ -254,19 +254,19 @@ export function AutopilotPanel() {
     if (!input) return;
     const { activeProjectId, projects } = useProjectStore.getState();
     if (!activeProjectId) {
-      toast.error("Chưa có dự án đang mở để thêm vào hàng chờ");
+      toast.error(t("autopilot.ui.queueProject"));
       return;
     }
-    const projectName = projects.find((p) => p.id === activeProjectId)?.name || "Dự án";
+    const projectName = projects.find((p) => p.id === activeProjectId)?.name || t("autopilot.ui.project");
     useBatchQueueStore.getState().addEntry({
       projectId: activeProjectId,
       projectName,
-      label: mergeAfterCreate ? "AutoPilot đầy đủ" : "Chỉ tạo video (chưa ghép)",
+      label: mergeAfterCreate ? t("autopilot.ui.fullRun") : t("autopilot.ui.videosOnly"),
       stopAfterStep: input.stopAfterStep,
       input: { ...input, title: projectName },
     });
-    toast.success(`Đã thêm "${projectName}" vào hàng chờ`);
-  }, [buildInput, mergeAfterCreate]);
+    toast.success(t("autopilot.ui.queuedProject", { name: projectName }));
+  }, [buildInput, mergeAfterCreate, t]);
 
   const handlePickNarrationAudio = useCallback(async () => {
     const result = await window.ttsRuntime?.pickReferenceAudio(t("autopilot.panel.importAudio"));
@@ -299,11 +299,11 @@ export function AutopilotPanel() {
       setImportedPlanName(file.name);
       setScript(scriptFromImportedPlan(plan));
       if (plan.aspectRatio) setAspectRatio(plan.aspectRatio);
-      toast.success(`Đã nạp ${plan.shots.length} shot từ JSON; bỏ qua CLI lập shot`);
+      toast.success(t("autopilot.ui.planLoaded", { count: plan.shots.length }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     }
-  }, []);
+  }, [t]);
 
   const handleClearPlan = useCallback(() => {
     setImportedPlan(null);
@@ -347,8 +347,7 @@ export function AutopilotPanel() {
 
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border bg-muted/10 p-2.5">
               <Button type="button" variant="outline" size="sm" onClick={() => planInputRef.current?.click()}>
-                <FileUp className="mr-1.5 h-4 w-4" />Nhập kế hoạch JSON
-              </Button>
+                <FileUp className="mr-1.5 h-4 w-4" />{t("autopilot.ui.importPlan")}</Button>
               <input
                 ref={planInputRef}
                 type="file"
@@ -362,14 +361,14 @@ export function AutopilotPanel() {
               {importedPlan ? (
                 <>
                   <span className="min-w-0 flex-1 truncate text-xs text-green-600 dark:text-green-400">
-                    {importedPlanName} · {importedPlan.shots.length} shot · bỏ qua CLI lập shot
+                    {t("autopilot.ui.planSummary", { name: importedPlanName, count: importedPlan.shots.length })}
                   </span>
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Bỏ JSON đã nhập" onClick={handleClearPlan}>
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title={t("autopilot.ui.removePlan")} onClick={handleClearPlan}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </>
               ) : (
-                <span className="text-2xs text-muted-foreground">Nạp JSON có shots[].voiceOver và shots[].imagePrompt.</span>
+                <span className="text-2xs text-muted-foreground">{t("autopilot.ui.planHint")}</span>
               )}
             </div>
 
@@ -381,7 +380,7 @@ export function AutopilotPanel() {
                     <option value="none">{t("autopilot.panel.noSkill")}</option>
                     {savedSkills.map((skill) => <option key={skill.id} value={skill.id}>{skill.name}</option>)}
                   </select>
-                  <Button type="button" variant="outline" size="sm" className="h-9 px-2" title="Chỉnh sửa skill" disabled={!selectedSkillId} onClick={() => setSkillExpanded(true)}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" variant="outline" size="sm" className="h-9 px-2" title={t("autopilot.ui.editSkill")} disabled={!selectedSkillId} onClick={() => setSkillExpanded(true)}><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button type="button" variant="outline" size="sm" className="h-9 px-2" title={t("autopilot.panel.newSkill")} onClick={() => handleSelectSkill("new")}><Plus className="h-3.5 w-3.5" /></Button>
                 </div>
               </div>
@@ -400,7 +399,7 @@ export function AutopilotPanel() {
 
             {skillExpanded && (
               <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3">
-                <div className="flex items-center justify-between"><span className="text-xs font-semibold">Chỉnh sửa skill</span><Button type="button" variant="ghost" size="sm" onClick={() => setSkillExpanded(false)}><ChevronDown className="h-4 w-4" /></Button></div>
+                <div className="flex items-center justify-between"><span className="text-xs font-semibold">{t("autopilot.ui.editSkill")}</span><Button type="button" variant="ghost" size="sm" onClick={() => setSkillExpanded(false)}><ChevronDown className="h-4 w-4" /></Button></div>
                 <Input value={skillName} onChange={(event) => setSkillName(event.target.value)} placeholder={t("autopilot.panel.skillNamePlaceholder")} className="text-xs" />
                 <Textarea value={skillText} onChange={(e) => setSkillText(e.target.value)} placeholder={t("autopilot.panel.skillPlaceholder")} rows={7} className="max-h-64 resize-y font-mono text-2xs" />
                 <div className="flex justify-end gap-2">
@@ -460,11 +459,11 @@ export function AutopilotPanel() {
                 </div>
                 <div className="grid gap-3 lg:grid-cols-[minmax(180px,1fr)_auto_auto] lg:items-end">
                   <div>
-                    <Label className="mb-1.5 block text-xs">Encoder</Label>
+                    <Label className="mb-1.5 block text-xs">{t("autopilot.ui.encoder")}</Label>
                     <select value={codec} onChange={(e) => setCodec(e.target.value as RenderCodec)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">{CODEC_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
                   </div>
                   <div className="flex h-8 items-center gap-2 whitespace-nowrap"><Switch checked={subtitles} onCheckedChange={setSubtitles} /><Label>{t("autopilot.panel.addSubtitles")}</Label></div>
-                  <div className="flex h-8 items-center gap-2 whitespace-nowrap"><Switch checked={audioNormalize} onCheckedChange={setAudioNormalize} /><Label>Chuẩn hóa âm thanh (-14 LUFS YouTube)</Label></div>
+                  <div className="flex h-8 items-center gap-2 whitespace-nowrap"><Switch checked={audioNormalize} onCheckedChange={setAudioNormalize} /><Label>{t("autopilot.ui.normalizeYoutube")}</Label></div>
                 </div>
                 <div>
                   <div className="flex h-8 items-center gap-2 whitespace-nowrap">
@@ -491,9 +490,9 @@ export function AutopilotPanel() {
                   <p className="text-2xs text-muted-foreground mt-0.5">{t("autopilot.panel.kenBurnsHint")}</p>
                 </div>
                 <div>
-                  <Label className="mb-1.5 block text-xs">Âm thanh gốc video ({Math.round(videoAudioVolume * 100)}%)</Label>
+                  <Label className="mb-1.5 block text-xs">{t("autopilot.ui.originalAudio", { percent: Math.round(videoAudioVolume * 100) })}</Label>
                   <input type="range" min={0} max={0.5} step={0.05} value={videoAudioVolume} onChange={(e) => setVideoAudioVolume(parseFloat(e.target.value))} className="w-full accent-primary" />
-                  <p className="text-2xs text-muted-foreground mt-0.5">{videoAudioVolume === 0 ? "Tắt (mặc định)" : `Giữ âm thanh gốc video ở ${Math.round(videoAudioVolume * 100)}% so với voice`}</p>
+                  <p className="text-2xs text-muted-foreground mt-0.5">{videoAudioVolume === 0 ? t("autopilot.ui.mutedDefault") : t("autopilot.ui.originalAudioHint", { percent: Math.round(videoAudioVolume * 100) })}</p>
                 </div>
               </div>
             )}
@@ -501,19 +500,18 @@ export function AutopilotPanel() {
             <div className="flex items-start gap-2.5 border-t border-border pt-3">
               <Switch checked={mergeAfterCreate} onCheckedChange={setMergeAfterCreate} />
               <div className="min-w-0">
-                <Label className="text-xs font-medium">Ghép thành video hoàn chỉnh</Label>
+                <Label className="text-xs font-medium">{t("autopilot.ui.mergeFinal")}</Label>
                 <p className="text-2xs text-muted-foreground">
                   {mergeAfterCreate
-                    ? "Tạo xong sẽ ghép (ffmpeg) ra 1 video hoàn chỉnh."
-                    : "Chỉ tạo các video từng cảnh, KHÔNG ghép — bấm “Ghép lại” sau để xuất video cuối."}
+                    ? t("autopilot.ui.mergeHint")
+                    : t("autopilot.ui.clipsHint")}
                 </p>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="outline" className="mr-auto" onClick={handleAddToQueue} title="Thêm dự án này vào hàng chờ để chạy AutoPilot theo lịch/tuần tự">
-                <Plus className="mr-1.5 h-4 w-4" />Thêm vào hàng chờ
-              </Button>
+              <Button variant="outline" className="mr-auto" onClick={handleAddToQueue} title={t("autopilot.ui.queueHint")}>
+                <Plus className="mr-1.5 h-4 w-4" />{t("autopilot.ui.addQueue")}</Button>
               <Button variant="outline" onClick={() => handleCreate("step")}><FileUp className="mr-2 h-4 w-4" />{t("autopilot.panel.createStepByStep")}</Button>
               <Button onClick={() => handleCreate("all")}><Play className="mr-2 h-4 w-4" />{t("autopilot.panel.createAll")}</Button>
             </div>

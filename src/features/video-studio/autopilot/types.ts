@@ -192,6 +192,7 @@ export interface AutopilotSrtSegment {
 export interface AutopilotCharacterOutput {
   name: string;
   imagePath: string;
+  imageSubmittedAt?: number;
   status?: AutopilotAssetStatus;
 }
 
@@ -210,6 +211,7 @@ export interface AutopilotScenePlan {
 export interface AutopilotSceneOutput {
   name: string;
   imagePath: string;
+  imageSubmittedAt?: number;
   status?: AutopilotAssetStatus;
 }
 
@@ -267,6 +269,9 @@ export interface AutopilotChapterCheckpoint {
 }
 
 export interface AutopilotMediaOutput {
+  /** Start of the current generation attempt, independent of UI mounting. */
+  imageSubmittedAt?: number;
+  videoSubmittedAt?: number;
   index: number;
   startMs: number;
   endMs: number;

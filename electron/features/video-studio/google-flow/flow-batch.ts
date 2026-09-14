@@ -29,6 +29,7 @@ export const FLOW_MEDIA_HOST = 'flow-content.google';
 
 export const RPC_GEN_IMAGE = 'ogiZ0b';
 export const RPC_GEN_VIDEO = 'eb1hJf';
+export const RPC_GEN_REFERENCE_VIDEO = 'MZZa6b';
 export const RPC_OPERATION = 'jwpduf';
 export const RPC_PROJECT_MEDIA = 'Zzl0ze';
 export const RPC_MEDIA = 'as29s';
@@ -141,11 +142,16 @@ export function resolveBatchImageModel(key: string | undefined): string {
 
 export function resolveBatchVideoModel(key: string | undefined): string {
   const value = (key || '').trim();
+  // Runtime has already resolved the model, mode and duration. Never coerce a
+  // wire key to another model: that silently changed Omni into an 8s Veo job.
+  // Let Flow report availability for the requested key on this account.
+  if (/^(?:abra|veo)_/.test(value)) return value;
   if (BATCH_VIDEO_MODELS.has(value)) return value;
   if (/ultra/i.test(value)) return 'veo_3_1_i2v_s_fast_ultra';
   if (/lite_low_priority|lower.?priority/i.test(value)) return 'veo_3_1_i2v_lite_low_priority';
   if (/lite/i.test(value)) return 'veo_3_1_i2v_lite';
-  return DEFAULT_VIDEO_MODEL;
+  if (!value) return DEFAULT_VIDEO_MODEL;
+  throw new Error(`Unsupported Google Flow video model: ${value}`);
 }
 
 /**
@@ -322,6 +328,20 @@ export function imageRequest(input: {
     ]);
   }
   return buildEnvelope(RPC_GEN_IMAGE, [null, items, 1, context(input.projectId), [clientUuid()]]);
+}
+
+/** Captured from Flow Ingredients, Omni 4s, 2026-09-14. References are
+ * [null, mediaId] entries; this is a different RPC and shape from First. */
+export function referenceVideoRequest(input: {
+  prompt: string; projectId: string; referenceMediaIds: string[]; aspect?: string; model: string;
+}): string {
+  if (!input.referenceMediaIds.length || input.referenceMediaIds.length > 3) throw new Error('Ref video requires 1–3 images');
+  return buildEnvelope(RPC_GEN_REFERENCE_VIDEO, [
+    [[[null, null, [[[input.prompt]]]], input.referenceMediaIds.map((id) => [null, id]),
+      resolveBatchVideoModel(input.model), resolveVideoAspect(input.aspect), null,
+      [null, null, null, null, clientUuid(), clientUuid()]]],
+    context(input.projectId), [clientUuid(), 2],
+  ]);
 }
 
 export function videoRequest(input: {

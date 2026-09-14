@@ -1,3 +1,4 @@
+import { isDeadBearerError } from './quota-locks';
 import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import {
@@ -10,6 +11,7 @@ import {
 import {
   RPC_GEN_IMAGE,
   RPC_GEN_VIDEO,
+  RPC_GEN_REFERENCE_VIDEO,
   RPC_MEDIA,
   RPC_OPERATION,
   RPC_PROJECT_MEDIA,
@@ -31,7 +33,7 @@ import { safeMessage, type Lane, type PendingRequest, type SocketState } from '.
 
 /** The only batchexecute RPCs this app issues. Anything else is refused up front. */
 const KNOWN_FLOW_RPC_IDS = new Set<string>([
-  RPC_GEN_IMAGE, RPC_GEN_VIDEO, RPC_OPERATION, RPC_PROJECT_MEDIA, RPC_MEDIA, RPC_UPLOAD_IMAGE,
+  RPC_GEN_IMAGE, RPC_GEN_VIDEO, RPC_GEN_REFERENCE_VIDEO, RPC_OPERATION, RPC_PROJECT_MEDIA, RPC_MEDIA, RPC_UPLOAD_IMAGE,
 ]);
 
 export interface FlowSocketContext {
@@ -384,6 +386,7 @@ const CREDITS_RETRY_DELAYS_MS = [5_000, 20_000, 60_000];
 const creditsInFlight = new Set<string>();
 
 export async function refreshCredits(ctx: FlowSocketContext, slot: FlowCredentialSlot): Promise<void> {
+  if (slot.transport === 'batch') return;
   if (creditsInFlight.has(slot.credentialId)) return;
   creditsInFlight.add(slot.credentialId);
   try {
@@ -405,6 +408,10 @@ export async function refreshCredits(ctx: FlowSocketContext, slot: FlowCredentia
         return;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        if (isDeadBearerError(error)) {
+          console.warn(`[video-studio][google-flow] credits unavailable for ${slot.credentialId.slice(0, 8)}: authentication rejected; not retrying this check`);
+          return;
+        }
         if (attempt >= CREDITS_RETRY_DELAYS_MS.length) {
           console.warn(`[video-studio][google-flow] không lấy được gói/tín dụng cho ${slot.credentialId.slice(0, 8)} sau ${attempt + 1} lần: ${message}`);
           return;

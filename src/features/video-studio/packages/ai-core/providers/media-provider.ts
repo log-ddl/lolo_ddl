@@ -2,6 +2,7 @@ export type MediaProviderId = 'googleflow' | 'grok';
 
 export type ProviderMediaRef = {
   source: string;
+  fileName?: string;
   provider?: MediaProviderId;
   ownerScopeId?: string;
   accountId?: string;
@@ -57,7 +58,7 @@ export type VideoGenerationInput = {
    */
   modelChainByOwnerScope?: Record<string, string[]>;
   taskId?: string;
-  onSubmitted?: () => void;
+  onSubmitted?: (submittedAt?: number) => void;
   signal?: AbortSignal;
 };
 

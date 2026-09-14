@@ -109,6 +109,7 @@ export function validateImageInput(input: FlowImageInput): void {
 export function validateVideoInput(input: FlowVideoInput): void {
   assertRecord(input, 'video payload'); assertString(input.projectId, 'projectId', 256); assertString(input.sceneId, 'sceneId', 256);
   assertString(input.prompt, 'prompt', 100_000); assertString(input.model, 'model', 256); assertString(input.aspectRatio, 'aspectRatio', 16);
+  if (!input.startImage?.source && !input.references?.length) throw new Error('Google Flow requires a start image or reference images for video generation');
   if ((input.references?.length || 0) > 3) throw new Error('Google Flow supports at most 3 video references');
 }
 

@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import { canConnect, nodeValues, resolveInputs, resolvedRuns } from './graph';
+import { arrangeNodes } from './layout';
+import { groupDragMoves } from './drag';
+import { expandConnection, groupPorts } from './group-ports';
+import { exportSpace, importSpaceArchive } from './archive';
+import type { CanvasNodeKind, CanvasNodeState, CanvasSpace } from './types';
+
+const node = (id: string, kind: CanvasNodeKind, patch: Partial<CanvasNodeState> = {}): CanvasNodeState => ({ id, kind, index: 1, prompt: '', refs: [], model: '', aspectRatio: '1:1', status: 'idle', stale: false, position: { x: 0, y: 0 }, ...patch });
+async function main() {
+  const list = node('list', 'list', { items: ['cat', 'dog'] });
+  const gen = node('gen', 'imageGenerator');
+  const ref = node('ref', 'reference', { prompt: 'Keep the red hat', refs: ['ref1', 'ref2'] });
+  const nodes = [list, gen, ref]; const edges = [{ id: 'a', source: 'list', target: 'gen', targetHandle: 'prompt' }, { id: 'b', source: 'ref', target: 'gen', targetHandle: 'refs' }];
+  assert.equal(canConnect(nodes, [], edges[0]), true);
+  assert.deepEqual(resolvedRuns(resolveInputs(nodes, edges, 'gen')).map((run) => run.promptParts), [['Keep the red hat', 'cat'], ['Keep the red hat', 'dog']]);
+  assert.deepEqual(resolvedRuns(resolveInputs(nodes, edges, 'gen'))[0].mediaByPort.refs, ['ref1', 'ref2']);
+  const router = node('router', 'router', { selectedValue: 'dog' }); nodes.push(router);
+  edges.push({ id: 'c', source: 'list', target: 'router', targetHandle: 'items' });
+  assert.deepEqual(nodeValues(nodes, edges, 'router'), ['dog']);
+  list.items = ['dog', 'cat']; assert.deepEqual(nodeValues(nodes, edges, 'router'), ['dog'], 'selection survives reorder');
+  list.items = ['cat']; assert.deepEqual(nodeValues(nodes, edges, 'router'), [], 'removed selection never silently changes');
+  assert.throws(() => resolvedRuns({ promptParts: [], mediaByPort: {}, missing: [], batches: [{ port: 'prompt', text: true, values: ['a', 'b'] }, { port: 'refs', text: false, values: ['1', '2', '3'] }] }));
+  const space: CanvasSpace = { id: 's', name: 'test', createdAt: 1, updatedAt: 1, nodes: [node('a', 'imageGenerator'), node('b', 'imageGenerator'), node('c', 'imageGenerator'), node('outside', 'text', { position: { x: 2000, y: 2000 } })], edges: [{ id: 'ab', source: 'a', target: 'b', targetHandle: 'refs' }, { id: 'bc', source: 'b', target: 'c', targetHandle: 'refs' }] };
+  const moves = arrangeNodes(space, ['a', 'b', 'c']);
+  assert.ok(moves[0].position.x < moves[1].position.x && moves[1].position.x < moves[2].position.x);
+  assert.equal(moves.some((move) => move.id === 'outside'), false);
+  space.nodes[0].groupId = 'g'; space.nodes.push(node('g', 'group', { collapsed: true }));
+  const dragged = groupDragMoves(space.nodes, [{ id: 'g', position: { x: 50, y: 80 } }]);
+  assert.deepEqual(dragged.find((move) => move.id === 'a')?.position, { x: 50, y: 80 });
+  assert.equal(dragged.some((move) => move.id === 'outside'), false);
+  assert.deepEqual(groupDragMoves(space.nodes, [{ id: 'g', position: { x: 50, y: 80 } }, { id: 'a', position: { x: 60, y: 90 } }]).find((move) => move.id === 'a')?.position, { x: 60, y: 90 }, 'explicit child movement is not applied twice');
+  assert.ok(groupPorts(space, 'g').some((port) => port.id === 'out:a'));
+  assert.deepEqual(expandConnection({ source: 'g', sourceHandle: 'out:a', target: 'g2', targetHandle: 'in:b:refs' }), { source: 'a', sourceHandle: 'out', target: 'b', targetHandle: 'refs' });
+  const mediaList = node('media', 'list', { valueType: 'image', items: ['data:image/png;base64,AQID'] });
+  space.nodes.push(mediaList, node('pick', 'router', { valueType: 'image', selectedValue: mediaList.items![0] }));
+  space.edges.push({ id: 'pick', source: 'media', target: 'pick', targetHandle: 'items' });
+  const restored = await importSpaceArchive(new File([await exportSpace(space, () => {})], 'test.canvas'), () => {});
+  assert.equal(restored.nodes.find((n) => n.id === 'media')!.items![0], restored.nodes.find((n) => n.id === 'pick')!.selectedValue);
+  console.log('List typing/broadcast, router selection, references, layout, collapsed ports and media archive checks passed.');
+}
+main().catch((error) => { console.error(error); process.exitCode = 1; });

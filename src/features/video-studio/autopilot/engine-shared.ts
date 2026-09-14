@@ -46,6 +46,8 @@ export type PlannedShot = AutopilotPlannedShot & Shot & {
 export const MAX_IMAGE_REFERENCE_SLOTS = 8;
 
 export interface PendingShot {
+  imageSubmittedAt?: number;
+  videoSubmittedAt?: number;
   shot: PlannedShot;
   baseImagePath: string;
   imagePath: string;

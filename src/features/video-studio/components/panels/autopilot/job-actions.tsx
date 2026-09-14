@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/shared/i18n";
 
 /**
  * Post-generation actions on a finished job: export a DaVinci timeline, or
@@ -30,6 +31,7 @@ import { CODEC_OPTIONS } from "./panel-shared";
  * DaVinci. Available once the shot videos exist — independent of ffmpeg stitching.
  */
 export function ExportFcpxmlButton({ job }: { job: AutopilotJobListItem }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
 
   const handleExport = useCallback(async () => {
@@ -56,7 +58,7 @@ export function ExportFcpxmlButton({ job }: { job: AutopilotJobListItem }) {
         });
       }
       if (pending.length === 0) {
-        toast.error("Không có clip nào để xuất (chưa có video/ảnh).");
+        toast.error(t("autopilot.ui.noClips"));
         return;
       }
 
@@ -107,17 +109,17 @@ export function ExportFcpxmlButton({ job }: { job: AutopilotJobListItem }) {
       });
       const defaultName = (job.title.replace(/[^a-zA-Z0-9À-ɏ_-]+/g, "_") || "autopilot") + "_davinci";
       const result = await window.autoEditRuntime?.saveText({ content: xml, defaultName, extension: "fcpxml" });
-      if (result?.success) toast.success(`Đã xuất FCPXML (${clips.length} clip) cho DaVinci`);
-      else if (result && !result.canceled) toast.error(result.error || "Xuất FCPXML thất bại");
+      if (result?.success) toast.success(t("autopilot.ui.exported", { count: clips.length }));
+      else if (result && !result.canceled) toast.error(result.error || t("autopilot.ui.exportFailed"));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
     }
-  }, [job]);
+  }, [job, t]);
 
   return (
-    <Button variant="outline" size="sm" disabled={busy} onClick={handleExport} title="Xuất timeline .fcpxml để mở/chỉnh/render trong DaVinci Resolve (không tạo lại media)">
+    <Button variant="outline" size="sm" disabled={busy} onClick={handleExport} title={t("autopilot.ui.exportHint")}>
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
       <span className="ml-1.5 hidden sm:inline">DaVinci</span>
     </Button>
@@ -131,6 +133,7 @@ export function ExportFcpxmlButton({ job }: { job: AutopilotJobListItem }) {
  * — including a plain re-export with no edits at all.
  */
 export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
+  const { t } = useI18n();
   const rerenderJob = useAutopilotStore((s) => s.rerenderJob);
   const [open, setOpen] = useState(false);
   const [subtitles, setSubtitles] = useState(job.input?.subtitles === true);
@@ -163,47 +166,47 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
       videoAudioVolume,
     });
     if (ok) {
-      toast.success("Đang ghép lại video...");
+      toast.success(t("autopilot.ui.rerendering"));
       setOpen(false);
     } else {
-      toast.error("Chưa thể ghép lại (job đang chạy hoặc chưa đủ media).");
+      toast.error(t("autopilot.ui.rerenderBlocked"));
     }
   };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" title="Ghép lại video (không tạo lại media)">
+        <Button variant="outline" size="sm" title={t("autopilot.ui.rerenderHint")}>
           <Film className="w-3.5 h-3.5" />
-          <span className="ml-1.5 hidden sm:inline">Ghép lại</span>
+          <span className="ml-1.5 hidden sm:inline">{t("autopilot.ui.rerender")}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-3">
-        <div className="text-xs font-semibold">Ghép lại video</div>
-        <p className="text-2xs text-muted-foreground">Chỉ trộn lại bản cuối từ media đã có — không tạo lại ảnh/video, không tốn credit.</p>
+        <div className="text-xs font-semibold">{t("autopilot.ui.rerenderTitle")}</div>
+        <p className="text-2xs text-muted-foreground">{t("autopilot.ui.rerenderDescription")}</p>
 
         <div className="flex items-center justify-between gap-2">
-          <Label className="text-xs">Phụ đề</Label>
+          <Label className="text-xs">{t("autopilot.ui.subtitles")}</Label>
           <Switch checked={subtitles} onCheckedChange={setSubtitles} />
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Nhạc nền (BGM)</Label>
-          <Input value={bgmPath} onChange={(e) => setBgmPath(e.target.value)} placeholder="Đường dẫn file nhạc (tuỳ chọn)" className="text-xs" />
+          <Label className="text-xs">{t("autopilot.ui.bgm")}</Label>
+          <Input value={bgmPath} onChange={(e) => setBgmPath(e.target.value)} placeholder={t("autopilot.ui.musicPath")} className="text-xs" />
           <div className="flex items-center gap-2">
-            <Label className="w-16 text-2xs text-muted-foreground">Âm lượng</Label>
+            <Label className="w-16 text-2xs text-muted-foreground">{t("autopilot.ui.volume")}</Label>
             <input type="range" min={0} max={1} step={0.05} value={bgmVolume} onChange={(e) => setBgmVolume(Number(e.target.value))} className="flex-1" />
             <span className="w-8 text-right text-2xs tabular-nums">{Math.round(bgmVolume * 100)}%</span>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-2xs text-muted-foreground">Giảm nhạc khi có giọng</Label>
+            <Label className="text-2xs text-muted-foreground">{t("autopilot.ui.duck")}</Label>
             <Switch checked={bgmDuckVoice} onCheckedChange={setBgmDuckVoice} />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs">Độ phân giải</Label>
+            <Label className="text-xs">{t("autopilot.ui.resolution")}</Label>
             <select value={resolution} onChange={(e) => setResolution(e.target.value)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">
               <option value="1280x720">1280×720</option>
               <option value="1920x1080">1920×1080</option>
@@ -219,7 +222,7 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Encoder</Label>
+          <Label className="text-xs">{t("autopilot.ui.encoder")}</Label>
           <select value={codec} onChange={(e) => setCodec(e.target.value as RenderCodec)} className="h-8 w-full rounded-lg border border-border bg-background px-2 text-xs">
             {CODEC_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -227,11 +230,11 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-xs">Ken Burns cho shot ảnh tĩnh</Label>
+            <Label className="text-xs">{t("autopilot.ui.kenBurns")}</Label>
             <Switch checked={kenBurnsEnabled} onCheckedChange={setKenBurnsEnabled} />
           </div>
           <div className="flex items-center gap-2">
-            <Label className="flex-1 text-2xs text-muted-foreground">Tỉ lệ shot có chuyển động</Label>
+            <Label className="flex-1 text-2xs text-muted-foreground">{t("autopilot.ui.movingShare")}</Label>
             <Input
               type="number"
               min={0}
@@ -244,25 +247,24 @@ export function RerenderControl({ job }: { job: AutopilotJobListItem }) {
             />
             <span className="text-2xs text-muted-foreground">%</span>
           </div>
-          <p className="text-2xs text-muted-foreground">Để trống = 100%. Chỉ áp cho shot giữ ảnh tĩnh, shot đã có video không đổi. Shot dưới 1,5s luôn đứng yên.</p>
+          <p className="text-2xs text-muted-foreground">{t("autopilot.ui.kenBurnsHint")}</p>
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <Label className="text-xs">Chuẩn hóa âm thanh (-14 LUFS)</Label>
+          <Label className="text-xs">{t("autopilot.ui.normalize")}</Label>
           <Switch checked={audioNormalize} onCheckedChange={setAudioNormalize} />
         </div>
 
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <Label className="text-xs">Âm lượng video gốc</Label>
-            <span className="text-2xs tabular-nums text-muted-foreground">{videoAudioVolume === 0 ? "Tắt" : `${Math.round(videoAudioVolume * 100)}%`}</span>
+            <Label className="text-xs">{t("autopilot.ui.videoVolume")}</Label>
+            <span className="text-2xs tabular-nums text-muted-foreground">{videoAudioVolume === 0 ? t("autopilot.ui.off") : `${Math.round(videoAudioVolume * 100)}%`}</span>
           </div>
           <input type="range" min={0} max={0.5} step={0.05} value={videoAudioVolume} onChange={(e) => setVideoAudioVolume(Number(e.target.value))} className="w-full accent-primary" />
         </div>
 
         <Button size="sm" className="w-full" onClick={handleRerender}>
-          <Film className="mr-1.5 h-3.5 w-3.5" />Ghép lại
-        </Button>
+          <Film className="mr-1.5 h-3.5 w-3.5" />{t("autopilot.ui.rerender")}</Button>
       </PopoverContent>
     </Popover>
   );

@@ -14,6 +14,7 @@ const core = {
   "nav.export": "Xuất",
   "nav.autoVideo": "Auto Video",
   "nav.autopilot": "AutoPilot",
+  "nav.canvas": "Canvas",
   "nav.settings": "Cài đặt",
   "stage.script": "Kịch bản",
   "stage.assets": "Nhân vật và Cảnh",

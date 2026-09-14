@@ -335,7 +335,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs mb-1.5 block">Model</Label>
+            <Label className="text-xs mb-1.5 block">{t("autopilot.ui.model")}</Label>
             <select value={s.geminiModelId} onChange={(e) => s.setGeminiModelId(e.target.value)} className={SELECT_CLASS}>
               {GEMINI_MODELS.map((model) => (
                 <option key={model.id} value={model.id}>{model.name}</option>
@@ -355,7 +355,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
           <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voiceSelect")}</Label>
           <select value={s.geminiVoiceName} onChange={(e) => s.setGeminiVoiceName(e.target.value)} className={SELECT_CLASS}>
             {GEMINI_VOICES.map((voice) => (
-              <option key={voice.name} value={voice.name}>{voice.name} — {voice.description} ({voice.gender === 'F' ? 'Nữ' : 'Nam'})</option>
+              <option key={voice.name} value={voice.name}>{voice.name} — {voice.description} ({voice.gender === 'F' ? t("autopilot.ui.female") : t("autopilot.ui.male")})</option>
             ))}
           </select>
         </div>
@@ -374,7 +374,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
           <Label className="text-xs mb-1.5 block">{t("autopilot.panel.voiceSelect")} ({s.filteredVbeeVoices.length}/{s.vbeeVoices.length})</Label>
           <div className="relative mb-2">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={s.vbeeVoiceSearch} onChange={(event) => s.setVbeeVoiceSearch(event.target.value)} placeholder="Tìm theo tên, mã hoặc ngôn ngữ…" className="h-8 pl-8 text-xs" />
+            <Input value={s.vbeeVoiceSearch} onChange={(event) => s.setVbeeVoiceSearch(event.target.value)} placeholder={t("autopilot.ui.voiceSearch")} className="h-8 pl-8 text-xs" />
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -388,7 +388,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
               }}
               className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-background px-2 text-xs"
             >
-              {s.vbeeVoices.length === 0 && <option value={s.vbeeVoiceCode}>Đang tải giọng Vbee…</option>}
+              {s.vbeeVoices.length === 0 && <option value={s.vbeeVoiceCode}>{t("autopilot.ui.loadingVbee")}</option>}
               {s.vbeeVoiceOptions.map((voice) => (
                 <option key={voice.code} value={voice.code}>{s.vbeeFavoriteVoiceCodes.includes(voice.code) ? "★ " : ""}{voice.name} ({voice.languageCode})</option>
               ))}
@@ -398,7 +398,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
               variant="outline"
               size="icon"
               className="h-8 w-8 shrink-0"
-              title={s.vbeeFavoriteVoiceCodes.includes(s.vbeeVoiceCode) ? "Bỏ khỏi giọng yêu thích" : "Đánh dấu giọng yêu thích"}
+              title={s.vbeeFavoriteVoiceCodes.includes(s.vbeeVoiceCode) ? t("autopilot.ui.unfavoriteVoice") : t("autopilot.ui.favoriteVoice")}
               disabled={!s.vbeeVoices.some((voice) => voice.code === s.vbeeVoiceCode)}
               onClick={() => s.toggleVbeeFavoriteVoice(s.vbeeVoiceCode)}
             >
@@ -406,7 +406,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
             </Button>
           </div>
           <p className="mt-1 text-2xs text-muted-foreground">
-            Sẽ đọc bằng: <span className="text-foreground">{s.vbeeVoices.find((voice) => voice.code === s.vbeeVoiceCode)?.name || s.vbeeVoiceCode}</span> ({s.vbeeVoiceCode})
+            {t("autopilot.ui.voiceUsed")} <span className="text-foreground">{s.vbeeVoices.find((voice) => voice.code === s.vbeeVoiceCode)?.name || s.vbeeVoiceCode}</span> ({s.vbeeVoiceCode})
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -491,7 +491,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
             <Input
               value={s.omniLanguageSearch}
               onChange={(event) => s.setOmniLanguageSearch(event.target.value)}
-              placeholder="Tìm ngôn ngữ theo tên hoặc mã…"
+              placeholder={t("autopilot.ui.languageSearch")}
               className="h-8 pl-8 text-xs"
             />
           </div>
@@ -501,7 +501,7 @@ export function VoiceEngineSettings({ settings: s, t }: { settings: AutopilotVoi
             ))}
           </select>
           {s.filteredOmniLanguages.length === 0 && (
-            <p className="mt-1 text-2xs text-muted-foreground">Không có ngôn ngữ nào khớp — đang giữ nguyên lựa chọn hiện tại.</p>
+            <p className="mt-1 text-2xs text-muted-foreground">{t("autopilot.ui.noLanguage")}</p>
           )}
         </div>
       </div>

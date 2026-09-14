@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/shared/lib/utils";
 import { useI18n } from "@/shared/i18n";
+import { generationElapsedSeconds } from "@/features/video-studio/autopilot/generation-timing";
 import { useNow } from "@/shared/lib/use-now";
 import { TaskInfoButton } from "@/shared/task-metadata";
 import { Check, ChevronRight, Copy, ImageIcon, Mic, Plus } from "lucide-react";
@@ -75,31 +76,11 @@ function StatusBadge({ label, message, tone }: { label: string; message?: string
             {t(copied ? "taskInfo.copied" : "taskInfo.copy")}
           </button>
         </div>
-        {message.includes("PUBLIC_ERROR_UNUSUAL_ACTIVITY") && <p className="text-xs leading-relaxed">Google Flow từ chối yêu cầu vì phát hiện hoạt động bất thường. Tạm dừng và chờ vài phút trước khi thử lại.</p>}
+        {message.includes("PUBLIC_ERROR_UNUSUAL_ACTIVITY") && <p className="text-xs leading-relaxed">{t("autopilot.ui.unusualActivity")}</p>}
         <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded border bg-muted/30 p-2 font-sans text-2xs leading-relaxed">{message}</pre>
       </PopoverContent>
     </Popover>
   );
-}
-
-/** Track when a status transitions to 'generating' and return the timestamp */
-function useStartedAt(status: string | undefined): number | undefined {
-  const ref = useRef<number | undefined>(undefined);
-  const [startedAt, setStartedAt] = useState<number | undefined>(undefined);
-  useEffect(() => {
-    const isGenerating = status === "generating";
-    if (isGenerating) {
-      if (ref.current === undefined) {
-        const now = Date.now();
-        ref.current = now;
-        setStartedAt(now);
-      }
-    } else {
-      ref.current = undefined;
-      setStartedAt(undefined);
-    }
-  }, [status]);
-  return startedAt;
 }
 
 export function AutopilotShotCard({
@@ -121,8 +102,8 @@ export function AutopilotShotCard({
 
   const busy = job.status === "running" || job.status === "queued";
   const shotIndex = shot.index;
-  const imageStartedAt = useStartedAt(media?.imageStatus);
-  const videoStartedAt = useStartedAt(media?.videoStatus);
+  const imageStartedAt = media?.imageSubmittedAt;
+  const videoStartedAt = media?.videoSubmittedAt;
 
   const scene = useMemo<SplitScene>(() => ({
     id: shot.index - 1,
@@ -185,18 +166,18 @@ export function AutopilotShotCard({
   const infoIsVideo = hasVideo || videoFailed || videoFellBackToStill;
   const sceneName = shot.sceneRefId || "";
   const now = useNow(imageGenerating || videoGenerating);
-  const imageElapsed = imageGenerating && imageStartedAt ? Math.max(0, Math.floor((now - imageStartedAt) / 1000)) : 0;
-  const videoElapsed = videoGenerating && videoStartedAt ? Math.max(0, Math.floor((now - videoStartedAt) / 1000)) : 0;
+  const imageElapsed = generationElapsedSeconds(media?.imageStatus, imageStartedAt, now);
+  const videoElapsed = generationElapsedSeconds(media?.videoStatus, videoStartedAt, now);
 
   return (
     <details className={cn("rounded-xl border bg-card overflow-hidden", imageFailed || videoFailed ? "border-red-500/40" : videoFellBackToStill ? "border-amber-500/40" : "border-border")}>
       <summary className="group flex cursor-pointer flex-wrap items-center gap-3 select-none list-none p-3 [&::-webkit-details-marker]:hidden hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
         <div className="flex h-12 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40">
-          {hasImage ? <LocalImage src={media!.imagePath} alt={`Ảnh shot ${shot.index}`} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+          {hasImage ? <LocalImage src={media!.imagePath} alt={t("autopilot.ui.shotImage", { index: shot.index })} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
         </div>
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center gap-2"><span className="text-sm font-semibold text-foreground shrink-0">Shot {shot.index}</span><span className="text-xs tabular-nums text-muted-foreground">{Math.max(0, (shot.endMs - shot.startMs) / 1000).toFixed(1)}s</span></div>
-          <p className="truncate text-xs text-muted-foreground" title={sceneName || shot.voiceOver}>{sceneName || shot.voiceOver || "Chưa có tên cảnh"}</p>
+          <p className="truncate text-xs text-muted-foreground" title={sceneName || shot.voiceOver}>{sceneName || shot.voiceOver || t("autopilot.ui.unnamedScene")}</p>
         </div>
         <ChevronRight className="autopilot-collapsible-chevron-right h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="flex w-full flex-wrap items-center gap-2 border-t border-border/60 pt-2">
@@ -204,37 +185,37 @@ export function AutopilotShotCard({
           {hasImage ? (
             <span
               className="rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-2xs text-green-700 dark:text-green-400"
-              title={media?.imageModelUsed ? `Tạo bằng model dự phòng ${media.imageModelUsed}` : undefined}
+              title={media?.imageModelUsed ? t("autopilot.ui.fallbackModel", { model: media.imageModelUsed }) : undefined}
             >
-              {media?.imageModelUsed ? `Đã có ảnh · ${media.imageModelUsed}` : "Đã có ảnh"}
+              {media?.imageModelUsed ? `${t("autopilot.ui.hasImage")} · ${media.imageModelUsed}` : t("autopilot.ui.hasImage")}
             </span>
           ) : imageGenerating ? (
-            <span className="rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-2xs text-primary animate-pulse">{t("autopilot.card.generating")} {imageElapsed}s</span>
+            <span className="rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-2xs text-primary animate-pulse">{t("autopilot.card.generating")} {imageElapsed === undefined ? "" : ` ${imageElapsed}s`}</span>
           ) : imageQueued ? (
             <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-2xs text-amber-600 dark:text-amber-400">{t("autopilot.panel.waiting")}</span>
           ) : imageFailed ? (
-            <StatusBadge label="Lỗi ảnh · Xem lý do" message={media?.imageError} tone="error" />
-          ) : <span className="text-xs text-muted-foreground">{media?.imageStatus === "uploading" ? "Đang tải ảnh lên" : "Chưa tạo ảnh"}</span>}
+            <StatusBadge label={t("autopilot.ui.imageFailure")} message={media?.imageError} tone="error" />
+          ) : <span className="text-xs text-muted-foreground">{media?.imageStatus === "uploading" ? t("autopilot.ui.uploadImage") : t("autopilot.ui.noImage")}</span>}
           {/* Video status */}
           {hasVideo ? (
             <span
               className="rounded-full bg-green-500/15 border border-green-500/30 px-2 py-0.5 text-2xs text-green-700 dark:text-green-400"
-              title={media?.videoModelUsed ? `Tạo bằng model dự phòng ${media.videoModelUsed}` : undefined}
+              title={media?.videoModelUsed ? t("autopilot.ui.fallbackModel", { model: media.videoModelUsed }) : undefined}
             >
               {media?.videoModelUsed ? `${t("autopilot.card.hasVideo")} · ${media.videoModelUsed}` : t("autopilot.card.hasVideo")}
             </span>
           ) : videoGenerating ? (
-            <span className="rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-2xs text-primary animate-pulse">{t("autopilot.card.renderingVideo")} {videoElapsed}s</span>
+            <span className="rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-2xs text-primary animate-pulse">{t("autopilot.card.renderingVideo")} {videoElapsed === undefined ? "" : ` ${videoElapsed}s`}</span>
           ) : videoQueued ? (
             <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-2xs text-amber-600 dark:text-amber-400">{t("autopilot.panel.waiting")}</span>
           ) : videoFailed ? (
-            <StatusBadge label="Lỗi video · Xem lý do" message={media?.videoError} tone="error" />
+            <StatusBadge label={t("autopilot.ui.videoFailure")} message={media?.videoError} tone="error" />
           ) : videoFellBackToStill ? (
             // Not an error for the job — the shot renders as a still — but the user still
             // needs to know the clip was meant to exist and why it does not.
             <StatusBadge label={t("autopilot.card.videoFallback")} message={media?.videoError} tone="warning" />
-          ) : !shot.videoPrompt?.trim() ? <span className="text-xs text-muted-foreground">Ảnh tĩnh</span> : media?.videoStatus === "uploading" ? <span className="text-xs text-muted-foreground">Đang tải video lên</span> : null}
-          <span className="ml-auto text-xs text-muted-foreground">Chi tiết</span>
+          ) : !shot.videoPrompt?.trim() ? <span className="text-xs text-muted-foreground">{t("autopilot.ui.still")}</span> : media?.videoStatus === "uploading" ? <span className="text-xs text-muted-foreground">{t("autopilot.ui.uploadVideo")}</span> : null}
+          <span className="ml-auto text-xs text-muted-foreground">{t("autopilot.ui.details")}</span>
           <TaskInfoButton
             taskId={infoIsVideo ? media?.videoTaskId : media?.imageTaskId}
             outputUrl={infoIsVideo ? media?.videoPath : media?.imagePath}
@@ -268,7 +249,7 @@ export function AutopilotShotCard({
           }}
           onRemoveImage={() => removeShotImage(job.id, shotIndex)}
           onUploadImage={async (_id, dataUrl) => {
-            if (await importShotImage(job.id, shotIndex, dataUrl)) toast.success(`Đã import ảnh shot ${shotIndex}`);
+            if (await importShotImage(job.id, shotIndex, dataUrl)) toast.success(t("autopilot.ui.shotImported", { index: shotIndex }));
           }}
           onStopImageGeneration={() => cancelJob(job.id)}
           onStopVideoGeneration={() => cancelJob(job.id)}
@@ -291,6 +272,7 @@ function AutopilotReferenceSelector({
   shot: AutopilotPlannedShot;
   disabled: boolean;
 }) {
+  const { t } = useI18n();
   const updateShotReferences = useAutopilotStore((s) => s.updateShotReferences);
   const [addingCharacter, setAddingCharacter] = useState(false);
   const characters = job.plannedCharacters || [];
@@ -319,11 +301,11 @@ function AutopilotReferenceSelector({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1.5 justify-end">
-      <div className="text-2xs font-semibold text-muted-foreground">Tham chiếu</div>
+      <div className="text-2xs font-semibold text-muted-foreground">{t("autopilot.ui.references")}</div>
 
       {roster.length > 0 && (
         <div className="space-y-1">
-          <div className="text-2xs text-muted-foreground">Nhân vật</div>
+          <div className="text-2xs text-muted-foreground">{t("autopilot.ui.characters")}</div>
           <div className="flex min-h-[1.25rem] flex-wrap items-center gap-1">
             {referenced.map((name) => (
               <button
@@ -332,7 +314,7 @@ function AutopilotReferenceSelector({
                 disabled={disabled}
                 onClick={() => toggleCharacter(name)}
                 className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-2xs text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
-                title={promptByName.get(name.toLocaleLowerCase()) || "Bấm để bỏ tham chiếu"}
+                title={promptByName.get(name.toLocaleLowerCase()) || t("autopilot.ui.removeReference")}
               >
                 {name}
               </button>
@@ -346,7 +328,7 @@ function AutopilotReferenceSelector({
                   "flex h-[1.125rem] w-[1.125rem] items-center justify-center rounded-full border border-dashed text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50",
                   addingCharacter ? "border-primary/40 bg-muted" : "border-border",
                 )}
-                title="Thêm nhân vật tham chiếu"
+                title={t("autopilot.ui.addCharacter")}
               >
                 <Plus className="h-2.5 w-2.5" />
               </button>
@@ -375,14 +357,14 @@ function AutopilotReferenceSelector({
       )}
 
       <div className="space-y-1">
-        <div className="text-2xs text-muted-foreground">Cảnh</div>
+        <div className="text-2xs text-muted-foreground">{t("autopilot.ui.scene")}</div>
         <select
           value={shot.sceneRefId || ""}
           disabled={disabled || scenes.length === 0}
           onChange={(event) => updateShotReferences(job.id, shot.index, { sceneRefId: event.target.value })}
           className="h-7 w-full rounded-lg border border-border bg-background px-2 text-2xs disabled:opacity-50"
         >
-          <option value="">Không gắn cảnh</option>
+          <option value="">{t("autopilot.ui.noScene")}</option>
           {scenes.map((sceneItem) => (
             <option key={sceneItem.name} value={sceneItem.name}>{sceneItem.name}</option>
           ))}

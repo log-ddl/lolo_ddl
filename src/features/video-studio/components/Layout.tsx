@@ -24,6 +24,7 @@ const SettingsPanel = lazy(() => import("@/features/video-studio/components/pane
 const ExportView = lazy(() => import("@/features/video-studio/components/panels/export").then((module) => ({ default: module.ExportView })));
 const AutoVideoView = lazy(() => import("@/features/video-studio/components/panels/auto-video").then((module) => ({ default: module.AutoVideoView })));
 const AutopilotPanel = lazy(() => import("@/features/video-studio/components/panels/autopilot/autopilot-panel").then((module) => ({ default: module.AutopilotPanel })));
+const CanvasPanel = lazy(() => import("@/features/video-studio/components/panels/canvas/canvas-panel").then((module) => ({ default: module.CanvasPanel })));
 const OverviewPanel = lazy(() => import("@/features/video-studio/components/panels/overview").then((module) => ({ default: module.OverviewPanel })));
 const PromptImportView = lazy(() => import("@/features/video-studio/components/panels/prompt-import").then((module) => ({ default: module.PromptImportView })));
 
@@ -43,11 +44,12 @@ export function Layout() {
     !VIDEO_STUDIO_FEATURE_FLAGS.autoVideoVisible || !hasPlanAccess(plan, "dev")
   );
   const autopilotBlocked = inProject && activeTab === "autopilot" && !hasPlanAccess(plan, "dev");
-  const effectiveTab = autoVideoBlocked || autopilotBlocked ? "overview" : activeTab;
+  const canvasBlocked = inProject && activeTab === "canvas" && !hasPlanAccess(plan, "dev");
+  const effectiveTab = autoVideoBlocked || autopilotBlocked || canvasBlocked ? "overview" : activeTab;
 
   useEffect(() => {
-    if (autoVideoBlocked || autopilotBlocked) setActiveTab("overview");
-  }, [autoVideoBlocked, autopilotBlocked, setActiveTab]);
+    if (autoVideoBlocked || autopilotBlocked || canvasBlocked) setActiveTab("overview");
+  }, [autoVideoBlocked, autopilotBlocked, canvasBlocked, setActiveTab]);
 
   if (inProject && !activeProject) {
     return (
@@ -78,7 +80,7 @@ export function Layout() {
 
   // Full-screen views (no resizable panels)
   // These tabs manage their own multi-column layouts and do not need the global preview/properties panels.
-  const fullScreenTabs = ["export", "autoVideo", "autopilot", "settings", "overview", "script", "promptImport", "characters", "scenes"];
+  const fullScreenTabs = ["export", "autoVideo", "autopilot", "canvas", "settings", "overview", "script", "promptImport", "characters", "scenes"];
   if (fullScreenTabs.includes(effectiveTab)) {
     return (
       <div className="h-full flex bg-background">
@@ -89,6 +91,7 @@ export function Layout() {
             {effectiveTab === "export" && <ExportView />}
             {effectiveTab === "autoVideo" && <AutoVideoView />}
             {effectiveTab === "autopilot" && <AutopilotPanel />}
+            {effectiveTab === "canvas" && <CanvasPanel />}
             {effectiveTab === "settings" && <SettingsPanel />}
             {effectiveTab === "overview" && <OverviewPanel />}
             {effectiveTab === "script" && <ScriptView />}

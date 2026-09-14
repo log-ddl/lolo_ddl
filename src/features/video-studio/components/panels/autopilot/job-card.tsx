@@ -50,7 +50,7 @@ export function JobCard({
   // Jobs created before startedAt existed only carry createdAt; the queue wait is
   // negligible there, so it stands in for the start.
   const startedAt = job.startedAt || job.createdAt;
-  const stageLabels: Record<string, string> = { queued: "Đang chờ", script: "Viết kịch bản", audio: "Tạo giọng đọc", subtitles: "Căn thời gian", shots: "Lập shot", research: "Tìm tư liệu", characters: "Tạo nhân vật", scenes: "Tạo cảnh", images: "Tạo ảnh", videos: "Tạo video", media: "Tạo media", render: "Ghép video", done: "Hoàn thành", failed: "Cần xử lý", paused: "Đã tạm dừng", interrupted: "Bị gián đoạn", cancelled: "Đã dừng" };
+  const stageLabels: Record<string, string> = { queued: t("autopilot.ui.stage.queued"), script: t("autopilot.ui.stage.script"), audio: t("autopilot.ui.stage.audio"), subtitles: t("autopilot.ui.stage.subtitles"), shots: t("autopilot.ui.stage.shots"), research: t("autopilot.ui.stage.research"), characters: t("autopilot.ui.stage.characters"), scenes: t("autopilot.ui.stage.scenes"), images: t("autopilot.ui.stage.images"), videos: t("autopilot.ui.stage.videos"), media: t("autopilot.ui.stage.media"), render: t("autopilot.ui.stage.render"), done: t("autopilot.ui.stage.done"), failed: t("autopilot.ui.attention"), paused: t("autopilot.ui.stage.paused"), interrupted: t("autopilot.ui.stage.interrupted"), cancelled: t("autopilot.ui.stage.cancelled") };
 
   return (
     <div className="bg-card border border-border rounded-lg p-3 space-y-2">
@@ -58,19 +58,18 @@ export function JobCard({
         <Icon className={cn("w-4 h-4 shrink-0", STATUS_STYLES[job.status], job.status === "running" && "animate-spin")} />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate">{job.title}</div>
-          <div className="text-xs text-muted-foreground">{job.plannedShots?.length || 0} shot · {job.executionMode === "step" ? "Chạy từng bước" : "Chạy tự động"}</div>
+          <div className="text-xs text-muted-foreground">{job.plannedShots?.length || 0} shot · {job.executionMode === "step" ? t("autopilot.ui.stepMode") : t("autopilot.ui.autoMode")}</div>
         </div>
         <span className={cn("rounded-full bg-muted px-2.5 py-1 text-xs font-medium", STATUS_STYLES[job.status])}>{stageLabels[job.stage] || job.stage}</span>
         <div className="flex flex-wrap items-center gap-1">
           {isBusy && (
             <Button variant="outline" size="sm" title={t("autopilot.panel.pause")} onClick={onCancel}>
-              <Square className="mr-1.5 w-3.5 h-3.5" />Tạm dừng
-            </Button>
+              <Square className="mr-1.5 w-3.5 h-3.5" />{t("autopilot.ui.pause")}</Button>
           )}
           {isIdle && (
             <Button variant="default" size="sm" title={t("autopilot.panel.resume")} onClick={onResume}>
               <Play className="w-3.5 h-3.5" />
-              <span className="ml-1.5">{job.awaitingNextStep ? "Bước tiếp theo" : job.status === "failed" ? "Thử lại phần còn thiếu" : "Tiếp tục"}</span>
+              <span className="ml-1.5">{job.awaitingNextStep ? t("autopilot.ui.nextStep") : job.status === "failed" ? t("autopilot.ui.retryMissing") : t("autopilot.ui.resume")}</span>
             </Button>
           )}
           {job.completedSteps?.includes("videos") && !isBusy && (
@@ -80,11 +79,11 @@ export function JobCard({
             </>
           )}
           {(job.status === "done" || isIdle) && (
-            <Button variant="ghost" size="sm" aria-label="Xóa job" title="Xóa job" onClick={onRemove}>
+            <Button variant="ghost" size="sm" aria-label={t("autopilot.ui.deleteJob")} title={t("autopilot.ui.deleteJob")} onClick={onRemove}>
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="sm" aria-label={expanded ? "Thu gọn job" : "Mở chi tiết job"} aria-expanded={expanded} onClick={onToggleExpand}>
+          <Button variant="ghost" size="sm" aria-label={expanded ? t("autopilot.ui.collapseJob") : t("autopilot.ui.expandJob")} aria-expanded={expanded} onClick={onToggleExpand}>
             {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           </Button>
         </div>
@@ -98,7 +97,7 @@ export function JobCard({
           </span>
         )}
       </div>
-      <div className="text-xs text-muted-foreground">{job.message}</div>
+      <div className="text-xs text-muted-foreground">{job.awaitingNextStep ? t("autopilot.ui.nextStep") : stageLabels[job.stage] || job.message}</div>
       {!isBusy && job.finishedAt && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs tabular-nums text-muted-foreground">
           <span>{t("autopilot.panel.jobStarted")} {formatClock(startedAt, now)}</span>
@@ -131,7 +130,7 @@ export function JobCard({
       {expanded && <LongFormChapterProgress job={job} />}
       {expanded && job.input?.script && (
         <details className="rounded-lg border border-border bg-muted/10">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">Kịch bản</summary>
+          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">{t("autopilot.ui.script")}</summary>
           <div className="border-t border-border p-3">
             <pre className="whitespace-pre-wrap text-xs text-foreground/80 max-h-60 overflow-y-auto">{job.input.script}</pre>
           </div>
@@ -140,7 +139,7 @@ export function JobCard({
       {expanded && <JobMediaGallery job={job} />}
       {expanded && (
         <details className="rounded-lg border border-border bg-muted/10">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">Nhật ký kỹ thuật</summary>
+          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">{t("autopilot.ui.technicalLog")}</summary>
           <div className="border-t border-border p-2"><JobLog jobId={job.id} /></div>
         </details>
       )}

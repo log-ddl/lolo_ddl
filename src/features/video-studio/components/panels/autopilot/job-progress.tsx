@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/shared/i18n";
 
 /**
  * Read-only progress views for a job: the step timeline, the long-form chapter
@@ -13,16 +14,17 @@ import { autopilotEngine } from "@/features/video-studio/stores/autopilot-store"
 import type { AutopilotJobListItem } from "@/features/video-studio/autopilot/types";
 
 const JOB_STEPS = [
-  ["audio", "Voice"],
-  ["shots", "Chia shot"],
-  ["research", "Tư liệu"],
-  ["references", "Tham chiếu"],
-  ["images", "Ảnh"],
-  ["videos", "Video"],
-  ["render", "Ghép/Xuất"],
+  ["audio", "autopilot.ui.step.audio"],
+  ["shots", "autopilot.ui.step.shots"],
+  ["research", "autopilot.ui.step.research"],
+  ["references", "autopilot.ui.references"],
+  ["images", "autopilot.ui.step.images"],
+  ["videos", "autopilot.ui.step.videos"],
+  ["render", "autopilot.ui.step.render"],
 ] as const;
 
 export function JobStageTimeline({ job }: { job: AutopilotJobListItem }) {
+  const { t } = useI18n();
   const completed = new Set(job.completedSteps || []);
   return (
     <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 xl:grid-cols-7">
@@ -32,7 +34,7 @@ export function JobStageTimeline({ job }: { job: AutopilotJobListItem }) {
         return (
           <div key={step} className={cn("flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-2xs", done ? "border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400" : active ? "border-primary/50 bg-primary/5 text-primary" : "border-border text-muted-foreground")}>
             {done ? <CircleCheck className="h-3 w-3 shrink-0" /> : active && job.status === "running" ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <Circle className="h-3 w-3 shrink-0" />}
-            <span className="truncate">{label}</span>
+            <span className="truncate">{t(label)}</span>
           </div>
         );
       })}
@@ -41,14 +43,15 @@ export function JobStageTimeline({ job }: { job: AutopilotJobListItem }) {
 }
 
 export function LongFormChapterProgress({ job }: { job: AutopilotJobListItem }) {
+  const { t } = useI18n();
   const chapters = job.longFormMode ? job.chapters || [] : [];
   if (chapters.length === 0) return null;
   const done = chapters.filter((chapter) => chapter.status === "done").length;
   return (
     <div className="rounded-lg border border-border bg-muted/10 p-3 space-y-2">
       <div className="flex items-center justify-between text-xs font-semibold">
-        <span>Long-form chapters</span>
-        <span className="text-muted-foreground">{done}/{chapters.length} checkpoint</span>
+        <span>{t("autopilot.ui.chapters")}</span>
+        <span className="text-muted-foreground">{t("autopilot.ui.chapterCheckpoints", { done, count: chapters.length })}</span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {chapters.map((chapter) => {
@@ -66,7 +69,7 @@ export function LongFormChapterProgress({ job }: { job: AutopilotJobListItem }) 
               failed ? "border-red-500/50 bg-red-500/5" : active ? "border-primary/60 bg-primary/5" : "border-border bg-card",
             )}>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">Chương {chapter.index}</span>
+                <span className="font-medium">{t("autopilot.ui.chapter", { index: chapter.index })}</span>
                 <span className="text-muted-foreground">{Math.floor(durationSec / 60)}:{String(durationSec % 60).padStart(2, "0")}</span>
               </div>
               <Progress value={visibleProgress} className="h-1" />
@@ -74,7 +77,7 @@ export function LongFormChapterProgress({ job }: { job: AutopilotJobListItem }) 
                 {active && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
                 {!active && chapter.status === "done" && <CircleCheck className="h-3 w-3 text-green-600" />}
                 {failed && <CircleX className="h-3 w-3 text-red-500" />}
-                <span>{chapter.outputVideoPath ? "MP4 checkpoint sẵn sàng" : rendering ? "đang render MP4" : chapter.status}</span>
+                <span>{chapter.outputVideoPath ? t("autopilot.ui.chapterReady") : rendering ? t("autopilot.ui.chapterRendering") : t(chapter.status === "done" ? "autopilot.ui.stage.done" : chapter.status === "failed" ? "autopilot.ui.failed" : chapter.status === "idle" ? "autopilot.ui.notStarted" : chapter.status === "queued" ? "autopilot.ui.queued" : "autopilot.ui.active")}</span>
               </div>
               {(chapter.renderError || chapter.error) && <div className="line-clamp-2 text-red-500" title={chapter.renderError || chapter.error}>{chapter.renderError || chapter.error}</div>}
             </div>

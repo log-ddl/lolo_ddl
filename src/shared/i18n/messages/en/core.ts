@@ -14,6 +14,7 @@ const core = {
   "nav.export": "Export",
   "nav.autoVideo": "Auto Video",
   "nav.autopilot": "AutoPilot",
+  "nav.canvas": "Canvas",
   "nav.settings": "Settings",
   "stage.script": "Script",
   "stage.assets": "Characters & Scenes",

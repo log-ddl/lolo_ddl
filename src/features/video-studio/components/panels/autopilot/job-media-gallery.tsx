@@ -38,14 +38,15 @@ function ReferenceCard({
   output?: AutopilotCharacterOutput | AutopilotSceneOutput;
   onPreview: (path: string) => void;
 }) {
+  const { t } = useI18n();
   const importCharacterImage = useAutopilotStore((state) => state.importCharacterImage);
   const importSceneImage = useAutopilotStore((state) => state.importSceneImage);
   const regenerateReferenceImage = useAutopilotStore((state) => state.regenerateReferenceImage);
   const updateReferencePrompt = useAutopilotStore((state) => state.updateReferencePrompt);
   const busy = job.status === "running" || job.status === "queued";
-  const active = output?.status === "generating" || output?.status === "queued";
+  const active = output?.status === "generating" || output?.status === "queued" || output?.status === "uploading";
   const failed = output?.status === "failed";
-  const elapsed = useActiveElapsedSeconds(output?.status);
+  const elapsed = useActiveElapsedSeconds(output?.status, output?.imageSubmittedAt);
   const [localPrompt, setLocalPrompt] = useState(prompt);
   useEffect(() => { setLocalPrompt(prompt); }, [prompt]);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -60,21 +61,21 @@ function ReferenceCard({
       const ok = kind === "character"
         ? await importCharacterImage(job.id, name, source)
         : await importSceneImage(job.id, name, source);
-      if (ok) toast.success(`Đã import ảnh tham chiếu: ${name}`);
+      if (ok) toast.success(t("autopilot.ui.referenceImported", { name }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     }
   };
   const handleRegenerate = () => {
     if (!regenerateReferenceImage(job.id, kind, name)) {
-      toast.error("Không thể tạo lại lúc này. Hãy tạm dừng job trước.");
+      toast.error(t("autopilot.ui.regenerateBlocked"));
     }
   };
   return (
     <div className={cn("overflow-hidden rounded-lg border bg-card", active ? "border-primary/60" : failed ? "border-red-500/50" : "border-border")}>
       <button type="button" disabled={!output?.imagePath} onClick={() => output?.imagePath && onPreview(output.imagePath)} className={cn("relative block w-full bg-muted/30", kind === "character" ? "aspect-square" : "aspect-video")}>
         {output?.imagePath ? <LocalImage src={output.imagePath} alt={name} className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center">{active ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <ImageIcon className="h-5 w-5 text-muted-foreground/50" />}</span>}
-        <span className={cn("absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-2xs", output?.imagePath ? "bg-green-600 text-white" : failed ? "bg-red-600 text-white" : active ? "bg-primary text-primary-foreground" : "bg-black/60 text-white")}>{output?.imagePath ? "Đã có" : failed ? "Lỗi" : (output?.status === "generating" || output?.status === "uploading") ? `${elapsed}s` : output?.status === "queued" ? "Chờ gửi đi" : "Chờ"}</span>
+        <span className={cn("absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-2xs", output?.imagePath ? "bg-green-600 text-white" : failed ? "bg-red-600 text-white" : active ? "bg-primary text-primary-foreground" : "bg-black/60 text-white")}>{output?.imagePath ? t("autopilot.ui.ready") : failed ? t("autopilot.ui.failed") : (output?.status === "generating" || output?.status === "uploading") ? (elapsed === undefined ? t("autopilot.card.generating") : `${elapsed}s`) : output?.status === "queued" ? t("autopilot.ui.queued") : t("autopilot.ui.waiting")}</span>
       </button>
       <div className="space-y-1 p-1.5">
         <div className="truncate text-2xs font-medium">{name}</div>
@@ -84,16 +85,15 @@ function ReferenceCard({
           disabled={busy}
           rows={2}
           className="w-full resize-none rounded border border-border bg-background px-1.5 py-1 text-2xs text-foreground leading-tight focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50"
-          placeholder="Mô tả nhân vật / cảnh..."
+          placeholder={t("autopilot.ui.referencePrompt")}
         />
         <div className="flex gap-1">
           <label className={cn("flex h-5 flex-1 cursor-pointer items-center justify-center rounded border border-border text-2xs hover:bg-muted", busy && "pointer-events-none opacity-50")}>
-            <FileUp className="mr-0.5 h-2.5 w-2.5" />{output?.imagePath ? "Thay" : "Import"}
+            <FileUp className="mr-0.5 h-2.5 w-2.5" />{output?.imagePath ? t("autopilot.ui.replace") : t("autopilot.ui.import")}
             <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (file) void handleImport(file); }} />
           </label>
           <button type="button" disabled={busy} onClick={handleRegenerate} className={cn("flex h-5 flex-1 items-center justify-center rounded border border-border text-2xs hover:bg-muted", busy && "pointer-events-none opacity-50")}>
-            <Loader2 className="mr-0.5 h-2.5 w-2.5" />Tạo lại
-          </button>
+            <Loader2 className="mr-0.5 h-2.5 w-2.5" />{t("autopilot.ui.regenerate")}</button>
         </div>
       </div>
     </div>
@@ -121,11 +121,11 @@ export function JobMediaGallery({ job }: { job: AutopilotJobListItem }) {
     return { shot, media, state };
   });
   const filters = [
-    { id: "all", label: "Tất cả", count: rows.length },
-    { id: "attention", label: "Cần xử lý", count: rows.filter((row) => row.state === "attention").length },
-    { id: "active", label: "Đang thực hiện", count: rows.filter((row) => row.state === "active").length },
-    { id: "ready", label: "Đã có media", count: rows.filter((row) => row.state === "ready").length },
-    { id: "waiting", label: "Chưa bắt đầu", count: rows.filter((row) => row.state === "waiting").length },
+    { id: "all", label: t("autopilot.ui.all"), count: rows.length },
+    { id: "attention", label: t("autopilot.ui.attention"), count: rows.filter((row) => row.state === "attention").length },
+    { id: "active", label: t("autopilot.ui.active"), count: rows.filter((row) => row.state === "active").length },
+    { id: "ready", label: t("autopilot.ui.mediaReady"), count: rows.filter((row) => row.state === "ready").length },
+    { id: "waiting", label: t("autopilot.ui.notStarted"), count: rows.filter((row) => row.state === "waiting").length },
   ];
   const search = query.trim().toLocaleLowerCase();
   const filtered = rows.filter(({ shot, state }) => (filter === "all" || filter === state)
@@ -138,7 +138,7 @@ export function JobMediaGallery({ job }: { job: AutopilotJobListItem }) {
   return (
     <div className="rounded-lg border border-border bg-muted/10">
       <details open>
-        <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">Không gian làm việc ({characters.length + scenes.length + shots.length} mục)</summary>
+        <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">{t("autopilot.ui.workspace", { count: characters.length + scenes.length + shots.length })}</summary>
         <div className="flex flex-col gap-3 border-t border-border p-2.5">
       {characters.length > 0 && (
         <details open className="order-2 group/section">
@@ -200,23 +200,23 @@ export function JobMediaGallery({ job }: { job: AutopilotJobListItem }) {
             {attentionCount > 0 && (
               <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm" role="status">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                <div><p className="font-medium">{attentionCount} shot cần kiểm tra</p><p className="mt-1 text-xs text-muted-foreground">{job.status === "running" || job.status === "queued" ? "Các shot khác vẫn tiếp tục. Lọc Cần xử lý để xem lỗi; tạm dừng job trước khi sửa hoặc tạo lại từng shot." : "Mở shot để xem lỗi, thay ảnh hoặc tạo lại. Video bị lỗi có thể được ghép bằng ảnh tĩnh."}</p></div>
+                <div><p className="font-medium">{t("autopilot.ui.attentionCount", { count: attentionCount })}</p><p className="mt-1 text-xs text-muted-foreground">{job.status === "running" || job.status === "queued" ? t("autopilot.ui.attentionRunning") : t("autopilot.ui.attentionIdle")}</p></div>
               </div>
             )}
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc trạng thái shot">
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t("autopilot.ui.filterLabel")}>
               {filters.map((item) => <button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => { setFilter(item.id); setPage(0); }} className={cn("flex min-h-9 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", filter === item.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground")}>
                 {item.label}<span className="rounded bg-current/10 px-1.5 tabular-nums">{item.count}</span>
               </button>)}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="flex min-h-10 w-full items-center gap-2 rounded-lg border bg-background px-3 sm:max-w-sm"><Search className="h-4 w-4 shrink-0 text-muted-foreground" /><input aria-label="Tìm shot theo số, cảnh hoặc lời đọc" placeholder="Tìm số shot, tên cảnh, lời đọc…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none" /></label>
+              <label className="flex min-h-10 w-full items-center gap-2 rounded-lg border bg-background px-3 sm:max-w-sm"><Search className="h-4 w-4 shrink-0 text-muted-foreground" /><input aria-label={t("autopilot.ui.searchLabel")} placeholder={t("autopilot.ui.searchPlaceholder")} value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none" /></label>
               <span className="text-xs text-muted-foreground">{filtered.length ? `${currentPage * 24 + 1}–${Math.min((currentPage + 1) * 24, filtered.length)} / ${filtered.length} shot` : "0 shot"}</span>
             </div>
             <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">
               {visibleRows.map(({ shot, media }) => <AutopilotShotCard key={shot.id || shot.index} job={job} shot={shot} media={media} />)}
             </div>
-            {filtered.length === 0 && <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Không có shot phù hợp bộ lọc.<Button variant="ghost" className="ml-2" onClick={() => { setFilter("all"); setQuery(""); setPage(0); }}>Xem tất cả</Button></div>}
-            {pageCount > 1 && <div className="flex items-center justify-between border-t pt-3"><Button variant="outline" size="sm" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Trang trước</Button><span className="text-xs tabular-nums text-muted-foreground">Trang {currentPage + 1} / {pageCount}</span><Button variant="outline" size="sm" disabled={currentPage === pageCount - 1} onClick={() => setPage(currentPage + 1)}>Trang sau</Button></div>}
+            {filtered.length === 0 && <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{t("autopilot.ui.noResults")}<Button variant="ghost" className="ml-2" onClick={() => { setFilter("all"); setQuery(""); setPage(0); }}>{t("autopilot.ui.showAll")}</Button></div>}
+            {pageCount > 1 && <div className="flex items-center justify-between border-t pt-3"><Button variant="outline" size="sm" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>{t("autopilot.ui.previous")}</Button><span className="text-xs tabular-nums text-muted-foreground">{t("autopilot.ui.page", { page: currentPage + 1, count: pageCount })}</span><Button variant="outline" size="sm" disabled={currentPage === pageCount - 1} onClick={() => setPage(currentPage + 1)}>{t("autopilot.ui.next")}</Button></div>}
           </div>
         </details>
       )}

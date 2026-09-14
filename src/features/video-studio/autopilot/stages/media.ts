@@ -120,6 +120,8 @@ export async function runMediaStage(
       videoError: videoPath ? undefined : existing?.videoError,
       imageTaskId: existing?.imageTaskId,
       videoTaskId: existing?.videoTaskId,
+      imageSubmittedAt: existing?.imageSubmittedAt,
+      videoSubmittedAt: existing?.videoSubmittedAt,
       realImage: allowRealImageResearch && realImageAvailable && existing?.realImagePath ? {
         query: existing.realImageQuery || shot.realImageQuery || '',
         title: existing.realImageTitle || existing.realImageQuery || 'Researched image',
@@ -166,6 +168,8 @@ export async function runMediaStage(
         videoError: item.videoError,
         imageTaskId: item.imageTaskId,
         videoTaskId: item.videoTaskId,
+        imageSubmittedAt: item.imageSubmittedAt,
+        videoSubmittedAt: item.videoSubmittedAt,
         imageModelUsed: item.imageModelUsed,
         videoModelUsed: item.videoModelUsed,
       })),
@@ -277,7 +281,8 @@ export async function runMediaStage(
               allowedOwnerScopeIds: imageAccountsFor(model),
               modelChainByOwnerScope: imageModelChains,
               taskId: item.imageTaskId,
-              onSubmitted: () => {
+              onSubmitted: (submittedAt) => {
+                item.imageSubmittedAt = submittedAt ?? Date.now();
                 item.imageStatus = 'generating';
                 syncMediaOutputs();
               },
@@ -371,7 +376,8 @@ export async function runMediaStage(
               allowedOwnerScopeIds: routing.accountsFor('video', model),
               modelChainByOwnerScope: videoModelChains,
               taskId: item.videoTaskId,
-              onSubmitted: () => {
+              onSubmitted: (submittedAt) => {
+                item.videoSubmittedAt = submittedAt ?? Date.now();
                 item.videoStatus = 'generating';
                 syncMediaOutputs();
               },

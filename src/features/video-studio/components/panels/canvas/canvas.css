@@ -1,0 +1,76 @@
+.canvas-workspace {
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+}
+.canvas-surface { background: hsl(var(--background)); }
+.canvas-workspace > header { padding-block: 5px; background: hsl(var(--background)); }
+.canvas-node-title { color: hsl(var(--foreground)); }
+.canvas-node-card { transition: border-color 140ms ease, box-shadow 140ms ease; }
+.canvas-compact-node:hover .canvas-node-card { box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.08); }
+.canvas-node-controls, .canvas-download-row, .canvas-node-actions, .canvas-add-next {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.canvas-compact-node:hover .canvas-node-controls,
+.canvas-compact-node:hover .canvas-download-row,
+.canvas-compact-node:hover .canvas-node-actions,
+.canvas-compact-node:hover .canvas-add-next,
+.canvas-node-controls:has(:focus-visible),
+.canvas-download-row:has(:focus-visible),
+.canvas-node-actions:has(:focus-visible),
+.canvas-add-next:focus-visible { opacity: 1; pointer-events: auto; }
+.canvas-compact-node:focus-within .canvas-node-controls,
+.canvas-compact-node:focus-within .canvas-download-row { opacity: 1; pointer-events: auto; }
+/* Keep a pointer bridge across the gap between the node title and its toolbar. */
+.canvas-node-actions { top: auto; bottom: calc(100% + 28px); }
+.canvas-node-actions::after { content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 2px; }
+.canvas-node-actions:hover { opacity: 1; pointer-events: auto; }
+.canvas-surface .react-flow__handle.connectingto.valid { box-shadow: 0 0 0 6px hsl(var(--primary) / 0.2); transform: translate(50%, -50%) scale(1.15); }
+.canvas-surface .react-flow__handle-left.connectingto.valid { transform: translate(-50%, -50%) scale(1.15); }
+.canvas-surface .react-flow__node.dragging .canvas-node-card { box-shadow: 0 8px 28px hsl(var(--foreground) / 0.12); }
+.canvas-node-controls select { max-width: 155px; font-size: 10px; height: 23px; padding-block: 2px; }
+.canvas-download-row button { background: hsl(var(--muted)); border-radius: 50%; padding: 6px; }
+.canvas-compact-node .react-flow__handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 22px !important;
+  height: 22px !important;
+  border-width: 1px !important;
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+  box-shadow: none;
+}
+.canvas-text-node .canvas-prompt { min-height: 126px; padding: 12px; }
+.canvas-prompt { max-height: 100px; overflow-y: auto; }
+.canvas-tool-rail { top: 50% !important; transform: translateY(-50%); }
+.canvas-tool-rail > div { padding: 3px; gap: 2px; border-color: hsl(var(--border)); box-shadow: none; }
+.canvas-tool-rail button { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border-radius: 50%; }
+.canvas-tool-rail button svg { width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) {
+  .canvas-workspace *, .canvas-workspace *::before, .canvas-workspace *::after { transition: none !important; animation: none !important; }
+}
+
+.canvas-text-chip-remove { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.canvas-text-chip:hover .canvas-text-chip-remove,
+.canvas-text-chip-remove:focus-visible { opacity: 1; pointer-events: auto; }
+
+.canvas-output-plus { display: none; }
+.canvas-compact-node:hover .canvas-output-handle .canvas-output-icon { display: none; }
+.canvas-compact-node:hover .canvas-output-handle .canvas-output-plus { display: block; }
+
+.canvas-local-node .canvas-local-upload { opacity: 0; transition: opacity 140ms ease; }
+.canvas-local-node:hover .canvas-local-upload,
+.canvas-local-node .canvas-local-upload:focus-within { opacity: 1; }
+.canvas-local-node.is-empty .canvas-local-upload { opacity: 1; }
+
+.canvas-note .canvas-node-card { background: hsl(var(--accent) / 0.45); border-style: dashed; }
+.canvas-zoom-far .canvas-compact-node:not(:hover):not(:focus-within) .canvas-node-controls,
+.canvas-zoom-far .canvas-compact-node:not(:hover):not(:focus-within) .canvas-prompt { visibility: hidden; }
+.canvas-zoom-far .canvas-node-title { font-size: 14px; }
+.react-flow__edge { transition: opacity 140ms ease; }
+
+.canvas-mention-chip { display: inline; border-radius: 4px; padding: 1px 4px; background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); white-space: nowrap; }
+.canvas-mention-editor:empty::before { content: attr(data-placeholder); color: hsl(var(--muted-foreground)); pointer-events: none; }

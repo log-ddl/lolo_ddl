@@ -19,7 +19,7 @@ declare global {
 
 import { saveImageUrlToBrowser, readBlobFromBrowserStorage, isIdbImagePath } from '@/features/video-studio/lib/browser-image-storage';
 
-export type ImageCategory = 'characters' | 'scenes' | 'shots' | 'wardrobe' | 'videos' | 'styles' | 'props';
+export type ImageCategory = 'characters' | 'scenes' | 'shots' | 'wardrobe' | 'videos' | 'styles' | 'props' | 'canvas';
 
 /**
  * Check if running in Electron environment

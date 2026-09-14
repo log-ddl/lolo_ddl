@@ -3,6 +3,8 @@ import {
   CAPTCHA_SLOT,
   RPC_GEN_IMAGE,
   RPC_GEN_VIDEO,
+  RPC_GEN_REFERENCE_VIDEO,
+  referenceVideoRequest,
   RPC_OPERATION,
   STATUS_DONE,
   buildEnvelope,
@@ -107,6 +109,15 @@ const videoFreq = videoRequest({
   model: 'veo_3_1_i2v_lite',
 });
 const videoInner = JSON.parse(JSON.parse(videoFreq)[0][0][1]) as unknown[];
+const refEnvelope = JSON.parse(referenceVideoRequest({ prompt: 'orbit', projectId: 'p', referenceMediaIds: ['a', 'b'], model: 'abra_r2v_4s', aspect: '16:9' }));
+assert.equal(refEnvelope[0][0][0], RPC_GEN_REFERENCE_VIDEO);
+const refInner = JSON.parse(refEnvelope[0][0][1]);
+assert.deepEqual(refInner[0][0].slice(0, 5), [[null, null, [[['orbit']]]], [[null, 'a'], [null, 'b']], 'abra_r2v_4s', 2, null]);
+assert.throws(() => referenceVideoRequest({ prompt: 'x', projectId: 'p', referenceMediaIds: [], model: 'abra_r2v_4s' }), /1–3/);
+assert.throws(() => referenceVideoRequest({ prompt: 'x', projectId: 'p', referenceMediaIds: ['1','2','3','4'], model: 'abra_r2v_4s' }), /1–3/);
+// Ingredients submit response differs from First but carries its operation id
+// in the first listing row. This is the id the existing poller must receive.
+assert.equal(readOperation([null, 1043, [['ref-op', null, null, ['title', [1, 0], null, null, 'media'], 'p']]]).operationId, 'ref-op');
 assert.equal(JSON.parse(videoFreq)[0][0][0], RPC_GEN_VIDEO);
 const videoItem = (videoInner[0] as unknown[][])[0];
 assert.equal(videoItem[1], 'veo_3_1_i2v_lite');
@@ -121,7 +132,12 @@ assert.equal(JSON.parse(operationRequest('op-9'))[0][0][0], RPC_OPERATION);
 assert.equal(resolveBatchImageModel('GEM_PIX_2'), 'GEM_PIX_2');
 assert.equal(resolveBatchImageModel('Nano Banana 2'), 'NARWHAL');
 assert.equal(resolveBatchImageModel('something else'), 'GEM_PIX_2', 'unknown coerces to the default');
-assert.equal(resolveBatchVideoModel('veo_3_1_i2v_s_fast_ultra_relaxed'), 'veo_3_1_i2v_s_fast_ultra', 'REST-era suffixes map onto the surviving intent');
+assert.equal(resolveBatchVideoModel('veo_3_1_i2v_s_fast_ultra_relaxed'), 'veo_3_1_i2v_s_fast_ultra_relaxed', 'explicit model keys are not silently replaced');
+for (const model of ['abra_i2v_4s', 'abra_i2v_6s', 'abra_i2v_8s', 'abra_i2v_10s', 'veo_3_1_i2v_s_fast_4s', 'veo_3_1_i2v_s_lite_6s']) {
+  const payload = JSON.parse(JSON.parse(videoRequest({ prompt: 'move', projectId: 'p', sourceMediaId: 'm', model }))[0][0][1]);
+  assert.equal(payload[0][0][1], model, 'serialized request must preserve model and duration');
+}
+assert.throws(() => resolveBatchVideoModel('unknown model'), /Unsupported/);
 assert.equal(resolveBatchVideoModel('Veo 3.1 Lite - Lower Priority'), 'veo_3_1_i2v_lite_low_priority');
 assert.equal(resolveImageAspect('1:1'), 1);
 assert.equal(resolveImageAspect('9:16'), 2);

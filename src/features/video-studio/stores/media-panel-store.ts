@@ -10,6 +10,7 @@ import {
   WandSparklesIcon,
   LayoutDashboardIcon,
   RocketIcon,
+  WaypointsIcon,
   LucideIcon,
 } from "lucide-react";
 import { create } from "zustand";
@@ -17,7 +18,7 @@ import type { CharacterNegativePrompt } from "@/features/video-studio/types/scri
 import { usePreviewStore } from "@/features/video-studio/stores/preview-store";
 
 // Tab-based navigation (simpler flat structure)
-export type Tab = "dashboard" | "overview" | "script" | "promptImport" | "characters" | "scenes" | "director" | "media" | "export" | "autoVideo" | "autopilot" | "settings";
+export type Tab = "dashboard" | "overview" | "script" | "promptImport" | "characters" | "scenes" | "director" | "media" | "export" | "autoVideo" | "autopilot" | "canvas" | "settings";
 
 export interface NavItem {
   id: Tab;
@@ -46,6 +47,7 @@ export const mainNavItems: NavItem[] = [
     ? [{ id: "autoVideo", labelKey: "nav.autoVideo", icon: WandSparklesIcon, phase: "05", requiresPlan: 'dev' } as NavItem]
     : []),
   { id: "autopilot", labelKey: "nav.autopilot", icon: RocketIcon, phase: "06", requiresPlan: 'dev' },
+  { id: "canvas", labelKey: "nav.canvas", icon: WaypointsIcon, phase: "07", requiresPlan: 'dev' },
 ];
 
 // Bottom navigation items
@@ -82,6 +84,7 @@ export const tabs: { [key in Tab]: { icon: LucideIcon; label: string; stage?: St
   export: { icon: FilmIcon, label: "Export", stage: "export" },
   autoVideo: { icon: WandSparklesIcon, label: "Auto Video" },
   autopilot: { icon: RocketIcon, label: "AutoPilot" },
+  canvas: { icon: WaypointsIcon, label: "Canvas" },
   settings: { icon: SettingsIcon, label: "Settings" },
 };
 

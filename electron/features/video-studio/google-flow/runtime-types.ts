@@ -16,6 +16,7 @@ export type Lane = { credentialId: string; slot: number; kind: 'image' | 'video'
 
 export type FlowMediaRefInput = {
   source: string;
+  fileName?: string;
   mediaId?: string;
   ownerScopeId?: string;
   flowProjectId?: string;

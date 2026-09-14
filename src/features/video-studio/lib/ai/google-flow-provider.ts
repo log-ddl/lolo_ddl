@@ -5,6 +5,7 @@ import type {
   ProviderMediaRef,
   VideoGenerationInput,
 } from '@/features/video-studio/packages/ai-core/providers/media-provider';
+import { readImageAsBase64 } from '../image-storage';
 import { getGoogleFlowUserFacingError } from './google-flow-errors';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { removeWatermarkFromUrl } from './watermark-remover';
@@ -37,6 +38,11 @@ async function syncRuntimeSettings(): Promise<void> {
 }
 
 async function normalizeSource(ref: ProviderMediaRef): Promise<ProviderMediaRef> {
+  if (ref.source.startsWith('idb-image://')) {
+    const source = await readImageAsBase64(ref.source);
+    if (!source) throw new Error('Unable to read imported reference image');
+    return { ...ref, source };
+  }
   if (!ref.source.startsWith('local-image://')) return ref;
   const result = await window.imageStorage?.readAsBase64(ref.source);
   if (!result?.success || !result.base64) throw new Error(result?.error || 'Unable to read local reference image');
@@ -58,6 +64,7 @@ async function withCancellation<T extends GenerationOutput>(
   presetTaskId?: string,
   metadata?: Omit<TaskMetadata, 'id' | 'status' | 'queuedAt'>,
 ): Promise<T> {
+  if (signal?.aborted) throw new DOMException('Cancelled by user', 'AbortError');
   const taskId = presetTaskId || crypto.randomUUID();
   if (metadata) taskMetadata.begin({ ...metadata, id: taskId, status: 'queued', queuedAt: Date.now() });
   const onAbort = () => { void window.googleFlowRuntime?.cancelTask(taskId); };
@@ -75,7 +82,6 @@ async function withCancellation<T extends GenerationOutput>(
       }
     })
     : undefined;
-  if (signal?.aborted) throw new DOMException('Cancelled by user', 'AbortError');
   signal?.addEventListener('abort', onAbort, { once: true });
   try {
     const result = await call(taskId);

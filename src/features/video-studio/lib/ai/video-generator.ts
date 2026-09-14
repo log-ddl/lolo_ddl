@@ -1,3 +1,4 @@
+import { videoDuration } from './video-duration';
 import type { VideoLength } from '@/features/video-studio/types/script';
 import { googleFlowProvider } from './google-flow-provider';
 import { grokVideoProvider } from './grok-video-provider';
@@ -23,6 +24,7 @@ export type VideoGenerationParams = {
   startImageUrl?: string;
   endImageUrl?: string;
   referenceImageUrls?: string[];
+  imageFileNames?: Record<string, string>;
   referenceImageFlowStates?: Record<string, GoogleFlowSourceState>;
   preferredCredentialId?: string;
   taskId?: string;
@@ -34,10 +36,11 @@ export type VideoGenerationParams = {
   signal?: AbortSignal;
 };
 
-function toGoogleFlowMediaRef(source: string, state?: GoogleFlowSourceState) {
+function toGoogleFlowMediaRef(source: string, state?: GoogleFlowSourceState, fileName?: string) {
   const ownerScopeId = state?.ownerScopeId;
   return {
     source,
+    fileName,
     provider: 'googleflow' as const,
     ownerScopeId,
     flowProjectId: state?.projectId,
@@ -77,10 +80,10 @@ export async function generateProviderVideo(params: VideoGenerationParams): Prom
     prompt: params.prompt,
     model,
     aspectRatio: params.aspectRatio || '16:9',
-    duration: Number(params.length as VideoLength | undefined) || undefined,
-    startImage: params.startImageUrl ? toGoogleFlowMediaRef(params.startImageUrl, params.startImageFlowState) : undefined,
-    endImage: params.endImageUrl ? toGoogleFlowMediaRef(params.endImageUrl, params.endImageFlowState) : undefined,
-    references: params.referenceImageUrls?.map((source) => toGoogleFlowMediaRef(source, params.referenceImageFlowStates?.[source])),
+    duration: videoDuration(model, params.length),
+    startImage: params.startImageUrl ? toGoogleFlowMediaRef(params.startImageUrl, params.startImageFlowState, params.imageFileNames?.[params.startImageUrl]) : undefined,
+    endImage: params.endImageUrl ? toGoogleFlowMediaRef(params.endImageUrl, params.endImageFlowState, params.imageFileNames?.[params.endImageUrl]) : undefined,
+    references: params.referenceImageUrls?.map((source) => toGoogleFlowMediaRef(source, params.referenceImageFlowStates?.[source], params.imageFileNames?.[source])),
     preferredCredentialId: params.preferredCredentialId
       || params.startImageFlowState?.preferredCredentialId
       || params.referenceImageUrls?.map((source) => params.referenceImageFlowStates?.[source]?.preferredCredentialId).find(Boolean),

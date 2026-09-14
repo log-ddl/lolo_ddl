@@ -1,3 +1,4 @@
+import { errorSummary, writeFlowDiagnostic } from './diagnostics';
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -70,6 +71,8 @@ import {
 import {
   RPC_GEN_IMAGE,
   RPC_GEN_VIDEO,
+  RPC_GEN_REFERENCE_VIDEO,
+  referenceVideoRequest,
   RPC_MEDIA,
   RPC_OPERATION,
   RPC_PROJECT_MEDIA,
@@ -118,6 +121,8 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private readonly mediaCachePath: string;
   readonly quotaLocks: FlowQuotaLockStore;
   private bindings: ProjectBinding[] = [];
+  private readonly preparedProjectBindings = new Set<string>();
+  private readonly preparingProjectBindings = new Map<string, Promise<ProjectBinding>>();
   private mediaCache: Record<string, string> = {};
   private server?: WebSocketServer;
   private nextLaneCursor = 0;
@@ -143,6 +148,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   constructor(options: RuntimeOptions) {
     super();
     this.options = options;
+    writeFlowDiagnostic(options.userDataPath, "runtime_started", { uploadAuthFallback: true });
     this.port = options.port ?? GOOGLE_FLOW_DEFAULT_PORT;
     this.bindingsPath = path.join(options.userDataPath, 'google-flow-bindings.json');
     this.mediaCachePath = path.join(options.userDataPath, 'google-flow-media-cache.json');
@@ -555,8 +561,9 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       // Set only on the batch path, where the submit answers with a ticket to poll
       // rather than with the operation records the REST body carries.
       let batchOperationId: string | undefined;
-      for (let attempt = 0; ; attempt += 1) {
-        const forceReupload = attempt > 0;
+      let forceReupload = false;
+      let retriedTransport = false;
+      for (;;) {
         this.emitLaneTask(taskId, 'video', 'uploading', slot, lane, 8, undefined, 'checking_media');
         const refs = await Promise.all((input.references || []).slice(0, 3).map((ref) => this.resolveMedia(ref, binding.flowProjectId, slot, signal, reportUpload, forceReupload)));
         const startId = input.startImage ? await this.resolveMedia(input.startImage, binding.flowProjectId, slot, signal, reportUpload, forceReupload) : undefined;
@@ -592,19 +599,17 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         this.emitLaneTask(taskId, 'video', 'submitting', slot, lane, 20);
         try {
           if (this.usesBatchTransport(slot)) {
-            // The batch path has one captured video shape: a still plus a prompt.
-            // Reference-to-video and start+end chaining were never captured off the
-            // new UI, so they degrade to that one rather than failing the shot —
-            // and say so, because the result will not be what the prompt asked for.
+            // Ingredients has its own captured RPC; never replace refs with First.
             const source = startId || refs[0];
             if (!source) throw new Error('Batchexecute cần ít nhất một ảnh nguồn để tạo video');
-            if (refs.length) console.warn(`[video-studio][google-flow] ${taskId}: batchexecute chưa có đường reference-to-video — dùng ảnh tham chiếu đầu tiên làm frame đầu`);
             if (endId) console.warn(`[video-studio][google-flow] ${taskId}: batchexecute chưa có đường nối frame đầu-cuối — bỏ qua frame cuối`);
             batchOperationId = await this.batchSubmitVideo(slot, binding.flowProjectId, {
               prompt: input.prompt,
               sourceMediaId: source,
+              referenceMediaIds: refs.length ? refs : undefined,
               aspectRatio: input.aspectRatio,
-              model: resolvedVideoModel,
+              model: this.pickAccountModel(slot, input.modelChainByOwnerScope,
+                (model) => resolveFlowVideoModel(slot.tier, refs.length ? 'reference' : 'frame', input.aspectRatio, model, input.duration), input.model),
             }, signal);
             break;
           }
@@ -619,7 +624,15 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
             },
           }, 90_000, signal);
         } catch (error) {
-          if (attempt === 0 && hasMediaInput && !signal.aborted && this.isStaleMediaError(error)) continue;
+          if (!retriedTransport && !signal.aborted && !this.usesBatchTransport(slot) && isDeadBearerError(error)) {
+            retriedTransport = true;
+            this.markLegacyTransportDead(slot.extensionInstanceId, safeMessage(error));
+            continue;
+          }
+          if (!forceReupload && hasMediaInput && !signal.aborted && this.isStaleMediaError(error)) {
+            forceReupload = true;
+            continue;
+          }
           throw error;
         }
         break;
@@ -801,6 +814,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           // for longer, and that one is read straight out of Google's own wording.
           lastFailure = this.withAccountLabel(error, slot);
           exhausted.add(lane.credentialId);
+          writeFlowDiagnostic(this.options?.userDataPath, 'account_failover', { taskId, account: slot.extensionInstanceId, ...errorSummary(error) });
           const label = this.accountLabel(slot);
           console.warn(`[video-studio][google-flow] ${taskId}: ${label} lỗi (${safeMessage(error)}) — thử việc này trên tài khoản khác`);
           queuedMessage = `${label} lỗi — đang thử tài khoản khác`;
@@ -895,10 +909,36 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   }
 
   private async ensureProject(longddProjectId: string, slot: FlowCredentialSlot, signal: AbortSignal, requestedTitle?: string): Promise<ProjectBinding> {
+    if (signal.aborted) throw new Error('Cancelled by user');
+    const key = JSON.stringify([longddProjectId, slot.ownerScopeId, slot.credentialId, slot.connectionId]);
+    const preparing = this.preparingProjectBindings.get(key);
+    if (preparing) {
+      const binding = await preparing;
+      if (signal.aborted) throw new Error('Cancelled by user');
+      return binding;
+    }
     const existing = this.bindings.find((item) => item.longddProjectId === longddProjectId && item.ownerScopeId === slot.ownerScopeId && item.active === true)
       || this.bindings.find((item) => item.longddProjectId === longddProjectId && item.ownerScopeId === slot.ownerScopeId);
-    if (existing) { existing.lastCredentialId = slot.credentialId; existing.lastVerifiedAt = Date.now(); this.saveBindings(); return existing; }
-    return this.resolveProjectBinding(longddProjectId, slot, signal, requestedTitle);
+    if (existing && this.preparedProjectBindings.has(key)) {
+      existing.lastCredentialId = slot.credentialId;
+      existing.lastVerifiedAt = Date.now();
+      this.saveBindings();
+      return existing;
+    }
+    // Run the Settings button's resolution once per project/account connection,
+    // even when a previous app session left a binding on disk. Concurrent lanes
+    // share this operation; cancelling one shot must not cancel it for the others.
+    const pending = this.resolveProjectBinding(longddProjectId, slot, undefined, requestedTitle);
+    this.preparingProjectBindings.set(key, pending);
+    try {
+      const binding = await pending;
+      this.preparedProjectBindings.add(key);
+      console.log(`[video-studio][google-flow] ${slot.extensionInstanceId.slice(0, 8)}: đã tự lấy Flow project trước khi chạy`);
+      if (signal.aborted) throw new Error('Cancelled by user');
+      return binding;
+    } finally {
+      this.preparingProjectBindings.delete(key);
+    }
   }
 
   /**
@@ -1068,7 +1108,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     flowProjectId?: string;
     match?: string;
   }, timeout: number, signal?: AbortSignal): Promise<string> {
-    const response = await proxyRequest(this.socketContext, slot, 'batch_rpc', params, timeout, signal);
+    const response = await this.traceRequest(slot, `batch:${params.rpcid}`, timeout, () => proxyRequest(this.socketContext, slot, 'batch_rpc', params, timeout, signal));
     return typeof response === 'string' ? response : String(response ?? '');
   }
 
@@ -1125,12 +1165,17 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private async batchSubmitVideo(slot: FlowCredentialSlot, flowProjectId: string, input: {
     prompt: string;
     sourceMediaId: string;
+    referenceMediaIds?: string[];
     aspectRatio: string;
     model: string;
   }, signal: AbortSignal): Promise<string> {
+    const rpcid = input.referenceMediaIds?.length ? RPC_GEN_REFERENCE_VIDEO : RPC_GEN_VIDEO;
     const text = await this.batchRpc(slot, {
-      rpcid: RPC_GEN_VIDEO,
-      freq: videoRequest({
+      rpcid,
+      freq: input.referenceMediaIds?.length ? referenceVideoRequest({
+        prompt: input.prompt, projectId: flowProjectId, referenceMediaIds: input.referenceMediaIds,
+        aspect: input.aspectRatio, model: input.model,
+      }) : videoRequest({
         prompt: input.prompt,
         projectId: flowProjectId,
         sourceMediaId: input.sourceMediaId,
@@ -1140,7 +1185,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       captchaAction: 'VIDEO_GENERATION',
       flowProjectId,
     }, 120_000, signal);
-    const operation = readOperation(firstPayload(text, RPC_GEN_VIDEO));
+    const operation = readOperation(firstPayload(text, rpcid));
     if (!operation.operationId) throw new Error('Google Flow batchexecute không trả về operation cho video');
     return operation.operationId;
   }
@@ -1197,7 +1242,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private async resolveMedia(ref: FlowMediaRefInput, flowProjectId: string, slot: FlowCredentialSlot, signal: AbortSignal, onUpload?: () => void, forceReupload = false): Promise<string> {
     const sameOwner = Boolean(ref.ownerScopeId) && ref.ownerScopeId === slot.ownerScopeId;
     const sameProject = Boolean(ref.flowProjectId) && ref.flowProjectId === flowProjectId;
-    const fingerprint = createHash('sha256').update(`${slot.ownerScopeId}\0${flowProjectId}\0${ref.source}`).digest('hex');
+    const fingerprint = createHash('sha256').update(`${slot.ownerScopeId}\0${flowProjectId}\0${ref.source}${ref.fileName ? `\0${ref.fileName}` : ""}`).digest('hex');
     if (forceReupload) {
       // Self-heal path: a previous generate attempt failed with a stale-media
       // error, so drop whatever this fingerprint pointed at and upload fresh.
@@ -1207,7 +1252,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         delete this.mediaCache[fingerprint];
         try { fs.writeFileSync(this.mediaCachePath, JSON.stringify(this.mediaCache, null, 2), 'utf8'); } catch { /* best-effort */ }
       }
-    } else if (ref.mediaId && isUuid(ref.mediaId) && sameOwner && sameProject) {
+    } else if (!ref.fileName && ref.mediaId && isUuid(ref.mediaId) && sameOwner && sameProject) {
       // Trust the per-account media id recorded when this image was generated
       // (or previously synced) for this same account + project. Skipping the
       // /v1/media verification GET removes one round-trip per (image × account),
@@ -1239,7 +1284,10 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       return cached;
     }
     onUpload?.();
-    const { base64, mimeType, fileName } = await readImageSource(this.options.mediaRoot, ref.source, signal);
+    const { base64, mimeType, fileName: originalFileName } = await readImageSource(this.options.mediaRoot, ref.source, signal);
+    const safeName = ref.fileName?.replace(/[<>:"/\\|?*\x00-\x1f]/g, '-').replace(/[. ]+$/g, '').slice(0, 100);
+    const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : mimeType === 'image/gif' ? 'gif' : 'jpg';
+    const fileName = safeName ? `${safeName.replace(/\.(png|jpe?g|webp|gif)$/i, '')}.${extension}` : originalFileName;
     // Same media id either way — it is a handle inside this Flow project, not
     // something tied to the transport that created it — so the cache below is
     // shared and an account that switches paths keeps its uploads.
@@ -1247,11 +1295,19 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     if (this.usesBatchTransport(slot)) {
       mediaId = await this.batchUploadMedia(slot, flowProjectId, base64, mimeType, fileName, signal);
     } else {
-      const response = await this.apiRequest(slot, {
-        url: this.apiUrl(slot, '/v1/flow/uploadImage'), method: 'POST',
-        body: { clientContext: { projectId: flowProjectId, tool: 'PINHOLE' }, fileName, imageBytes: base64, isHidden: false, isUserUploaded: true, mimeType },
-      }, 90_000, signal);
-      mediaId = extractFlowMediaId(response);
+      try {
+        const response = await this.apiRequest(slot, {
+          url: this.apiUrl(slot, '/v1/flow/uploadImage'), method: 'POST',
+          body: { clientContext: { projectId: flowProjectId, tool: 'PINHOLE' }, fileName, imageBytes: base64, isHidden: false, isUserUploaded: true, mimeType },
+        }, 90_000, signal);
+        mediaId = extractFlowMediaId(response);
+      } catch (error) {
+        // Upload happens before the generation fallback. Recover here as well,
+        // including concurrent uploads whose sibling already switched transport.
+        if (signal.aborted || !isDeadBearerError(error)) throw error;
+        this.markLegacyTransportDead(slot.extensionInstanceId, safeMessage(error));
+        mediaId = await this.batchUploadMedia(slot, flowProjectId, base64, mimeType, fileName, signal);
+      }
     }
     if (!mediaId) throw new Error('Google Flow upload did not return a UUID media ID');
     this.mediaCache[fingerprint] = mediaId;
@@ -1305,7 +1361,23 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   }
 
   private proxyRequest(slot: FlowCredentialSlot, type: 'api_request' | 'trpc_request', params: Record<string, unknown>, timeout: number, signal?: AbortSignal): Promise<unknown> {
-    return proxyRequest(this.socketContext, slot, type, params, timeout, signal);
+    let endpoint = type as string;
+    try { if (typeof params.url === 'string') endpoint = new URL(params.url).pathname; } catch { /* No URL details in logs. */ }
+    return this.traceRequest(slot, endpoint, timeout, () => proxyRequest(this.socketContext, slot, type, params, timeout, signal));
+  }
+
+  private async traceRequest<T>(slot: FlowCredentialSlot, endpoint: string, timeoutMs: number, send: () => Promise<T>): Promise<T> {
+    const requestId = randomUUID(); const started = Date.now();
+    const data = { requestId, account: slot.extensionInstanceId, endpoint, timeoutMs };
+    writeFlowDiagnostic(this.options?.userDataPath, 'request_started', data);
+    try {
+      const result = await send();
+      writeFlowDiagnostic(this.options?.userDataPath, 'request_completed', { ...data, elapsedMs: Date.now() - started });
+      return result;
+    } catch (error) {
+      writeFlowDiagnostic(this.options?.userDataPath, 'request_failed', { ...data, elapsedMs: Date.now() - started, ...errorSummary(error) });
+      throw error;
+    }
   }
 
   private pollOperations(slot: FlowCredentialSlot, initial: Record<string, unknown>[], taskId: string, lane: Lane, signal: AbortSignal): Promise<unknown> {
@@ -1361,6 +1433,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   markLegacyTransportDead(extensionInstanceId: string, reason: string): void {
     if (!extensionInstanceId || this.deadLegacyAccounts.has(extensionInstanceId)) return;
     this.deadLegacyAccounts.add(extensionInstanceId);
+    writeFlowDiagnostic(this.options?.userDataPath, 'transport_switched', { account: extensionInstanceId, transport: 'batch', ...errorSummary(reason) });
     console.log(`[video-studio][google-flow] tài khoản ${extensionInstanceId.slice(0, 8)}: đường REST cũ đã chết (${reason}) — chuyển sang batchexecute`);
     for (const { slot } of this.sockets.values()) {
       if (slot.extensionInstanceId === extensionInstanceId) slot.transport = 'batch';
@@ -1451,7 +1524,10 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     try { state.socket.send(JSON.stringify({ type: 'generation_update', ...update })); } catch { /* UI update is best-effort */ }
   }
 
-  private emitTask(event: FlowTaskEvent) { this.emit('task', event); }
+  private emitTask(event: FlowTaskEvent) {
+    writeFlowDiagnostic(this.options?.userDataPath, 'task_state', { taskId: event.taskId, kind: event.kind, status: event.status, phase: event.phase, account: event.extensionInstanceId, progress: event.progress, ...(event.message ? errorSummary(event.message) : {}) });
+    this.emit('task', event);
+  }
   emitStatus() { this.emit('status', this.getStatus()); }
   hashIdentity(value: string): string { return createHash('sha256').update(value).digest('hex').slice(0, 24); }
   private loadBindings() {

@@ -247,7 +247,7 @@ export function StylePicker({
             ? 'bg-primary/10 text-primary'
             : CATEGORY_COLORS[previewStyle.category] || 'bg-muted/30'
         )}>
-          <div className="text-2xl font-bold mb-2">{previewStyle.name}</div>
+          <div className="text-2xl font-bold mb-2">{previewStyle.id === "none" ? t("stylePicker.noneName") : previewStyle.name}</div>
           <div className="max-w-[220px] text-center text-xs opacity-70 line-clamp-3">
             {isCustomPreview
               ? previewStyle.prompt
@@ -256,9 +256,9 @@ export function StylePicker({
         </div>
         {/* Style details */}
         <div className="text-center">
-          <div className="font-medium text-sm mb-1">{previewStyle.name}</div>
+          <div className="font-medium text-sm mb-1">{previewStyle.id === "none" ? t("stylePicker.noneName") : previewStyle.name}</div>
           <div className="text-xs text-muted-foreground line-clamp-2">
-            {previewStyle.description}
+            {previewStyle.id === "none" ? t("stylePicker.noneDescription") : previewStyle.description}
           </div>
         </div>
       </div>
@@ -292,11 +292,11 @@ export function StylePicker({
                       ? 'bg-primary/20 text-primary'
                       : CATEGORY_COLORS[selectedStyle.category] || 'bg-muted'
                   )}>
-                    {selectedStyle.id.startsWith('custom_style_') ? '★' : selectedStyle.category === 'none' ? 'NO' : selectedStyle.category === '3d' ? '3D' : selectedStyle.category === '2d' ? '2D' : selectedStyle.category === 'real' ? t("stylePicker.category.real") : t("stylePicker.category.stopMotion")}
+                    {selectedStyle.id.startsWith('custom_style_') ? '★' : selectedStyle.category === 'none' ? '—' : selectedStyle.category === '3d' ? '3D' : selectedStyle.category === '2d' ? '2D' : selectedStyle.category === 'real' ? t("stylePicker.category.real") : t("stylePicker.category.stopMotion")}
                   </span>
                 )}
                 <span className={!selectedStyle ? "text-muted-foreground" : ""}>
-                  {selectedStyle?.name || resolvedPlaceholder}
+                  {selectedStyle?.id === "none" ? t("stylePicker.noneName") : selectedStyle?.name || resolvedPlaceholder}
                 </span>
               </div>
               <svg
@@ -435,10 +435,10 @@ function StyleItem({ style, isSelected, isCustom, onSelect, onHover, onLeave, on
         "w-10 h-10 rounded flex items-center justify-center text-2xs font-bold flex-shrink-0",
         isCustom ? 'bg-primary/20 text-primary' : CATEGORY_COLORS[style.category] || 'bg-muted'
       )}>
-        {isCustom ? '★' : style.category === 'none' ? 'NO' : style.category === '3d' ? '3D' : style.category === '2d' ? '2D' : style.category === 'real' ? t("stylePicker.category.real") : t("stylePicker.category.stopMotion")}
+        {isCustom ? '★' : style.category === 'none' ? '—' : style.category === '3d' ? '3D' : style.category === '2d' ? '2D' : style.category === 'real' ? t("stylePicker.category.real") : t("stylePicker.category.stopMotion")}
       </span>
       {/* Name */}
-      <span className="flex-1 text-left text-sm truncate">{style.name}</span>
+      <span className="flex-1 text-left text-sm truncate">{style.id === "none" ? t("stylePicker.noneName") : style.name}</span>
       {/* Selected marker */}
       {isSelected && (
         <Check className="w-4 h-4 text-primary flex-shrink-0" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { generationElapsedSeconds } from "@/features/video-studio/autopilot/generation-timing";
 import { Circle, CircleCheck, CircleX, Loader2 } from "lucide-react";
 import { useNow } from "@/shared/lib/use-now";
 import { Label } from "@/shared/components/ui/label";
@@ -56,24 +56,10 @@ export function formatClock(ts: number, sameDayAs: number): string {
   return `${date.toLocaleDateString([], { day: "2-digit", month: "2-digit" })} ${time}`;
 }
 
-/** Seconds since an asset entered an in-flight state; resets to 0 when it leaves one. */
-export function useActiveElapsedSeconds(status: string | undefined): number {
-  const isGenerating = status === "generating" || status === "uploading";
-  const now = useNow(isGenerating);
-  const startedAtRef = useRef<number | null>(null);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  useEffect(() => {
-    if (isGenerating) {
-      if (startedAtRef.current === null) {
-        startedAtRef.current = Date.now();
-        setStartedAt(Date.now());
-      }
-    } else {
-      startedAtRef.current = null;
-      setStartedAt(null);
-    }
-  }, [isGenerating, status]);
-  return isGenerating && startedAt !== null ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+/** Elapsed generation time comes from the persisted asset, not the view. */
+export function useActiveElapsedSeconds(status: string | undefined, submittedAt?: number): number | undefined {
+  const now = useNow(status === "generating" || status === "uploading");
+  return generationElapsedSeconds(status, submittedAt, now);
 }
 
 /** Pulls a display name out of a skill's front-matter or first markdown heading. */
