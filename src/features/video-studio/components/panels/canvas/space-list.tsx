@@ -28,16 +28,18 @@ export function SpaceList() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-6">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t("canvas.spaces.title")}</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{t("canvas.spaces.subtitle")}</p>
         </div>
-        <SpaceTransfer />
-        <Button onClick={() => createSpace()} className="shrink-0">
-          <Plus className="mr-1.5 size-4" />
-          {t("canvas.spaces.new")}
-        </Button>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <SpaceTransfer />
+          <Button onClick={() => createSpace()} className="shrink-0">
+            <Plus className="mr-1.5 size-4" />
+            {t("canvas.spaces.new")}
+          </Button>
+        </div>
       </div>
 
       {spaces.length === 0 ? (
