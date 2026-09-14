@@ -339,7 +339,7 @@ export const useCanvasStore = create<CanvasStore>()(
             if (!previous) return {};
             const changed = Object.keys(patch).filter((key) => JSON.stringify(previous[key as keyof CanvasNodeState]) !== JSON.stringify(patch[key as keyof CanvasNodeState]));
             if (!changed.length) return {};
-            const affectsOutput = changed.some((key) => ['prompt', 'refs', 'model', 'videoDuration', 'videoMode', 'aspectRatio', 'items', 'valueType', 'selectedValue', 'selectedItem', 'output'].includes(key));
+            const affectsOutput = changed.some((key) => ['imageEdit', 'prompt', 'refs', 'model', 'videoDuration', 'videoMode', 'aspectRatio', 'items', 'valueType', 'selectedValue', 'selectedItem', 'output'].includes(key));
             const base = affectsOutput ? spreadStale(space, nodeId) : space.nodes;
             return {
               nodes: base.map((node) => node.id === nodeId ? {

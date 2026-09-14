@@ -95,6 +95,7 @@ export interface NodeOutput {
 }
 
 export interface CanvasNodeState {
+  imageEdit?: import('./image-processing').ImageEditSettings;
   videoMode?: 'first' | 'ref';
   videoDuration?: number;
   valueType?: PortType;

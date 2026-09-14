@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { cropRect, chromaKey, DEFAULT_IMAGE_EDIT } from './image-processing';
+assert.deepEqual(cropRect(1920, 1080, DEFAULT_IMAGE_EDIT), { x: 0, y: 0, width: 1920, height: 1080 });
+assert.deepEqual(cropRect(100, 80, { ...DEFAULT_IMAGE_EDIT, crop: true, x: 90, y: 90, width: 50, height: 50 }), { x: 90, y: 72, width: 10, height: 8 });
+assert.deepEqual(cropRect(1920, 1080, { ...DEFAULT_IMAGE_EDIT, crop: true, ratio: '1:1' }), { x: 0, y: 0, width: 1080, height: 1080 });
+assert.deepEqual(cropRect(1, 1, { ...DEFAULT_IMAGE_EDIT, crop: true, ratio: '9:16', x: 100 }), { x: 0, y: 0, width: 1, height: 1 });
+const pixels = new Uint8ClampedArray([0,255,0,255, 255,0,0,180, 0,155,0,200, 0,255,0,0]);
+chromaKey(pixels, { ...DEFAULT_IMAGE_EDIT, threshold: 80, softness: 40 });
+assert.deepEqual([...pixels], [0,255,0,0, 255,0,0,180, 0,155,0,100, 0,255,0,0]);
+const hard = new Uint8ClampedArray([0,255,0,255, 0,254,0,127]);
+chromaKey(hard, { ...DEFAULT_IMAGE_EDIT, threshold: 0, softness: 0 });
+assert.deepEqual([...hard], [0,255,0,0, 0,254,0,127]);
+console.log('Crop boundaries, aspect ratio, hard/soft chroma key and source alpha checks passed.');

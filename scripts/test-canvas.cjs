@@ -2,6 +2,7 @@ const esbuild = require('esbuild');
 const Module = require('node:module');
 const path = require('node:path');
 const mocks = {
+  'image-processing': 'export const processImage=async(source,settings)=>{globalThis.__localEdits=(globalThis.__localEdits||0)+1;return new Blob([source],{type:"image/png"})};',
   'feature-router': 'export const getFeatureConfig=()=>null;',
   'script-parser': 'export const callChatAPI=()=>{throw new Error("No external AI calls in tests")};',
   'google-flow-provider': 'export const googleFlowProvider={generateImage:async(input)=>{if(input.signal?.aborted)throw new DOMException("Cancelled","AbortError");return globalThis.__canvasGenerate(input)}};',
@@ -14,6 +15,7 @@ async function main() {
   const test = process.argv[2] || 'canvas-store';
   const entry = `src/features/video-studio/canvas/${test}.test.ts`;
   const result = await esbuild.build({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', write: false, plugins: [{ name: 'canvas-test-mocks', setup(build) {
+    if(test === 'canvas-runner') build.onResolve({ filter: /\/image-processing$/ }, () => ({ path: 'image-processing', namespace: 'mock' }));
     build.onResolve({ filter: /\/(feature-router|script-parser|google-flow-provider|video-generator|media-routing|image-storage|browser-image-storage)$/ }, (args) => ({ path: args.path.split('/').pop(), namespace: 'mock' }));
     build.onLoad({ filter: /.*/, namespace: 'mock' }, (args) => ({ contents: mocks[args.path], loader: 'js' }));
   } }] });

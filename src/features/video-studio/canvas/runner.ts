@@ -1,3 +1,5 @@
+import { processImage } from './image-processing';
+import { saveBlobToBrowserStorage } from '../lib/browser-image-storage';
 import { videoDuration } from '@/features/video-studio/lib/ai/video-duration';
 import { expandMentions, referenceName, mentionIds } from './mentions';
 /**
@@ -137,7 +139,7 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
 
   const { updateNode } = useCanvasStore.getState();
   const inputs = resolveInputs(space.nodes, space.edges, nodeId);
-  if (inputs.missing.length || mentionIds(node.prompt).some((id) => !space.edges.some((edge) => edge.source === id && edge.target === nodeId))) {
+  if (inputs.missing.length || node.kind !== 'imageEdit' && mentionIds(node.prompt).some((id) => !space.edges.some((edge) => edge.source === id && edge.target === nodeId))) {
     updateNode(spaceId, nodeId, { status: 'failed', error: 'INPUT_REQUIRED' });
     throw new CanvasRunError('INPUT_REQUIRED', nodeId);
   }
@@ -147,7 +149,7 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
     updateNode(spaceId, nodeId, { status: 'failed', error: 'VIDEO_REF_INPUT_INVALID' });
     throw new CanvasRunError('VIDEO_REF_INPUT_INVALID', nodeId);
   }
-  if (batches.some((batch) => !effectivePrompt(node, batch.promptParts))) {
+  if (node.kind !== 'imageEdit' && batches.some((batch) => !effectivePrompt(node, batch.promptParts))) {
     updateNode(spaceId, nodeId, { status: 'failed', error: EMPTY_PROMPT });
     throw new CanvasRunError(EMPTY_PROMPT, nodeId);
   }
@@ -158,6 +160,31 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
   if (node.kind === 'imageEdit' && batches.some((batch) => !node.refs.length && !batch.mediaByPort.refs?.length)) {
     updateNode(spaceId, nodeId, { status: 'failed', error: 'INPUT_REQUIRED' });
     throw new CanvasRunError('INPUT_REQUIRED', nodeId);
+  }
+
+  if (node.kind === 'imageEdit') {
+    inFlight.add(nodeId);
+    updateNode(spaceId, nodeId, { status: 'running', error: undefined, batchOutputs: [], startedAt: Date.now(), accountEmail: undefined, phase: undefined });
+    try {
+      const sources = [...new Set(batches.flatMap((batch) => [...node.refs, ...(batch.mediaByPort.refs || [])]))];
+      const results: NodeOutput[] = [];
+      for (const source of sources) {
+        checkCancelled(signal);
+        const blob = await processImage(source, node.imageEdit);
+        checkCancelled(signal);
+        const url = await saveBlobToBrowserStorage(blob, 'canvas-edit.png');
+        checkCancelled(signal);
+        const output: NodeOutput = { kind: 'image', url, model: 'Local image processing', createdAt: Date.now() };
+        results.push(output);
+        updateNode(spaceId, nodeId, { status: results.length === sources.length ? 'done' : 'running', output, batchOutputs: [...results], batchProgress: { done: results.length, total: sources.length }, stale: results.length !== sources.length });
+      }
+    } catch (error) {
+      if (signal?.aborted) { updateNode(spaceId, nodeId, { status: 'idle', stale: true, error: undefined }); throw error; }
+      const message = error instanceof Error ? error.message : String(error);
+      updateNode(spaceId, nodeId, { status: 'failed', error: message });
+      throw new CanvasRunError(message, nodeId);
+    } finally { inFlight.delete(nodeId); }
+    return;
   }
 
   inFlight.add(nodeId);

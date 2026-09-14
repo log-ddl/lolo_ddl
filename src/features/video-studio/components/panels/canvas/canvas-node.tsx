@@ -1,5 +1,7 @@
 "use client";
 
+import { ImageEditControls } from "./image-edit-controls";
+
 import { videoDuration, videoDurations } from '@/features/video-studio/lib/ai/video-duration';
 import { googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
 import { CompareResults } from "./compare-results";
@@ -153,6 +155,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
   const isLocal = state.kind === "localImage" || isLocalVideo;
   const resolvedOutput = useResolvedImageUrl(state.output?.url);
   const resolvedPreview = useResolvedImageUrl(preview);
+  const isImageEdit = state.kind === "imageEdit";
   const isText = state.kind === "text" || state.kind === "note";
   const models = state.kind === "videoGenerator" ? GOOGLE_FLOW_VIDEO_MODELS : GOOGLE_FLOW_IMAGE_MODELS;
 
@@ -182,7 +185,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             </NodeToolButton>
           )}
           <NodeToolButton title={t("canvas.rename")} onClick={() => setNaming(true)}><Pencil className="size-3.5" /></NodeToolButton>
-          {!isLocal && <NodeToolButton title={t("canvas.promptEditor")} onClick={() => { setEditPrompt(state.prompt); setEditorOpen(true); }}><Maximize2 className="size-3.5" /></NodeToolButton>}
+          {!isLocal && !isImageEdit && <NodeToolButton title={t("canvas.promptEditor")} onClick={() => { setEditPrompt(state.prompt); setEditorOpen(true); }}><Maximize2 className="size-3.5" /></NodeToolButton>}
           {running && <NodeToolButton title={t("canvas.stop")} onClick={onCancel}><Square className="size-3.5" /></NodeToolButton>}
           <NodeToolButton title={t("canvas.node.duplicate")} onClick={onDuplicate}>
             <Copy className="size-3.5" />
@@ -381,7 +384,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             <input type="file" accept={isLocalVideo ? "video/*" : "image/*"} className="hidden" onChange={(event) => { if (event.target.files?.length) onUpload(event.target.files); event.target.value = ""; }} />
           </label>
         )}
-        {!isLocal && !isText && state.kind !== 'note' ? <MentionEditor value={state.prompt} onCommit={(prompt) => onChange({ prompt })} placeholder={t(textInputs.length ? 'canvas.node.connectedPromptPlaceholder' : state.kind === 'videoGenerator' ? 'canvas.node.videoPromptPlaceholder' : 'canvas.node.promptPlaceholder') + ' (@)'} rows={1} options={data.mentionOptions} /> :
+        {isImageEdit ? <ImageEditControls data={data} /> : !isLocal && !isText && state.kind !== 'note' ? <MentionEditor value={state.prompt} onCommit={(prompt) => onChange({ prompt })} placeholder={t(textInputs.length ? 'canvas.node.connectedPromptPlaceholder' : state.kind === 'videoGenerator' ? 'canvas.node.videoPromptPlaceholder' : 'canvas.node.promptPlaceholder') + ' (@)'} rows={1} options={data.mentionOptions} /> :
 !isLocal && <PromptBox dragToMove={isText || state.kind === "note"}
           value={state.prompt}
           onCommit={(prompt) => onChange({ prompt })}
@@ -394,7 +397,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
           rows={isText ? 5 : 1}
         /> }
 
-        {!isText && !isLocal && (
+        {!isText && !isLocal && !isImageEdit && (
           <>
           {state.kind === 'videoGenerator' && <div className="canvas-node-controls flex items-center gap-2 px-3 pb-1">
             <select aria-label={t('canvas.videoMode')} title={t('canvas.videoMode')}
