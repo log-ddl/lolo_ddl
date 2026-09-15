@@ -1,5 +1,5 @@
 import { canConnect } from './graph';
-import { NODE_SPECS, nodeSpec, type CanvasSpace, type CanvasNodeState, type CanvasEdgeState } from './types';
+import { NODE_SPECS, portSpec, type CanvasSpace, type CanvasNodeState, type CanvasEdgeState } from './types';
 
 export function validateGraph(nodes: CanvasNodeState[], edges: CanvasEdgeState[]): void {
   if (!Array.isArray(nodes) || !Array.isArray(edges) || nodes.length > 1000 || edges.length > 5000) throw new Error('Invalid graph size');
@@ -11,6 +11,10 @@ export function validateGraph(nodes: CanvasNodeState[], edges: CanvasEdgeState[]
     if (node.videoDuration !== undefined && ![4, 6, 8, 10].includes(node.videoDuration)) throw new Error('Invalid video duration');
     if (node.videoMode !== undefined && !['first', 'ref'].includes(node.videoMode)) throw new Error('Invalid video mode');
     if (node.name !== undefined && typeof node.name !== 'string') throw new Error('Invalid name');
+    if (node.textOutput !== undefined && typeof node.textOutput !== 'string') throw new Error('Invalid AI output');
+    if (node.aiAdapter !== undefined && !['claude', 'opencode', 'codex'].includes(node.aiAdapter)) throw new Error('Invalid AI adapter');
+    if (node.outputDirectory !== undefined && typeof node.outputDirectory !== 'string') throw new Error('Invalid output directory');
+    if (node.savedFiles !== undefined && (!Array.isArray(node.savedFiles) || node.savedFiles.some((file) => typeof file !== 'string'))) throw new Error('Invalid saved files');
     if (!Number.isInteger(node.index) || node.index < 1 || !['idle', 'running', 'done', 'failed'].includes(node.status) || typeof node.stale !== 'boolean') throw new Error('Invalid node state');
     if (node.outputs !== undefined && !Array.isArray(node.outputs)) throw new Error('Invalid media history');
     if (node.valueType !== undefined && !['text', 'image', 'video'].includes(node.valueType)) throw new Error('Invalid list type');
@@ -28,7 +32,7 @@ export function validateGraph(nodes: CanvasNodeState[], edges: CanvasEdgeState[]
   const edgeIds = new Set<string>();
   for (const edge of edges) {
     if (!edge || typeof edge.id !== 'string' || edgeIds.has(edge.id) || !canConnect(nodes, accepted, edge)) throw new Error('Invalid connection');
-    const port = nodeSpec(nodes.find((node) => node.id === edge.target)!).inputs.find((port) => port.id === edge.targetHandle)!;
+    const port = portSpec(nodes.find((node) => node.id === edge.target)!, edge.targetHandle)!;
     if (!port.multi && accepted.some((item) => item.target === edge.target && item.targetHandle === edge.targetHandle)) throw new Error('Input already connected');
     edgeIds.add(edge.id); accepted.push(edge);
   }

@@ -74,7 +74,7 @@ function touch(space: CanvasSpace, patch: Partial<CanvasSpace>): CanvasSpace {
 function spreadStale(space: CanvasSpace, nodeId: string): CanvasNodeState[] {
   const affected = new Set([nodeId, ...descendants(space.edges, nodeId)]);
   return space.nodes.map((node) =>
-    affected.has(node.id) && node.output ? { ...node, stale: true } : node,
+    affected.has(node.id) && (node.output || node.textOutput) ? { ...node, stale: true } : node,
   );
 }
 
@@ -218,7 +218,7 @@ export const useCanvasStore = create<CanvasStore>()(
             affected.add(edge.target); for (const id of descendants(space.edges, edge.target)) affected.add(id);
           }
           return {
-            nodes: space.nodes.filter((node) => !nodeIds.includes(node.id)).map((node) => ({ ...node, groupId: node.groupId && nodeIds.includes(node.groupId) ? undefined : node.groupId, stale: affected.has(node.id) && node.output ? true : node.stale })),
+            nodes: space.nodes.filter((node) => !nodeIds.includes(node.id)).map((node) => ({ ...node, groupId: node.groupId && nodeIds.includes(node.groupId) ? undefined : node.groupId, stale: affected.has(node.id) && (node.output || node.textOutput) ? true : node.stale })),
             edges: space.edges.filter((edge) => !edgeIds.includes(edge.id) && !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)),
           };
         }),
@@ -269,7 +269,7 @@ export const useCanvasStore = create<CanvasStore>()(
                 prompt: '',
                 refs: [],
                 model: CANVAS_AUTO_MODEL,
-                aspectRatio: DEFAULT_ASPECT_RATIO,
+                aspectRatio: kind === 'imageGenerator' || kind === 'videoGenerator' ? '16:9' : DEFAULT_ASPECT_RATIO,
                 status: 'idle',
                 stale: false,
               },
@@ -291,7 +291,7 @@ export const useCanvasStore = create<CanvasStore>()(
               nodes.push({ ...source, prompt: remapMentions(source.prompt, ids), groupId: source.groupId ? ids.get(source.groupId) : undefined, outputs: undefined, batchOutputs: undefined, batchProgress: undefined, selectedValue: source.kind === 'selectResult' ? undefined : source.selectedValue, id: ids.get(source.id)!, refs: [...source.refs],
                 index: nextIndex({ ...space, nodes }, source.kind),
                 position: { x: source.position.x + offset, y: source.position.y + offset },
-                status: (source.kind === 'localImage' || source.kind === 'localVideo') && source.output ? 'done' : 'idle', output: (source.kind === 'localImage' || source.kind === 'localVideo') ? source.output : undefined, error: undefined, stale: false });
+                status: (source.kind === 'localImage' || source.kind === 'localVideo') && source.output ? 'done' : 'idle', output: (source.kind === 'localImage' || source.kind === 'localVideo') ? source.output : undefined, textOutput: undefined, error: undefined, stale: false });
             }
             const edges = sourceEdges.filter((edge) => ids.has(edge.source) && ids.has(edge.target))
               .map((edge) => ({ ...edge, id: `edge_${nanoid(10)}`, source: ids.get(edge.source)!, target: ids.get(edge.target)! }));
@@ -320,7 +320,7 @@ export const useCanvasStore = create<CanvasStore>()(
                 // is indistinguishable from a button that did nothing.
                 position: freePosition(current, { x: source.position.x + NODE_WIDTH + 48, y: source.position.y }),
                 status: 'idle',
-                outputs: undefined, batchOutputs: undefined, batchProgress: undefined, selectedValue: source.kind === 'selectResult' ? undefined : source.selectedValue,
+                textOutput: undefined, outputs: undefined, batchOutputs: undefined, batchProgress: undefined, selectedValue: source.kind === 'selectResult' ? undefined : source.selectedValue,
                 error: undefined,
                 output: (source.kind === 'localImage' || source.kind === 'localVideo') ? source.output : undefined,
                 stale: false,
@@ -339,7 +339,7 @@ export const useCanvasStore = create<CanvasStore>()(
             if (!previous) return {};
             const changed = Object.keys(patch).filter((key) => JSON.stringify(previous[key as keyof CanvasNodeState]) !== JSON.stringify(patch[key as keyof CanvasNodeState]));
             if (!changed.length) return {};
-            const affectsOutput = changed.some((key) => ['imageEdit', 'prompt', 'refs', 'model', 'videoDuration', 'videoMode', 'aspectRatio', 'items', 'valueType', 'selectedValue', 'selectedItem', 'output'].includes(key));
+            const affectsOutput = changed.some((key) => ['aiAdapter', 'textOutput', 'imageEdit', 'prompt', 'refs', 'model', 'videoDuration', 'videoMode', 'aspectRatio', 'items', 'valueType', 'selectedValue', 'selectedItem', 'output'].includes(key));
             const base = affectsOutput ? spreadStale(space, nodeId) : space.nodes;
             return {
               nodes: base.map((node) => node.id === nodeId ? {

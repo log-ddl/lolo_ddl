@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld('storageManager', {
 })
 
 contextBridge.exposeInMainWorld('exportStorage', {
-  writeFiles: (payload: { baseDir: string; files: Array<{ relativePath: string; data: ArrayBuffer } | { relativePath: string; text: string }> }) =>
+  writeFiles: (payload: { baseDir: string; uniqueNames?: boolean; files: Array<{ relativePath: string; data: ArrayBuffer } | { relativePath: string; text: string }> }) =>
     ipcRenderer.invoke('export-write-files', payload),
 })
 
@@ -145,6 +145,7 @@ contextBridge.exposeInMainWorld('cliRuntime', {
   getCommands: (adapter: 'claude' | 'opencode' | 'codex', workingDirectory?: string) =>
     ipcRenderer.invoke('cli-runtime-commands', adapter, workingDirectory),
   runTextTask: (payload: {
+    images?: string[]
     adapter: 'claude' | 'opencode' | 'codex'
     prompt: string
     systemPrompt?: string

@@ -2,9 +2,8 @@
  * Gemini watermark remover — Python implementation.
  *
  * The actual removal runs in the main process through a Python script
- * (wm_remove.py): it fits a polynomial background model around the watermark
- * location, builds a mask from the residual and inpaints with OpenCV. This
- * works even on resized/re-encoded images where reverse alpha blending fails.
+ * (wm_remove.py): detects a calibrated logo across scales, verifies reverse
+ * alpha restoration, and uses silhouette inpainting only on strong matches.
  *
  * This renderer module only resolves the image to a `local-image://` path and
  * asks the main process to clean it.
@@ -14,56 +13,6 @@ export type WatermarkProfile = "v1" | "v2";
 
 export interface RemoveWatermarkOptions {
   profile?: WatermarkProfile;
-}
-
-export interface WatermarkPositionConfig {
-  marginRight: number;
-  marginBottom: number;
-  logoSize: number;
-}
-
-/**
- * Deterministic bottom-right placement for a given image size and profile,
- * mirroring `get_watermark_config` from the C++ engine, with the V2 small
- * margin corrected from hand-measured output (71px, not 96px). Hand-measured
- * and stable, so the Python script gets an exact --box instead of searching.
- */
-export function getWatermarkPositionConfig(
-  width: number,
-  height: number,
-  profile: WatermarkProfile,
-): WatermarkPositionConfig {
-  const isLarge = width > 1024 && height > 1024;
-  if (profile === "v1") {
-    return isLarge
-      ? { marginRight: 64, marginBottom: 64, logoSize: 96 }
-      : { marginRight: 32, marginBottom: 32, logoSize: 48 };
-  }
-  if (isLarge) return { marginRight: 192, marginBottom: 192, logoSize: 96 };
-
-  // V2 "small" outputs scale from a canonical large source (2752/2816/2848
-  // wide). Hand measurement on 1376x768 output: the watermark is 48-50px,
-  // anchored at (1255, 647) = margin 71, so keep the margin constant at 71
-  // and scale only the logo size.
-  const longSide = Math.max(width, height);
-  const shortSide = Math.min(width, height);
-  let sourceLongDim: number;
-  if (longSide > 1100) {
-    const doubled = 2 * longSide;
-    sourceLongDim = 2752;
-    for (const candidate of [2816, 2848]) {
-      if (Math.abs(doubled - candidate) < Math.abs(doubled - sourceLongDim)) sourceLongDim = candidate;
-    }
-  } else if (shortSide >= 566) {
-    sourceLongDim = 2752;
-  } else if (shortSide >= 550) {
-    sourceLongDim = 2816;
-  } else {
-    sourceLongDim = 2848;
-  }
-  const scale = longSide / sourceLongDim;
-  const ideal = Math.round(96 * scale);
-  return { marginRight: 71, marginBottom: 71, logoSize: ideal <= 40 ? 36 : 50 };
 }
 
 // Surface Python runtime bootstrap progress (download/install/pip) from the
@@ -92,31 +41,6 @@ async function saveRawImage(imageUrl: string): Promise<string | null> {
     `raw_watermarked_${Date.now()}.png`,
   );
   return saved.success && saved.localPath ? saved.localPath : null;
-}
-
-/**
- * Read an image's pixel dimensions through imageStorage so the deterministic
- * watermark position can be computed. Returns null when the image cannot be
- * read — the Python script then falls back to auto-detection.
- */
-async function getImageSize(
-  localPath: string,
-): Promise<{ width: number; height: number } | null> {
-  const result = await window.imageStorage?.readAsBase64(localPath);
-  if (!result?.success || !result.base64) return null;
-  const dataUrl = result.base64.startsWith("data:")
-    ? result.base64
-    : `data:${result.mimeType || "image/png"};base64,${result.base64}`;
-  try {
-    const response = await fetch(dataUrl);
-    if (!response.ok) return null;
-    const bitmap = await createImageBitmap(await response.blob());
-    const size = { width: bitmap.width, height: bitmap.height };
-    bitmap.close();
-    return size;
-  } catch {
-    return null;
-  }
 }
 
 export interface WatermarkRemovalOutcome {
@@ -161,22 +85,16 @@ export async function removeWatermarkWithDiagnostics(
     }
     if (!localPath) return { localPath: null, error: "Không đọc được ảnh nguồn để xoá watermark" };
 
-    // Fixed, hand-measured placement — pass the exact box so the Python
-    // script does not have to search for the watermark.
-    const profile = options.profile ?? "v2";
-    let box: string | null = null;
-    const size = await getImageSize(localPath);
-    if (size) {
-      const config = getWatermarkPositionConfig(size.width, size.height, profile);
-      const x = size.width - config.marginRight - config.logoSize;
-      const y = size.height - config.marginBottom - config.logoSize;
-      if (x >= 0 && y >= 0) box = `${x},${y},${config.logoSize},${config.logoSize}`;
+    // Detection runs on native image pixels in Python across logo scales.
+    // Do not pin a box derived from one aspect ratio.
+    if (options.profile === "v1") {
+      return { localPath: null, error: "Chưa có mẫu watermark V1 để xoá an toàn" };
     }
 
     if (!window.watermarkRemoval) {
       return { localPath: null, error: "Xoá watermark chỉ chạy trong ứng dụng LONGDD trên máy tính" };
     }
-    const result = await window.watermarkRemoval.remove(localPath, box ?? undefined);
+    const result = await window.watermarkRemoval.remove(localPath);
     if (result?.success && result.localPath) return { localPath: result.localPath };
     if (result?.output) console.warn("[WatermarkRemover] Python output:", result.output);
     if (result?.error) console.warn("[WatermarkRemover] Error:", result.error);

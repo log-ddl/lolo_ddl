@@ -311,8 +311,8 @@ export function ensureWatermarkRuntime(
 
 /**
  * Run the Python watermark remover on an image file using the best available
- * interpreter. `box` is an optional "x,y,w,h" string pinning the exact
- * watermark location (fixed placement); when omitted the script auto-detects.
+ * interpreter. `box` is a legacy optional "x,y,w,h" scale hint. The script always
+ * verifies the watermark location by matching image pixels before editing.
  * Returns { ok, output }.
  */
 export async function runWatermarkRemoval(

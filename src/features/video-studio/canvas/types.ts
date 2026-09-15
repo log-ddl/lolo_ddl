@@ -11,9 +11,10 @@
 
 export type PortType = 'text' | 'image' | 'video';
 
-export type CanvasNodeKind = 'text' | 'imageGenerator' | 'videoGenerator' | 'localImage' | 'localVideo' | 'note' | 'group' | 'reference' | 'list' | 'router' | 'selectResult' | 'imageEdit';
+export type CanvasNodeKind = 'text' | 'imageGenerator' | 'videoGenerator' | 'localImage' | 'localVideo' | 'note' | 'group' | 'reference' | 'list' | 'router' | 'selectResult' | 'imageEdit' | 'output' | 'ai';
 
 export interface PortSpec {
+  accepts?: PortType[];
   id: string;
   type: PortType;
   labelKey: string;
@@ -35,6 +36,8 @@ export interface NodeSpec {
  * added here shows up in all three without being declared three times.
  */
 export const NODE_SPECS: Record<CanvasNodeKind, NodeSpec> = {
+  ai: { kind: 'ai', labelKey: 'canvas.node.ai', inputs: [{ id: 'prompt', type: 'text', labelKey: 'canvas.port.prompt', multi: true }, { id: 'refs', type: 'image', labelKey: 'canvas.port.refs', multi: true }], output: 'text' },
+  output: { kind: 'output', labelKey: 'canvas.node.output', inputs: [{ id: 'media', type: 'image', accepts: ['image', 'video'], labelKey: 'canvas.output.media', multi: true }], output: null },
   reference: { kind: 'reference', labelKey: 'canvas.node.reference', inputs: [{ id: 'refs', type: 'image', labelKey: 'canvas.port.refs', multi: true }], output: 'image' },
   list: { kind: 'list', labelKey: 'canvas.node.list', inputs: [{ id: 'items', type: 'text', labelKey: 'canvas.items', multi: true }], output: 'text' },
   router: { kind: 'router', labelKey: 'canvas.node.router', inputs: [{ id: 'items', type: 'text', labelKey: 'canvas.items' }], output: 'text' },
@@ -71,7 +74,7 @@ export const NODE_SPECS: Record<CanvasNodeKind, NodeSpec> = {
   },
 };
 
-export const CANVAS_NODE_KINDS: CanvasNodeKind[] = ['imageGenerator', 'videoGenerator', 'text', 'localImage', 'localVideo', 'reference', 'list', 'router', 'selectResult', 'imageEdit', 'note'];
+export const CANVAS_NODE_KINDS: CanvasNodeKind[] = ['imageGenerator', 'videoGenerator', 'text', 'ai', 'imageEdit', 'output', 'localImage', 'localVideo', 'reference', 'list', 'router', 'selectResult', 'note'];
 
 export const CANVAS_ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4'] as const;
 
@@ -81,6 +84,7 @@ export const CANVAS_AUTO_MODEL = '';
 export type NodeStatus = 'idle' | 'running' | 'done' | 'failed';
 
 export interface NodeOutput {
+  backgroundSkipped?: boolean;
   accountEmail?: string;
   /** Snapshot of the actual inputs used for this result. Absent on older results. */
   prompt?: string;
@@ -95,6 +99,10 @@ export interface NodeOutput {
 }
 
 export interface CanvasNodeState {
+  textOutput?: string;
+  aiAdapter?: 'claude' | 'opencode' | 'codex';
+  outputDirectory?: string;
+  savedFiles?: string[];
   imageEdit?: import('./image-processing').ImageEditSettings;
   videoMode?: 'first' | 'ref';
   videoDuration?: number;
@@ -172,12 +180,13 @@ export function outputTypeOf(node: CanvasNodeKind | CanvasNodeState): PortType |
 }
 
 export function portSpec(node: CanvasNodeKind | CanvasNodeState, portId: string): PortSpec | undefined {
+  if ((typeof node === 'string' ? node : node.kind) === 'output' && ['images', 'videos'].includes(portId)) portId = 'media';
   return (typeof node === 'string' ? NODE_SPECS[node] : nodeSpec(node)).inputs.find((port) => port.id === portId);
 }
 
 /** Node kinds with at least one input that accepts `type`. Drives the picker. */
 export function kindsAccepting(type: PortType): CanvasNodeKind[] {
-  return CANVAS_NODE_KINDS.filter((kind) => (['list', 'router'].includes(kind) || (kind === 'selectResult' && type !== 'text')) || NODE_SPECS[kind].inputs.some((port) => port.type === type));
+  return CANVAS_NODE_KINDS.filter((kind) => (['list', 'router'].includes(kind) || (kind === 'selectResult' && type !== 'text')) || NODE_SPECS[kind].inputs.some((port) => (port.accepts || [port.type]).includes(type)));
 }
 
-export function isGenerator(kind: CanvasNodeKind) { return kind === 'imageGenerator' || kind === 'videoGenerator' || kind === 'imageEdit'; }
+export function isGenerator(kind: CanvasNodeKind) { return kind === 'imageGenerator' || kind === 'videoGenerator' || kind === 'imageEdit' || kind === 'output' || kind === 'ai'; }

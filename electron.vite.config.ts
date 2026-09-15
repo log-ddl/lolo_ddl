@@ -29,6 +29,7 @@ export default defineConfig({
     }
   },
   renderer: {
+    worker: { format: 'es' },
     root: '.',
     cacheDir: path.resolve(__dirname, '.vite-cache/renderer'),
     build: {

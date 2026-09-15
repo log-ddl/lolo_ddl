@@ -38,10 +38,11 @@ export function registerStorageManagerIpc() {
     return result.filePaths[0]
   })
 
-  ipcMain.handle('export-write-files', async (_event, payload: { baseDir: string; files: Array<{ relativePath: string; data: ArrayBuffer | Uint8Array; text?: never } | { relativePath: string; text: string; data?: never }> }) => {
+  ipcMain.handle('export-write-files', async (_event, payload: { baseDir: string; uniqueNames?: boolean; files: Array<{ relativePath: string; data: ArrayBuffer | Uint8Array; text?: never } | { relativePath: string; text: string; data?: never }> }) => {
     try {
       const baseDir = normalizePath(payload.baseDir)
       await fs.promises.mkdir(baseDir, { recursive: true })
+      const writtenFiles: string[] = []
 
       for (const file of payload.files) {
         const targetPath = path.resolve(baseDir, file.relativePath)
@@ -50,6 +51,21 @@ export function registerStorageManagerIpc() {
         }
 
         await fs.promises.mkdir(path.dirname(targetPath), { recursive: true })
+        if (payload.uniqueNames) {
+          const parsed = path.parse(targetPath)
+          const data = typeof file.text === 'string' ? file.text : file.data instanceof ArrayBuffer ? new Uint8Array(file.data) : file.data!
+          for (let index = 0; ; index++) {
+            const candidate = index ? path.join(parsed.dir, `${parsed.name} (${index + 1})${parsed.ext}`) : targetPath
+            try {
+              await fs.promises.writeFile(candidate, data, { flag: 'wx' })
+              writtenFiles.push(path.relative(baseDir, candidate))
+              break
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+            }
+          }
+          continue
+        }
         if (typeof file.text === 'string') {
           await fs.promises.writeFile(targetPath, file.text, 'utf8')
         } else {
@@ -58,7 +74,7 @@ export function registerStorageManagerIpc() {
         }
       }
 
-      return { success: true }
+      return { success: true, writtenFiles }
     } catch (error) {
       console.error('[Export] Failed to write files:', error)
       return { success: false, error: error instanceof Error ? error.message : String(error) }

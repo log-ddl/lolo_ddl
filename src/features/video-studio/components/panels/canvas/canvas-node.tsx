@@ -21,6 +21,9 @@ import type { GroupPort } from "@/features/video-studio/canvas/group-ports";
 import { MentionEditor, type MentionOption } from "./mention-editor";
 import { PromptBox } from "./prompt-box";
 import { UtilityNode } from "./utility-node";
+import { OutputNode } from "./output-node";
+import { AiNodeControls } from './ai-node';
+import { mediaFileStem } from '@/features/video-studio/canvas/media-filename';
 import { memo, useEffect, useRef, useState } from "react";
 import {
   BaseEdge, useUpdateNodeInternals,
@@ -61,6 +64,8 @@ const PORT_TOP = 20;
 const PORT_GAP = 34;
 
 const KIND_ICONS: Record<CanvasNodeKind, typeof ImageIcon> = {
+  ai: TypeIcon,
+  output: Download,
   reference: ImageIcon, list: TypeIcon, router: TypeIcon, selectResult: ImageIcon, imageEdit: ImageIcon,
   note: TypeIcon,
   group: TypeIcon,
@@ -144,7 +149,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
     try {
       const blob = await mediaBlob(state.output.url);
       const extension = blob.type.split("/")[1]?.split(";")[0] || (state.output.kind === "video" ? "mp4" : "png");
-      downloadBlob(blob, `canvas-${state.name || state.index}.${extension}`);
+      downloadBlob(blob, `${mediaFileStem(state.name || `${t(spec.labelKey)} #${state.index}`)}.${extension}`);
 
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("canvas.error.downloadFailed"));
@@ -156,9 +161,11 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
   const resolvedOutput = useResolvedImageUrl(state.output?.url);
   const resolvedPreview = useResolvedImageUrl(preview);
   const isImageEdit = state.kind === "imageEdit";
+  const isAi = state.kind === 'ai';
   const isText = state.kind === "text" || state.kind === "note";
   const models = state.kind === "videoGenerator" ? GOOGLE_FLOW_VIDEO_MODELS : GOOGLE_FLOW_IMAGE_MODELS;
 
+  if (state.kind === 'output') return <OutputNode data={data} selected={selected} />;
   if (["reference", "list", "router", "selectResult"].includes(state.kind)) return <UtilityNode data={data} selected={selected} />;
 
   if (state.kind === "group") return (
@@ -249,7 +256,12 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             : selected ? "border-primary" : "border-border",
       )}>
 
-        {!isText && (
+        {isAi && <div className="relative min-h-[140px] p-3">
+          {state.textOutput ? <div className="nodrag nopan nowheel max-h-64 overflow-auto whitespace-pre-wrap text-xs leading-relaxed select-text">{state.textOutput}</div> : <div className="flex h-[116px] items-center justify-center text-xs text-muted-foreground">{t('canvas.node.empty')}</div>}
+          {running && <span className="text-xs text-muted-foreground">{t('canvas.ai.run')}…</span>}
+          {state.stale && state.textOutput && !running && <span className="mt-2 block text-[10px] text-muted-foreground">{t('canvas.node.stale')}</span>}
+        </div>}
+        {!isText && !isAi && (
           <div className={cn("canvas-node-media relative flex cursor-grab items-center justify-center active:cursor-grabbing", isLocal ? "h-[150px]" : "h-[180px]")}>
             {state.output ? (
               state.output.kind === "video" ? (
@@ -291,10 +303,10 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             )}
             {state.output && state.stale && !running && (
               <span
-                title={t("canvas.node.stale")}
-                className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-2xs font-medium text-black"
+                title={t(isImageEdit ? "canvas.node.editPendingHint" : "canvas.node.staleHint")}
+                className="absolute left-2 top-2 flex items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-1 text-2xs font-medium text-muted-foreground shadow-sm"
               >
-                <AlertTriangle className="size-3" />{t("canvas.node.stale")}
+                <History className="size-3" />{t(isImageEdit ? "canvas.node.editPending" : "canvas.node.stale")}
               </span>
             )}
           </div>
@@ -397,7 +409,8 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
           rows={isText ? 5 : 1}
         /> }
 
-        {!isText && !isLocal && !isImageEdit && (
+        {isAi && <AiNodeControls data={data} />}
+        {!isText && !isLocal && !isImageEdit && !isAi && (
           <>
           {state.kind === 'videoGenerator' && <div className="canvas-node-controls flex items-center gap-2 px-3 pb-1">
             <select aria-label={t('canvas.videoMode')} title={t('canvas.videoMode')}

@@ -186,6 +186,7 @@ declare global {
         }>;
       }>;
       runTextTask: (payload: {
+        images?: string[];
         adapter: 'claude' | 'opencode' | 'codex';
         prompt: string;
         systemPrompt?: string;

@@ -1,4 +1,6 @@
 import { processImage } from './image-processing';
+import { saveOutputMedia } from './output-files';
+import { runAiNode } from './ai-node-runner';
 import { saveBlobToBrowserStorage } from '../lib/browser-image-storage';
 import { videoDuration } from '@/features/video-studio/lib/ai/video-duration';
 import { expandMentions, referenceName, mentionIds } from './mentions';
@@ -138,6 +140,37 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
   if (!space || !node || !isGenerator(node.kind)) return;
 
   const { updateNode } = useCanvasStore.getState();
+  if (node.kind === 'ai') {
+    inFlight.add(nodeId);
+    updateNode(spaceId, nodeId, { status: 'running', error: undefined });
+    try {
+      const textOutput = await runAiNode(space, node, signal);
+      checkCancelled(signal);
+      updateNode(spaceId, nodeId, { status: 'done', textOutput, stale: false });
+    } catch (error) {
+      if (signal?.aborted) { updateNode(spaceId, nodeId, { status: 'idle', stale: true, error: undefined }); throw error; }
+      const message = error instanceof Error ? error.message : String(error);
+      updateNode(spaceId, nodeId, { status: 'failed', error: message });
+      throw new CanvasRunError(message, nodeId);
+    } finally { inFlight.delete(nodeId); }
+    return;
+  }
+  if (node.kind === 'output') {
+    inFlight.add(nodeId);
+    updateNode(spaceId, nodeId, { status: 'running', error: undefined, savedFiles: [], batchProgress: undefined });
+    try {
+      if (!node.outputDirectory) throw new Error('OUTPUT_FOLDER_REQUIRED');
+      const resolved = resolveInputs(space.nodes, space.edges, nodeId);
+      if (resolved.missing.length) throw new Error('INPUT_REQUIRED');
+      await saveOutputMedia(space, nodeId, node.outputDirectory, signal, (files, total) => updateNode(spaceId, nodeId, { status: 'running', savedFiles: files, batchProgress: { done: files.length, total } }));
+      updateNode(spaceId, nodeId, { status: 'done', stale: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      updateNode(spaceId, nodeId, { status: signal?.aborted ? 'idle' : 'failed', error: signal?.aborted ? undefined : message });
+      throw new CanvasRunError(message, nodeId);
+    } finally { inFlight.delete(nodeId); }
+    return;
+  }
   const inputs = resolveInputs(space.nodes, space.edges, nodeId);
   if (inputs.missing.length || node.kind !== 'imageEdit' && mentionIds(node.prompt).some((id) => !space.edges.some((edge) => edge.source === id && edge.target === nodeId))) {
     updateNode(spaceId, nodeId, { status: 'failed', error: 'INPUT_REQUIRED' });
@@ -170,11 +203,12 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
       const results: NodeOutput[] = [];
       for (const source of sources) {
         checkCancelled(signal);
-        const blob = await processImage(source, node.imageEdit);
+        let backgroundSkipped = false;
+        const blob = await processImage(source, node.imageEdit, () => { backgroundSkipped = true; }, signal);
         checkCancelled(signal);
         const url = await saveBlobToBrowserStorage(blob, 'canvas-edit.png');
         checkCancelled(signal);
-        const output: NodeOutput = { kind: 'image', url, model: 'Local image processing', createdAt: Date.now() };
+        const output: NodeOutput = { kind: 'image', url, model: node.imageEdit?.aiBackground || !node.imageEdit ? 'IS-Net · Local AI' : 'Local image processing', createdAt: Date.now(), backgroundSkipped };
         results.push(output);
         updateNode(spaceId, nodeId, { status: results.length === sources.length ? 'done' : 'running', output, batchOutputs: [...results], batchProgress: { done: results.length, total: sources.length }, stale: results.length !== sources.length });
       }
@@ -270,6 +304,12 @@ export async function runNode(spaceId: string, nodeId: string, signal?: AbortSig
 async function runNodePlan(spaceId: string, nodeId: string, signal?: AbortSignal): Promise<void> {
   const space = getSpace(spaceId);
   if (!space) return;
+  const target = nodeById(space.nodes, nodeId);
+  if (target?.kind === 'output' && (!target.outputDirectory || !window.exportStorage?.writeFiles)) {
+    const error = !target.outputDirectory ? 'OUTPUT_FOLDER_REQUIRED' : 'OUTPUT_DESKTOP_REQUIRED';
+    useCanvasStore.getState().updateNode(spaceId, nodeId, { status: 'failed', error });
+    throw new CanvasRunError(error, nodeId);
+  }
 
   const plan = [...upstreamOrder(space.nodes, space.edges, nodeId), nodeId];
   for (const id of plan) {
@@ -284,7 +324,7 @@ async function runNodePlan(spaceId: string, nodeId: string, signal?: AbortSignal
       }
       continue;
     }
-    const reusable = id !== nodeId && node.output && !node.stale;
+    const reusable = id !== nodeId && (node.output || node.textOutput) && !node.stale;
     if (reusable) continue;
     await executeNode(spaceId, id, signal);
   }

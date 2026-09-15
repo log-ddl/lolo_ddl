@@ -1,6 +1,10 @@
 import type { CliStatusResult, RunCliTextPayload, RunCliTextResult, SessionState } from './cli/types'
 import { detectCli } from './cli/process'
 import { executeAdapter, isExpiredSessionError } from './cli/adapters'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { nativeImage } from 'electron'
 
 export { getCliCommands } from './cli/commands'
 export { cancelCliTextTask } from './cli/active-tasks'
@@ -24,6 +28,26 @@ export async function getCliStatus(): Promise<CliStatusResult> {
 }
 
 export async function runCliTextTask(payload: RunCliTextPayload): Promise<RunCliTextResult> {
+  if (!payload.images?.length) return runText({ ...payload, imagePaths: undefined })
+  if (payload.images.length > 8 || payload.images.reduce((size, image) => size + image.length, 0) > 40_000_000) throw new Error('Maximum 8 images / 30 MB per AI request')
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'logdd-canvas-ai-'))
+  try {
+    const imagePaths: string[] = []
+    for (const [index, image] of payload.images.entries()) {
+      const match = /^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/=\r\n]+)$/.exec(image)
+      if (!match) throw new Error('Invalid AI image attachment')
+      const target = path.join(directory, `image-${index + 1}.png`)
+      const decoded = nativeImage.createFromBuffer(Buffer.from(match[1], 'base64'))
+      const size = decoded.getSize()
+      if (decoded.isEmpty() || size.width * size.height > 40_000_000) throw new Error('Invalid or oversized AI image')
+      await fs.writeFile(target, decoded.toPNG())
+      imagePaths.push(target)
+    }
+    return await runText({ ...payload, imagePaths })
+  } finally { await fs.rm(directory, { recursive: true, force: true }) }
+}
+
+async function runText(payload: RunCliTextPayload): Promise<RunCliTextResult> {
   const timeoutMs = payload.timeoutMs ?? 120000
   const existingSession = payload.sessionKey ? sessions.get(payload.sessionKey) : undefined
   const canResume = existingSession?.adapter === payload.adapter
@@ -35,6 +59,7 @@ export async function runCliTextTask(payload: RunCliTextPayload): Promise<RunCli
   const execute = async (sessionId?: string) => {
     return executeAdapter(payload.adapter, {
       prompt: payload.prompt,
+      imagePaths: payload.imagePaths,
       systemPrompt: payload.systemPrompt,
       model: payload.model,
       effort: payload.effort,

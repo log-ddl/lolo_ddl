@@ -27,6 +27,7 @@ export async function executeClaude(ctx: AdapterExecutionContext): Promise<Adapt
   ]
 
   if (ctx.model) args.push('--model', ctx.model)
+  if (ctx.imagePaths?.length) args.push('--input-format', 'stream-json')
   if (ctx.effort) args.push('--effort', ctx.effort)
   if (ctx.sessionId) args.push('--resume', ctx.sessionId)
   if (ctx.enableContentMcp) {
@@ -64,7 +65,10 @@ export async function executeClaude(ctx: AdapterExecutionContext): Promise<Adapt
     const { exitCode, timedOut, canceled } = await spawnAndStream({
       command: resolveCliCommand('claude'),
       args,
-      stdinText: ctx.prompt,
+      stdinText: ctx.imagePaths?.length ? JSON.stringify({ type: 'user', message: { role: 'user', content: [
+        ...ctx.imagePaths.map((file) => ({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: fs.readFileSync(file).toString('base64') } })),
+        { type: 'text', text: ctx.prompt },
+      ] } }) + '\n' : ctx.prompt,
       cwd: ctx.workingDirectory,
       timeoutMs: ctx.timeoutMs,
       requestId: ctx.requestId,
@@ -150,6 +154,7 @@ export async function executeClaude(ctx: AdapterExecutionContext): Promise<Adapt
 
 export async function executeOpenCode(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
   const args = ['run', '--format', 'json']
+  for (const file of ctx.imagePaths || []) args.push('--file', file)
   const model = normalizeOpenCodeModel(ctx.model)
   if (model) args.push('--model', model)
   if (ctx.effort) args.push('--variant', ctx.effort)
@@ -250,6 +255,7 @@ export async function executeCodex(ctx: AdapterExecutionContext): Promise<Adapte
     ? ['exec', 'resume', '--json', '--skip-git-repo-check']
     : ['exec', '--json', '--sandbox', 'workspace-write', '--skip-git-repo-check']
   if (ctx.model) args.push('--model', ctx.model)
+  for (const file of ctx.imagePaths || []) args.push('--image', file)
   if (ctx.effort) args.push('--config', `model_reasoning_effort=${JSON.stringify(ctx.effort)}`)
 
   const env: Record<string, string> = {}

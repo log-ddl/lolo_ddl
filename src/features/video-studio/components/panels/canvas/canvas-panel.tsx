@@ -104,6 +104,9 @@ function SpaceEditor({ spaceId }: { spaceId: string }) {
   const [dropping, setDropping] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [runningAll, setRunningAll] = useState(false);
+  const [editingSpaceName, setEditingSpaceName] = useState(false);
+  const [spaceNameDraft, setSpaceNameDraft] = useState("");
+  const cancelSpaceName = useRef(false);
   const pastedSelection = useRef<Set<string> | null>(null);
   const editingText = (target: EventTarget | null) => target instanceof Element && !!target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="listbox"]');
   const copyNodes = (event: React.ClipboardEvent) => {
@@ -371,7 +374,7 @@ function SpaceEditor({ spaceId }: { spaceId: string }) {
     if (picker.from) {
       if (["list", "router", "selectResult"].includes(kind)) store.updateNode(spaceId, nodeId, { valueType: picker.from.type });
       const added = useCanvasStore.getState().spaces.find((space) => space.id === spaceId)?.nodes.find((node) => node.id === nodeId);
-      const port = (added ? nodeSpec({ ...added, valueType: picker.from.type }) : NODE_SPECS[kind]).inputs.find((candidate) => candidate.type === picker.from!.type);
+      const port = (added ? nodeSpec({ ...added, valueType: picker.from.type }) : NODE_SPECS[kind]).inputs.find((candidate) => (candidate.accepts || [candidate.type]).includes(picker.from!.type));
       if (port) store.connect(spaceId, { source: picker.from.nodeId, target: nodeId, targetHandle: port.id });
     }
     setPicker(null);
@@ -418,9 +421,37 @@ function SpaceEditor({ spaceId }: { spaceId: string }) {
           {t("canvas.spaces.back")}
         </Button>
         <span className="text-muted-foreground">/</span>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {space.name || t("canvas.spaces.untitled")}
-        </span>
+        <div className="min-w-0 flex-1">
+          {editingSpaceName ? (
+            <input
+              autoFocus
+              aria-label={t("canvas.spaces.rename")}
+              value={spaceNameDraft}
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) => setSpaceNameDraft(event.target.value)}
+              onBlur={() => {
+                if (!cancelSpaceName.current) useCanvasStore.getState().renameSpace(spaceId, spaceNameDraft.trim());
+                setEditingSpaceName(false);
+              }}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.nativeEvent.isComposing) return;
+                if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+                if (event.key === "Escape") { event.preventDefault(); cancelSpaceName.current = true; event.currentTarget.blur(); }
+              }}
+              className="h-8 w-full max-w-sm rounded-md border border-primary bg-background px-2 text-sm outline-none ring-2 ring-primary/20"
+            />
+          ) : (
+            <button
+              type="button"
+              title={t("canvas.spaces.rename")}
+              onClick={() => { cancelSpaceName.current = false; setSpaceNameDraft(space.name || ""); setEditingSpaceName(true); }}
+              className="max-w-full cursor-text truncate rounded-md px-2 py-1 text-left text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              {space.name || t("canvas.spaces.untitled")}
+            </button>
+          )}
+        </div>
         {selectedIds.length > 0 && <>
           <Button variant="ghost" size="icon" title={t("canvas.group")} aria-label={t("canvas.group")} disabled={busy} onClick={() => useCanvasStore.getState().groupNodes(spaceId, selectedIds, t("canvas.node.group"))}><Group className="size-4" /></Button>
           <Button variant="ghost" size="icon" title={t("canvas.ungroup")} aria-label={t("canvas.ungroup")} disabled={busy} onClick={() => useCanvasStore.getState().ungroupNodes(spaceId, selectedIds)}><Ungroup className="size-4" /></Button>

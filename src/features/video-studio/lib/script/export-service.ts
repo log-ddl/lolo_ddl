@@ -10,7 +10,7 @@ import { readImageAsBase64 } from '@/features/video-studio/lib/image-storage';
 declare global {
   interface Window {
     exportStorage?: {
-      writeFiles: (payload: { baseDir: string; files: Array<{ relativePath: string; data: ArrayBuffer } | { relativePath: string; text: string }> }) => Promise<{ success: boolean; error?: string }>;
+      writeFiles: (payload: { baseDir: string; uniqueNames?: boolean; files: Array<{ relativePath: string; data: ArrayBuffer } | { relativePath: string; text: string }> }) => Promise<{ success: boolean; error?: string; writtenFiles?: string[] }>;
     };
   }
 }

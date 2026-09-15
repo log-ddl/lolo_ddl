@@ -33,7 +33,7 @@ export function canConnect(
   if (!sourceNode || !targetNode) return false;
   const produced = outputTypeOf(sourceNode);
   const port = portSpec(targetNode, targetHandle);
-  if (!produced || !port || port.type !== produced) return false;
+  if (!produced || !port || !(port.accepts || [port.type]).includes(produced)) return false;
   return !wouldCycle(edges, source, target);
 }
 
@@ -149,6 +149,7 @@ export function nodeValues(nodes: CanvasNodeState[], edges: CanvasEdgeState[], i
   if (!node) return [];
   const next = new Set(seen).add(id);
   if (node.kind === 'text') return node.prompt.trim() ? [node.prompt.trim()] : [];
+  if (node.kind === 'ai') return node.textOutput?.trim() ? [node.textOutput] : [];
   if (['list', 'router', 'selectResult', 'reference'].includes(node.kind)) {
     const upstream = incomingEdges(edges, id).flatMap((edge) => {
       const source = nodeById(nodes, edge.source);

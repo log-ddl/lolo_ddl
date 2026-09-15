@@ -27,6 +27,8 @@ export interface CliInstallResult {
 }
 
 export interface RunCliTextPayload {
+  images?: string[];
+  imagePaths?: string[];
   adapter: CliAdapter
   prompt: string
   systemPrompt?: string
@@ -69,6 +71,7 @@ export interface SpawnConfig {
 }
 
 export interface AdapterExecutionContext {
+  imagePaths?: string[];
   prompt: string
   systemPrompt?: string
   model?: string
