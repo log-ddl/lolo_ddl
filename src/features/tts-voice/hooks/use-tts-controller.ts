@@ -57,6 +57,7 @@ export function useTtsController() {
   const isGemini = selectedEngine.id === 'gemini';
   const isVbee = selectedEngine.id === 'vbee';
   const isVieneu = selectedEngine.id === 'vieneu';
+  const vieneuStatus = statuses['vieneu-v3-turbo']?.status;
   const isOnline = isCapCut || isGemini || isVbee;
   const mode = store.mode;
   const capcutVoices = useMemo(
@@ -92,11 +93,11 @@ export function useTtsController() {
   useEffect(() => { void refreshStatuses(); }, [refreshStatuses]);
 
   useEffect(() => {
-    if (!isVieneu || statuses['vieneu-v3-turbo']?.status !== 'ready') return;
+    if (!isVieneu) return;
     void window.ttsRuntime?.getVieneuVoices().then((result) => {
       if (result.success && result.voices.length) setVieneuVoices(result.voices);
-    });
-  }, [isVieneu, statuses]);
+    }).catch(() => { /* Keep fallback voices if the runtime is unavailable. */ });
+  }, [isVieneu, vieneuStatus]);
 
   useEffect(() => window.ttsRuntime?.onEvent(setProgress), []);
 

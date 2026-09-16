@@ -23,6 +23,17 @@ const RUNTIME_VERSION = 1
 function runtimeRoot() { return path.join(app.getPath('userData'), 'runtimes', 'vieneu') }
 function modelRoot() { return path.join(app.getPath('userData'), 'models', 'vieneu', 'vieneu-v3-turbo') }
 function markerPath() { return path.join(modelRoot(), '.model-ready') }
+function voicesCachePath() { return path.join(modelRoot(), 'voices.json') }
+type PresetVoice = { id: string; label: string }
+function validVoices(value: unknown): value is PresetVoice[] {
+  return Array.isArray(value) && value.length > 0 && value.every((voice) =>
+    voice && typeof voice.id === 'string' && typeof voice.label === 'string')
+}
+function cacheVoices(voices: unknown) {
+  if (!validVoices(voices)) return
+  try { fs.writeFileSync(voicesCachePath(), JSON.stringify(voices), 'utf8') } catch { /* Cache is optional. */ }
+}
+let pendingVoices: Promise<PresetVoice[]> | undefined
 function venvPython() {
   return process.platform === 'win32'
     ? path.join(runtimeRoot(), '.venv', 'Scripts', 'python.exe')
@@ -130,6 +141,7 @@ export async function installVieneu(jobId: string, emit: Emit) {
   emit({ jobId, kind: 'install', stage: 'model.download', percent: 65, message: 'Đang tải VieNeu v3 Turbo...' })
   const prepared = await run(jobId, 'install', { command: 'prepare' }, emit)
   if (!prepared.success) throw new Error(String(prepared.error || 'Không thể chuẩn bị VieNeu'))
+  cacheVoices(prepared.voices)
   fs.writeFileSync(markerPath(), JSON.stringify({ version: RUNTIME_VERSION, installedAt: Date.now() }), 'utf8')
   emit({ jobId, kind: 'install', stage: 'done', percent: 100, message: 'VieNeu đã sẵn sàng' })
   return { success: true }
@@ -143,8 +155,19 @@ export async function removeVieneu() {
 
 export async function listVieneuVoices() {
   if (!fs.existsSync(markerPath())) return []
-  const result = await run(`voices-${Date.now()}`, 'generate', { command: 'voices' }, () => {})
-  return Array.isArray(result.voices) ? result.voices : []
+  try {
+    const cached: unknown = JSON.parse(await fs.promises.readFile(voicesCachePath(), 'utf8'))
+    if (validVoices(cached)) return cached
+  } catch { /* Existing installations populate the cache on their first request. */ }
+  if (!pendingVoices) {
+    pendingVoices = (async () => {
+      const result = await run(`voices-${Date.now()}`, 'generate', { command: 'voices' }, () => {})
+      if (!validVoices(result.voices)) return []
+      cacheVoices(result.voices)
+      return result.voices
+    })().finally(() => { pendingVoices = undefined })
+  }
+  return pendingVoices
 }
 
 export async function generateVieneu(input: VieneuGenerateInput, emit: Emit) {

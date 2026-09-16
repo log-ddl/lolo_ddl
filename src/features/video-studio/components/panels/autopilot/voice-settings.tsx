@@ -162,9 +162,9 @@ export function useAutopilotVoiceSettings() {
     void window.ttsRuntime?.getVieneuVoices().then((result) => {
       if (!result?.success || !result.voices.length) return;
       setVieneuVoices(result.voices);
-      if (!result.voices.some((voice) => voice.id === vieneuVoice)) setVieneuVoice(result.voices[0].id);
-    });
-  }, [voiceEngine, vieneuVoice]);
+      setVieneuVoice((current) => result.voices.some((voice) => voice.id === current) ? current : result.voices[0].id);
+    }).catch(() => { /* Keep fallback voices if the runtime is unavailable. */ });
+  }, [voiceEngine]);
 
   /** Assembles the provider-specific `voice` block of an AutopilotJobInput. */
   const buildEngineVoice = (): NonNullable<AutopilotJobInput["voice"]> => {

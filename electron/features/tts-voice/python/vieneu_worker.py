@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -22,10 +23,23 @@ def create_engine(use_accelerated_backend: bool = False):
 def main() -> None:
     request = json.loads(sys.stdin.readline())
     command = request.get("command")
+    if command == "voices":
+        # Resolve the package without importing its heavy inference dependencies.
+        spec = importlib.util.find_spec("vieneu")
+        if spec is None or not spec.origin:
+            raise RuntimeError("Không tìm thấy thư viện VieNeu")
+        voice_path = Path(spec.origin).parent / "assets" / "voices_v3_turbo.json"
+        data = json.loads(voice_path.read_text(encoding="utf-8"))
+        voices = []
+        for name, preset in data["presets"].items():
+            description = preset.get("description", "")
+            voices.append({"id": name, "label": f"{name} — {description}" if description else name})
+        emit("result", success=True, voices=voices)
+        return
     emit("progress", stage="loading", percent=10, message="Đang nạp VieNeu v3 Turbo...")
     engine = create_engine(request.get("mode") == "clone")
 
-    if command in {"prepare", "voices"}:
+    if command == "prepare":
         voices = engine.list_preset_voices()
         emit("result", success=True, voices=[{"label": label, "id": voice_id} for label, voice_id in voices])
         return
