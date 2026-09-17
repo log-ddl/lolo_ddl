@@ -168,6 +168,18 @@ async function main() {
     return { success: true, outputText: 'Image analyzed.' };
   };
   await runNode(aiSpace, ai);
+  api.updateNode(aiSpace, ai, { prompt: 'Only this edited prompt', promptIsFinal: true });
+  (window as any).cliRuntime.runTextTask = async (input: any) => {
+    assert.equal(input.prompt, 'Only this edited prompt');
+    assert.deepEqual(input.images, ['data:image/png;base64,AQ==']);
+    return { success: true, outputText: 'Edited.' };
+  };
+  await runNode(aiSpace, ai);
+  const { effectivePrompt } = require('./graph');
+  const edited = useCanvasStore.getState().spaces.find((space) => space.id === aiSpace)!.nodes.find((node) => node.id === ai)!;
+  assert.equal(effectivePrompt({ ...edited, promptIsFinal: false, prompt: 'Extra' }, ['First', 'Second']), 'First\nSecond\nExtra');
+  assert.equal(effectivePrompt({ ...edited, kind: 'imageGenerator' }, ['Ignored']), 'Only this edited prompt');
+  assert.equal(effectivePrompt({ ...edited, kind: 'videoGenerator', prompt: '' }, ['Ignored']), '');
   const duplicateAi = api.duplicateNode(aiSpace, ai)!;
   assert.equal(useCanvasStore.getState().spaces.find((space) => space.id === aiSpace)!.nodes.find((node) => node.id === duplicateAi)!.textOutput, undefined);
   console.log('Selected execution, deduplication, account, cancellation, output/AI chains, image attachments and cleanup checks passed.');

@@ -15,6 +15,7 @@ export type GoogleFlowSourceState = {
 
 export type VideoGenerationParams = {
   platform: string;
+  accountOwnerScopeId?: string;
   projectId?: string;
   sceneId: string | number;
   prompt: string;
@@ -73,7 +74,7 @@ export async function generateProviderVideo(params: VideoGenerationParams): Prom
   const projectId = params.projectId || useProjectStore.getState().activeProjectId || 'default-project';
   // Accounts and fallback order come from Settings, exactly as they do for an
   // AutoPilot job — the only difference is that this reads them at press time.
-  const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('video', params.model);
+  const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('video', params.model, params.accountOwnerScopeId);
   const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
     projectId,
     sceneId: String(params.sceneId),

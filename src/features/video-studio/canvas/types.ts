@@ -128,6 +128,10 @@ export interface CanvasNodeState {
   index: number;
   position: { x: number; y: number };
   prompt: string;
+  /** User-edited complete prompt; do not append connected text again. */
+  promptIsFinal?: boolean;
+  accountOwnerScopeId?: string;
+  accountLabel?: string;
   /**
    * Reference images the user attached by hand, as `local-image://` paths.
    * Kept apart from wired references so pulling a wire never drops a file the

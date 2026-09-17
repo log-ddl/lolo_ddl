@@ -1,7 +1,7 @@
 import { getFeatureConfig } from '../lib/ai/feature-router';
 import { useVideoStudioSettingsStore } from '../stores/video-studio-settings-store';
 import { mediaBlob } from './archive';
-import { nodeValues } from './graph';
+import { effectivePrompt, nodeValues } from './graph';
 import { outputTypeOf, type CanvasSpace, type CanvasNodeState } from './types';
 import { expandMentions, mentionIds } from './mentions';
 
@@ -20,7 +20,7 @@ export async function runAiNode(space: CanvasSpace, node: CanvasNodeState, signa
   }
   const refs = [...new Set(images)];
   if (refs.length > 8) throw new Error('AI_IMAGE_LIMIT');
-  const prompt = expandMentions([node.prompt.trim(), ...texts].filter(Boolean).join('\n\n'), space.nodes, space.edges, refs, texts);
+  const prompt = expandMentions(effectivePrompt(node, texts), space.nodes, space.edges, refs, texts);
   if (!prompt.trim()) throw new Error('EMPTY_PROMPT');
   const attachments: string[] = [];
   for (const url of refs) {

@@ -77,7 +77,7 @@ async function generateImage(input: {
   signal?: AbortSignal;
 }): Promise<NodeOutput> {
   const head = input.node.model || googleFlowBoundModel('scene_generation') || FALLBACK_IMAGE_MODEL;
-  const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('image', head);
+  const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('image', head, input.node.accountOwnerScopeId);
   const { result, model } = await runWithModelFallback(chain, (attemptModel) =>
     googleFlowProvider.generateImage({
       taskId: input.taskId,
@@ -110,6 +110,7 @@ async function generateVideo(input: {
   const model = input.node.model || googleFlowBoundModel('video_generation') || FALLBACK_VIDEO_MODEL;
   const result = await generateProviderVideo({
     platform: 'googleflow',
+    accountOwnerScopeId: input.node.accountOwnerScopeId,
     length: videoDuration(model, input.node.videoDuration),
     taskId: input.taskId,
     projectId: input.spaceId,

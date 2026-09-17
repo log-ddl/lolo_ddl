@@ -1,3 +1,5 @@
+import { NodeAccountPicker } from './node-account-picker';
+import { effectivePrompt } from '@/features/video-studio/canvas/graph';
 "use client";
 
 import { ImageEditControls } from "./image-edit-controls";
@@ -121,6 +123,12 @@ export type CanvasFlowEdge = Edge<{ onDelete: (id: string) => void }>;
 export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }: NodeProps<CanvasFlowNode>) {
   const { t } = useI18n();
   const { state, connectedPorts, inputPreviews, textInputs, onDisconnectInput, onChange, onUpload, onRemoveRef, onRun, onCancel, onSelectOutput, onDuplicate, onDelete, onAddNext } = data;
+  const usesFinalPrompt = ['ai', 'imageGenerator', 'videoGenerator'].includes(state.kind);
+  const displayedPrompt = usesFinalPrompt ? effectivePrompt(state, textInputs.map((input) => input.prompt)) : state.prompt;
+  const commitPrompt = (prompt: string) => {
+    if (prompt === displayedPrompt) return;
+    onChange({ prompt, ...(usesFinalPrompt ? { promptIsFinal: true } : {}) });
+  };
   const spec = nodeSpec(state);
   const updateInternals = useUpdateNodeInternals();
   const portsKey = data.groupPorts?.map((port) => port.id).join(",");
@@ -192,7 +200,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             </NodeToolButton>
           )}
           <NodeToolButton title={t("canvas.rename")} onClick={() => setNaming(true)}><Pencil className="size-3.5" /></NodeToolButton>
-          {!isLocal && !isImageEdit && <NodeToolButton title={t("canvas.promptEditor")} onClick={() => { setEditPrompt(state.prompt); setEditorOpen(true); }}><Maximize2 className="size-3.5" /></NodeToolButton>}
+          {!isLocal && !isImageEdit && <NodeToolButton title={t("canvas.promptEditor")} onClick={() => { setEditPrompt(displayedPrompt); setEditorOpen(true); }}><Maximize2 className="size-3.5" /></NodeToolButton>}
           {running && <NodeToolButton title={t("canvas.stop")} onClick={onCancel}><Square className="size-3.5" /></NodeToolButton>}
           <NodeToolButton title={t("canvas.node.duplicate")} onClick={onDuplicate}>
             <Copy className="size-3.5" />
@@ -396,7 +404,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             <input type="file" accept={isLocalVideo ? "video/*" : "image/*"} className="hidden" onChange={(event) => { if (event.target.files?.length) onUpload(event.target.files); event.target.value = ""; }} />
           </label>
         )}
-        {isImageEdit ? <ImageEditControls data={data} /> : !isLocal && !isText && state.kind !== 'note' ? <MentionEditor value={state.prompt} onCommit={(prompt) => onChange({ prompt })} placeholder={t(textInputs.length ? 'canvas.node.connectedPromptPlaceholder' : state.kind === 'videoGenerator' ? 'canvas.node.videoPromptPlaceholder' : 'canvas.node.promptPlaceholder') + ' (@)'} rows={1} options={data.mentionOptions} /> :
+        {isImageEdit ? <ImageEditControls data={data} /> : !isLocal && !isText && state.kind !== 'note' ? <MentionEditor value={displayedPrompt} onCommit={commitPrompt} placeholder={t(state.kind === 'videoGenerator' ? 'canvas.node.videoPromptPlaceholder' : 'canvas.node.promptPlaceholder') + ' (@)'} rows={textInputs.length ? 3 : 1} options={data.mentionOptions} /> :
 !isLocal && <PromptBox dragToMove={isText || state.kind === "note"}
           value={state.prompt}
           onCommit={(prompt) => onChange({ prompt })}
@@ -412,6 +420,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
         {isAi && <AiNodeControls data={data} />}
         {!isText && !isLocal && !isImageEdit && !isAi && (
           <>
+          <NodeAccountPicker state={state} onChange={onChange} disabled={running} />
           {state.kind === 'videoGenerator' && <div className="canvas-node-controls flex items-center gap-2 px-3 pb-1">
             <select aria-label={t('canvas.videoMode')} title={t('canvas.videoMode')}
               value={state.videoMode || 'first'} disabled={running}
@@ -474,7 +483,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
         <DialogContent className="nodrag nopan max-w-3xl" aria-describedby={undefined} onKeyDown={(event) => event.stopPropagation()}>
           <DialogTitle>{t("canvas.promptEditor")}</DialogTitle>
           {!isText && state.kind !== 'note' ? <MentionEditor value={editPrompt} onCommit={setEditPrompt} placeholder={t('canvas.promptEditor')} rows={16} options={data.mentionOptions} /> : <textarea autoFocus rows={16} value={editPrompt} onChange={(event) => setEditPrompt(event.target.value)} className="max-h-[65vh] w-full resize-y rounded-lg border border-border bg-background p-3 text-sm leading-6 outline-none focus:border-primary" />}
-          <button onClick={() => { onChange({ prompt: editPrompt }); setEditorOpen(false); }} className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">{t("canvas.save")}</button>
+          <button onClick={() => { commitPrompt(editPrompt); setEditorOpen(false); }} className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">{t("canvas.save")}</button>
         </DialogContent>
       </Dialog>
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
@@ -529,7 +538,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
                 <p className="mb-2 text-xs font-medium">{t(state.output?.prompt !== undefined ? "canvas.preview.prompt" : "canvas.preview.currentPrompt")}</p>
                 {state.output?.prompt === undefined && <p className="mb-2 text-xs text-muted-foreground">{t("canvas.preview.legacyPrompt")}</p>}
                 <p className="nowheel max-h-[36vh] overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-border bg-muted/20 p-3 text-xs leading-5 select-text">
-                  {(state.output?.prompt ?? [...textInputs.map((input) => input.prompt.trim()), state.prompt.trim()].filter(Boolean).join("\n")) || "—"}
+                  {(state.output?.prompt ?? displayedPrompt) || "—"}
                 </p>
               </div>}
               <button type="button" disabled={downloading} onClick={() => void download()} className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50">{downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{t(state.output?.kind === "video" ? "canvas.downloadVideo" : "canvas.node.download")}</button>

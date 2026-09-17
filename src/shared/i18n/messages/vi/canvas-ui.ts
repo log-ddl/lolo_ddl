@@ -1,4 +1,10 @@
 export default {
+  "canvas.account": "Tài khoản",
+  "canvas.account.auto": "Tài khoản: Tự động",
+  "canvas.account.autoHint": "Tự phân phối tài khoản khả dụng theo Settings",
+  "canvas.account.fixedHint": "Chỉ chạy bằng tài khoản đã chọn; không tự chuyển tài khoản",
+  "canvas.account.offline": "Chưa sẵn sàng",
+
   "canvas.node.ai": "AI · Văn bản & ảnh",
   "canvas.ai.prompt": "Yêu cầu AI: phân tích ảnh, viết prompt, chỉnh văn bản…",
   "canvas.ai.settings": "Theo Settings",

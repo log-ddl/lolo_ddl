@@ -41,12 +41,13 @@ export function googleFlowBoundModel(
 export async function resolveSettingsMediaRouting(
   kind: 'image' | 'video',
   headModel: string,
+  pinnedOwnerScopeId?: string,
 ): Promise<SettingsMediaRouting> {
   const mediaRouting = useVideoStudioSettingsStore.getState().mediaRouting;
   const runtime = window.googleFlowRuntime;
   const routing = buildAccountRouting({
     connectedOwnerScopeIds: runtime ? await listKnownOwnerScopeIds(runtime) : [],
-    flowAccounts: mediaRouting.flowAccounts,
+    flowAccounts: pinnedOwnerScopeId ? [pinnedOwnerScopeId] : mediaRouting.flowAccounts,
     accountVideoModels: mediaRouting.accountVideoModels,
     accountImageModels: mediaRouting.accountImageModels,
     routingMode: mediaRouting.routingMode,

@@ -10,6 +10,9 @@ export function validateGraph(nodes: CanvasNodeState[], edges: CanvasEdgeState[]
     if (!Number.isFinite(node.position?.x) || !Number.isFinite(node.position?.y) || typeof node.prompt !== 'string' || typeof node.model !== 'string' || typeof node.aspectRatio !== 'string' || !Array.isArray(node.refs) || node.refs.some((ref) => typeof ref !== 'string')) throw new Error('Invalid node fields');
     if (node.videoDuration !== undefined && ![4, 6, 8, 10].includes(node.videoDuration)) throw new Error('Invalid video duration');
     if (node.videoMode !== undefined && !['first', 'ref'].includes(node.videoMode)) throw new Error('Invalid video mode');
+    if (node.promptIsFinal !== undefined && typeof node.promptIsFinal !== 'boolean') throw new Error('Invalid prompt mode');
+    if (node.accountOwnerScopeId !== undefined && typeof node.accountOwnerScopeId !== 'string') throw new Error('Invalid account');
+    if (node.accountLabel !== undefined && typeof node.accountLabel !== 'string') throw new Error('Invalid account label');
     if (node.name !== undefined && typeof node.name !== 'string') throw new Error('Invalid name');
     if (node.textOutput !== undefined && typeof node.textOutput !== 'string') throw new Error('Invalid AI output');
     if (node.aiAdapter !== undefined && !['claude', 'opencode', 'codex'].includes(node.aiAdapter)) throw new Error('Invalid AI adapter');

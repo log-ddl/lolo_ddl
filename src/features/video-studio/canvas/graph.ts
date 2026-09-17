@@ -193,5 +193,6 @@ export function nodeCandidates(nodes: CanvasNodeState[], edges: CanvasEdgeState[
  * shared Text node can hold the style while each node adds its own subject.
  */
 export function effectivePrompt(node: CanvasNodeState, promptParts: string[]): string {
+  if (node.promptIsFinal) return node.prompt.trim();
   return [...promptParts, node.prompt.trim()].filter((part) => part.length > 0).join('\n');
 }

@@ -1,4 +1,10 @@
 export default {
+  "canvas.account": "Account",
+  "canvas.account.auto": "Account: Automatic",
+  "canvas.account.autoHint": "Distribute across available accounts using Settings",
+  "canvas.account.fixedHint": "Use only the selected account; never switch accounts automatically",
+  "canvas.account.offline": "Unavailable",
+
   "canvas.node.ai": "AI · Text & images",
   "canvas.ai.prompt": "Ask AI to analyze images, write prompts, edit text…",
   "canvas.ai.settings": "Use Settings",
