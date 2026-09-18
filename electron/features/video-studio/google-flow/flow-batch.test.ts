@@ -26,6 +26,17 @@ import {
 } from './flow-batch.ts';
 
 // ==================== envelope codec ====================
+for (const profile of ['lite', 'fast']) {
+  for (const duration of [4, 6]) {
+    const key = `veo_3_1_i2v_s_${profile}_${duration}s`;
+    assert.equal(resolveBatchVideoModel(key, true), key);
+    assert.notEqual(resolveBatchVideoModel(key), key);
+    const wire = videoRequest({ prompt: 'test', projectId: 'project', sourceMediaId: 'media', model: key, ultra: true });
+    assert.ok(JSON.parse(JSON.parse(wire)[0][0][1])[0][0].includes(key), 'serializer preserves Ultra short duration');
+  }
+}
+assert.equal(resolveBatchVideoModel('veo_3_1_i2v_s_lite_6s_low_priority', true), 'veo_3_1_i2v_s_lite_6s_low_priority');
+assert.equal(resolveBatchVideoModel('veo_3_1_i2v_s_lite', true), 'veo_3_1_i2v_lite');
 
 const envelope = buildEnvelope('abc123', [1, 'two', null]);
 assert.deepEqual(JSON.parse(envelope), [[['abc123', '[1,"two",null]', null, 'generic']]]);
@@ -93,6 +104,8 @@ assert.deepEqual(
   'a reference carries its media id FIRST and the type flag four slots later',
 );
 assert.ok(imageFreq.includes(CAPTCHA_SLOT), 'the captcha placeholder survives into f.req');
+const editItem = JSON.parse(JSON.parse(imageRequest({ prompt: 'edit', projectId: 'p', baseMediaId: 'base', referenceMediaIds: ['base', 'ref'] }))[0][0][1])[1][0];
+assert.deepEqual(editItem[2], [['base', null, null, null, 2], ['ref', null, null, null, 1]], 'base images keep their editing role and are not duplicated as references');
 
 // count replicates the item under fresh seeds rather than setting a "how many" field.
 const twoUp = JSON.parse(JSON.parse(imageRequest({ prompt: 'x', projectId: 'p', count: 2, seed: 1 }))[0][0][1]) as unknown[];
@@ -132,10 +145,20 @@ assert.equal(JSON.parse(operationRequest('op-9'))[0][0][0], RPC_OPERATION);
 assert.equal(resolveBatchImageModel('GEM_PIX_2'), 'GEM_PIX_2');
 assert.equal(resolveBatchImageModel('Nano Banana 2'), 'NARWHAL');
 assert.equal(resolveBatchImageModel('something else'), 'GEM_PIX_2', 'unknown coerces to the default');
-assert.equal(resolveBatchVideoModel('veo_3_1_i2v_s_fast_ultra_relaxed'), 'veo_3_1_i2v_s_fast_ultra_relaxed', 'explicit model keys are not silently replaced');
-for (const model of ['abra_i2v_4s', 'abra_i2v_6s', 'abra_i2v_8s', 'abra_i2v_10s', 'veo_3_1_i2v_s_fast_4s', 'veo_3_1_i2v_s_lite_6s']) {
+assert.equal(resolveBatchVideoModel('veo_3_1_i2v_s_fast_ultra_relaxed'), 'veo_3_1_i2v_lite_low_priority', 'legacy low-priority intent maps to the current low-priority key');
+for (const model of ['abra_i2v_4s', 'abra_i2v_6s', 'abra_i2v_8s', 'abra_i2v_10s']) {
   const payload = JSON.parse(JSON.parse(videoRequest({ prompt: 'move', projectId: 'p', sourceMediaId: 'm', model }))[0][0][1]);
   assert.equal(payload[0][0][1], model, 'serialized request must preserve model and duration');
+}
+for (const [legacy, current] of [
+  ['veo_3_1_i2v_s_lite_6s', 'veo_3_1_i2v_lite'],
+  ['veo_3_1_i2v_s_lite_4s_fl', 'veo_3_1_i2v_lite'],
+  ['veo_3_1_i2v_s_lite_6s_low_priority', 'veo_3_1_i2v_lite_low_priority'],
+  ['veo_3_1_i2v_s_fast_4s', 'veo_3_1_i2v_s_fast_ultra'],
+  ['veo_3_1_i2v_s_fast_portrait_fl', 'veo_3_1_i2v_s_fast_ultra'],
+]) {
+  const payload = JSON.parse(JSON.parse(videoRequest({ prompt: 'move', projectId: 'p', sourceMediaId: 'm', model: legacy }))[0][0][1]);
+  assert.equal(payload[0][0][1], current, 'Veo REST names are normalized before serialization');
 }
 assert.throws(() => resolveBatchVideoModel('unknown model'), /Unsupported/);
 assert.equal(resolveBatchVideoModel('Veo 3.1 Lite - Lower Priority'), 'veo_3_1_i2v_lite_low_priority');
@@ -187,6 +210,11 @@ assert.equal(findMediaId(listing, 'op-missing'), undefined);
 const rawTail = '...,["op-7",null,null,["Title",1700,null,null,"11112222-3333-4444-5555-666677778888"';
 assert.equal(findMediaIdInText(rawTail, 'op-7'), '11112222-3333-4444-5555-666677778888');
 assert.equal(findMediaIdInText(rawTail, 'op-nope'), undefined);
+const laterRow = `"op-7","metadata"\n["other",null,null,["Title",1700,null,null,"aaaaaaaa-3333-4444-5555-666677778888"]]\n${rawTail}`;
+assert.equal(findMediaIdInText(laterRow, 'op-7'), '11112222-3333-4444-5555-666677778888', 'metadata occurrence must not steal another operation media');
+assert.equal(findMediaIdInText(rawTail.replace(/"/g, '\\"'), 'op-7'), '11112222-3333-4444-5555-666677778888', 'escaped wire listing is supported');
+const longTitle = rawTail.replace('Title', 'T'.repeat(1600));
+assert.equal(findMediaIdInText(longTitle, 'op-7'), '11112222-3333-4444-5555-666677778888', 'long prompt titles do not hide the media slot');
 
 const urls = readMediaUrls([['https://flow-content.google/video/v1?x'], ['https://flow-content.google/image/i1?y']], 'media-1');
 assert.equal(urls.video, 'https://flow-content.google/video/v1?x');

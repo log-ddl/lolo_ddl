@@ -38,6 +38,7 @@ export type ImageGenerationInput = {
 };
 
 export type VideoGenerationInput = {
+  ultraOwnerScopeIds?: string[];
   projectId: string;
   sceneId: string;
   prompt: string;

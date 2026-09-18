@@ -214,57 +214,36 @@ export class GoogleFlowInAppBridge {
     await this.handle.cdp.send('Page.reload', { ignoreCache: false })
   }
 
-  /**
-   * Reads this profile's OAuth token off the labs.google session endpoint using
-   * the account's own cookies (fetched over CDP, used for this request only and
-   * never logged or persisted). Returns false when the profile is not signed in.
-   */
-  private async fetchSessionToken(): Promise<boolean> {
-    if (this.disposed) return false
+  /** Identity only: never consume session bearer tokens or authentication flags. */
+  private async fetchAccountIdentity(): Promise<void> {
+    if (this.disposed) return
     try {
       const { cookies } = await this.handle.cdp.send<{ cookies: Array<{ name: string; value: string }> }>(
         'Network.getCookies', { urls: [FLOW_SESSION_URL] },
       )
       const cookie = (cookies || []).map((item) => `${item.name}=${item.value}`).join('; ')
-      if (!cookie) return false
-      const response = await fetch(FLOW_SESSION_URL, { headers: { cookie, accept: 'application/json' } })
-      if (!response.ok) return false
-      const session = await response.json() as { access_token?: unknown; expires?: unknown; error?: unknown; user?: { email?: unknown } }
-      // Reported before the token is validated on purpose: an account whose token
-      // is unusable is exactly the one the user needs to recognise by name.
+      if (!cookie) return
+      const response = await fetch(FLOW_SESSION_URL, {
+        headers: { cookie, accept: 'application/json' }, signal: AbortSignal.timeout(10_000),
+      })
+      if (!response.ok) return
+      const session = await response.json() as { user?: { email?: unknown } }
       const email = typeof session.user?.email === 'string' ? session.user.email : ''
       if (email) this.runtime.updateAccountEmail(this.handle.accountSlotId, email)
-      const token = typeof session.access_token === 'string' ? session.access_token : ''
-      const usable = token.startsWith('ya29.')
-      const who = email || this.handle.accountSlotId.slice(0, 8)
-      // ACCESS_TOKEN_REFRESH_NEEDED means Google will not RENEW the bearer — not
-      // that the current one is dead. Accounts carrying that flag have been seen
-      // generating normally right up to the hour their token lapses, so the flag
-      // alone is a warning, and only the absence of a token is a verdict. The
-      // reactive switch on a real 401 catches the rest.
-      if (session.error) {
-        console.warn(`[video-studio][google-flow] session của ${who} báo "${String(session.error)}" — token hiện tại dùng tiếp được nhưng sẽ không được gia hạn`)
-      }
-      // Judged BEFORE the token guard below, not after. The old order returned on
-      // the missing token first, so the accounts that most needed the switch were
-      // the only ones that never got it.
-      if (!usable) {
-        const reason = session.error ? String(session.error) : 'session không còn access_token'
-        console.warn(`[video-studio][google-flow] tài khoản ${who} không còn bearer token — chuyển sang batchexecute`)
-        this.runtime.markLegacyTransportDead(this.handle.accountSlotId, reason)
-        // No bearer to report, but the account is not offline: batchexecute signs
-        // with the page's own session, so let the runtime treat it as connected
-        // instead of leaving it parked on "Cần làm mới" forever.
-        this.socket.receive(JSON.stringify({ type: 'token_captured', sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
-        this.announceReadyOnce()
-        return false
-      }
-      const expiresAt = typeof session.expires === 'string' ? Date.parse(session.expires) : Number.NaN
-      this.applyToken(token, expiresAt)
-      return true
-    } catch {
-      return false
-    }
+    } catch { /* Identity lookup must not affect generation readiness. */ }
+  }
+
+  private async fetchSessionToken(): Promise<boolean> {
+    if (this.disposed) return false
+    void this.fetchAccountIdentity()
+    // Readiness is checked independently on the Flow page.
+    if (!await this.hasAtToken()) return false
+    this.runtime.markLegacyTransportDead(this.handle.accountSlotId, 'Flow page uses batchexecute')
+    if (this.reloadTimer) { clearTimeout(this.reloadTimer); this.reloadTimer = undefined }
+    this.reloadAttempts = MAX_RELOAD_RETRIES
+    this.socket.receive(JSON.stringify({ type: 'token_captured', sessionSecret: this.sessionSecret, credentialId: this.credentialId }))
+    this.announceReadyOnce()
+    return true
   }
 
   // Renew shortly before the token lapses, and keep retrying for an account that
@@ -398,8 +377,14 @@ export class GoogleFlowInAppBridge {
         if (Date.now() - start > 30000) throw new Error('grecaptcha not available');
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      await new Promise((resolve) => window.grecaptcha.enterprise.ready(resolve));
-      return await window.grecaptcha.enterprise.execute(key, { action: ${JSON.stringify(action)} });
+      const previous = globalThis.__logddCaptchaTail || Promise.resolve();
+      let release;
+      globalThis.__logddCaptchaTail = new Promise(resolve => { release = resolve; });
+      await previous.catch(() => {});
+      try {
+        await new Promise((resolve) => window.grecaptcha.enterprise.ready(resolve));
+        return await window.grecaptcha.enterprise.execute(key, { action: ${JSON.stringify(action)} });
+      } finally { release(); }
     })()`
     const result = await this.handle.cdp.send<EvaluateResult<string>>('Runtime.evaluate', {
       expression, awaitPromise: true, returnByValue: true,
@@ -441,11 +426,14 @@ export class GoogleFlowInAppBridge {
       const reqid = Math.floor(Math.random() * 900000) + 100000;
       const url = ${JSON.stringify(FLOW_BATCH_PATH)}
         + '?rpcids=' + encodeURIComponent(${JSON.stringify(rpcid)})
+        + '&source-path=' + encodeURIComponent(location.pathname || '/')
         + '&f.sid=' + encodeURIComponent(wiz.FdrFJe || '')
         + '&bl=' + encodeURIComponent(wiz.cfb2h || '')
-        + '&hl=en&_reqid=' + reqid + '&rt=c';
+        + '&hl=' + encodeURIComponent((document.documentElement.lang || navigator.language || 'en').split('-')[0])
+        + '&_reqid=' + reqid + '&rt=c';
       const response = await fetch(url, {
         method: 'POST',
+        signal: AbortSignal.timeout(110000),
         credentials: 'include',
         headers: {
           'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
@@ -455,9 +443,13 @@ export class GoogleFlowInAppBridge {
       });
       const text = await response.text();
       const match = ${JSON.stringify(params.match ?? null)};
-      if (match) {
-        const found = text.indexOf(match);
-        return { status: response.status, text: found === -1 ? '' : text.slice(found, found + 800) };
+      if (match && response.ok) {
+        const parts = [];
+        for (let pos = text.indexOf(match); pos !== -1; pos = text.indexOf(match, pos + match.length)) {
+          parts.push(text.slice(pos, pos + 4000));
+          if (parts.length >= 100) break;
+        }
+        return { status: response.status, text: parts.join('\\n') };
       }
       return { status: response.status, text: text.slice(0, ${BATCH_MAX_RESPONSE_CHARS}) };
     })()`
@@ -618,7 +610,7 @@ export class GoogleFlowInAppBridge {
   private async hasAtToken(): Promise<boolean> {
     try {
       const result = await this.handle.cdp.send<EvaluateResult<boolean>>('Runtime.evaluate', {
-        expression: 'Boolean(globalThis.WIZ_global_data && globalThis.WIZ_global_data.SNlM0e)',
+        expression: 'location.origin === "https://flow.google.com" && Boolean(globalThis.WIZ_global_data && globalThis.WIZ_global_data.SNlM0e)',
         returnByValue: true,
       })
       return result.result?.value === true

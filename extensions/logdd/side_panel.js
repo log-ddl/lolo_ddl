@@ -23,7 +23,7 @@ function mark(id, ok, goodText, badText) {
 
 function renderFlow() {
   const connected = Boolean(flowStatus?.agentConnected);
-  const token = Boolean(flowStatus?.flowKeyPresent);
+  const token = flowStatus?.transport === 'batch' || Boolean(flowStatus?.flowKeyPresent);
   const ready = connected && token;
   const state = document.getElementById('flow-state');
   state.textContent = ready ? 'Sẵn sàng' : connected ? 'Thiếu phiên' : 'Chưa kết nối';
@@ -32,7 +32,7 @@ function renderFlow() {
     ? 'Có thể tạo ảnh và video'
     : connected ? 'Runtime đã nối nhưng chưa lấy được phiên Flow' : 'Ứng dụng chưa mở runtime Flow';
   mark('flow-agent', connected, 'Đã kết nối', 'Không kết nối');
-  mark('flow-token', token, 'Đã đồng bộ', 'Chưa có phiên');
+  mark('flow-token', token, flowStatus?.transport === 'batch' ? 'Dùng phiên trình duyệt' : 'Đã đồng bộ', 'Chưa có phiên');
 }
 
 function renderGrok() {

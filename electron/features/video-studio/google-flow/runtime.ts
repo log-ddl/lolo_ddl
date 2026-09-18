@@ -73,6 +73,7 @@ import {
   RPC_GEN_VIDEO,
   RPC_GEN_REFERENCE_VIDEO,
   referenceVideoRequest,
+  resolveBatchVideoModel,
   RPC_MEDIA,
   RPC_OPERATION,
   RPC_PROJECT_MEDIA,
@@ -190,7 +191,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
 
   getStatus() {
     const credentials = [...this.credentials.values()].map((slot) => {
-      const tokenAgeMs = slot.tokenCapturedAt ? Date.now() - slot.tokenCapturedAt : undefined;
+      const tokenAgeMs = !this.usesBatchTransport(slot) && slot.tokenCapturedAt ? Date.now() - slot.tokenCapturedAt : undefined;
       return ({
       ...slot,
       state: slot.state === 'ready' && tokenAgeMs && tokenAgeMs > 70 * 60_000 ? 'stale' as const : slot.state,
@@ -348,7 +349,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     const ready = [...this.sockets.values()].filter(({ slot, socket }) => (
       slot.state === 'ready'
       && socket.readyState === WebSocket.OPEN
-      && (!slot.tokenCapturedAt || Date.now() - slot.tokenCapturedAt <= 70 * 60_000)
+      && (this.usesBatchTransport(slot) || !slot.tokenCapturedAt || Date.now() - slot.tokenCapturedAt <= 70 * 60_000)
     ));
     if (!ready.length) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
 
@@ -494,7 +495,8 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           prompt: input.prompt,
           aspectRatio: input.aspectRatio,
           model: imageModelKeyFor(slot),
-          referenceMediaIds: [...(baseMediaId ? [baseMediaId] : []), ...referenceIds],
+          baseMediaId,
+          referenceMediaIds: referenceIds,
         };
         try {
           if (this.usesBatchTransport(slot)) {
@@ -542,15 +544,23 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     // therefore the daily-quota lock key) depends on it — the executor below
     // reuses this exact value.
     const mode: 'frame' | 'startEnd' | 'reference' = input.references?.length ? 'reference' : input.endImage ? 'startEnd' : 'frame';
+    const ultraAccounts = new Set(input.ultraOwnerScopeIds || []);
+    const shortVeoDuration = input.duration === 4 || input.duration === 6;
     // The resolved key varies per account: the same request lands on a Fast key
     // for a paid tier and a Lite/low-priority key for a free one, and Google
     // meters each key separately.
     const videoModelKeyFor = (slot: FlowCredentialSlot) => this.pickAccountModel(
       slot,
       input.modelChainByOwnerScope,
-      (model) => resolveFlowVideoModel(slot.tier, mode, input.aspectRatio, model, input.duration),
+      (model) => {
+        const key = resolveFlowVideoModel(slot.tier, mode, input.aspectRatio, model, input.duration);
+        return this.usesBatchTransport(slot) ? resolveBatchVideoModel(key, ultraAccounts.has(slot.ownerScopeId)) : key;
+      },
       input.model,
     );
+    const eligibleForDuration = (slot: FlowCredentialSlot) => !shortVeoDuration
+      || !/^veo_/.test(videoModelKeyFor(slot))
+      || (ultraAccounts.has(slot.ownerScopeId) && mode !== 'reference');
     return this.runOnLane('video', taskId, input.preferredCredentialId, async (slot, lane, signal) => {
       const binding = await this.ensureProject(input.projectId, slot, signal);
       const reportUpload = () => this.emitLaneTask(taskId, 'video', 'uploading', slot, lane, 12, undefined, 'uploading_media');
@@ -578,7 +588,9 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           mode,
           endpoint,
           aspectRatio: input.aspectRatio,
-          duration: input.duration,
+          requestedDuration: input.duration,
+          duration: input.duration ?? 8,
+          manuallyMarkedUltra: ultraAccounts.has(slot.ownerScopeId),
           accountTier: slot.tier,
         });
         const isOmniFlash = isOmniFlashRequest(input.model);
@@ -608,8 +620,8 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
               sourceMediaId: source,
               referenceMediaIds: refs.length ? refs : undefined,
               aspectRatio: input.aspectRatio,
-              model: this.pickAccountModel(slot, input.modelChainByOwnerScope,
-                (model) => resolveFlowVideoModel(slot.tier, refs.length ? 'reference' : 'frame', input.aspectRatio, model, input.duration), input.model),
+              model: videoModelKeyFor(slot),
+              ultra: ultraAccounts.has(slot.ownerScopeId),
             }, signal);
             break;
           }
@@ -671,7 +683,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         taskId, provider: 'googleflow', credentialId: slot.credentialId, accountId: slot.accountId,
         ownerScopeId: slot.ownerScopeId, flowProjectId: binding.flowProjectId, mediaId, remoteUrl, localUrl,
       };
-    }, videoModelKeyFor, input.allowedOwnerScopeIds);
+    }, videoModelKeyFor, input.allowedOwnerScopeIds, eligibleForDuration);
   }
 
   async upscaleVideo(input: { taskId?: string; projectId: string; sceneId: string; mediaId: string; aspectRatio: string; preferredCredentialId?: string }): Promise<GenerationResult> {
@@ -758,7 +770,8 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private async runOnLane<T>(kind: 'image' | 'video', taskId: string, preferredCredentialId: string | undefined,
     executor: (slot: FlowCredentialSlot, lane: Lane, signal: AbortSignal) => Promise<T>,
     modelKeyFor: (slot: FlowCredentialSlot) => string,
-    allowedOwnerScopeIds?: FlowAccountAllowlist): Promise<T> {
+    allowedOwnerScopeIds?: FlowAccountAllowlist,
+    isEligible?: (slot: FlowCredentialSlot) => boolean): Promise<T> {
     const exhausted = new Set<string>();
     let lastAttempt: { slot: FlowCredentialSlot; lane: Lane } | undefined;
     let queuedMessage: string | undefined;
@@ -768,7 +781,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     for (;;) {
       let lane: Lane;
       try {
-        lane = this.selectLane(kind, preferredCredentialId, { modelKeyFor, exclude: exhausted, allowedOwnerScopeIds });
+        lane = this.selectLane(kind, preferredCredentialId, { modelKeyFor, exclude: exhausted, allowedOwnerScopeIds, isEligible });
       } catch (error) {
         // On the first pass nothing was queued yet, so the thrown error is the
         // caller's whole story. After a failover the UI already shows this task
@@ -792,6 +805,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         // the failover path below.
         return await runOnLane(this.socketContext, kind, taskId, lane, (laneSlot, currentLane, signal) => {
           const modelKey = modelKeyFor(laneSlot);
+          if (isEligible && !isEligible(laneSlot)) throw new Error('FLOW_ULTRA_REQUIRED: Veo 4/6 giây cần tài khoản được đánh dấu Google AI Ultra và chế độ ảnh đầu. Chọn 8 giây hoặc Omni cho chế độ ảnh tham chiếu.');
           if (this.quotaLocks.isLocked(laneSlot.ownerScopeId, modelKey)) {
             throw new Error(`Google Flow PER_MODEL_DAILY_QUOTA_REACHED (${modelKey}) trên tài khoản ${laneSlot.extensionInstanceId.slice(0, 8)}`);
           }
@@ -856,21 +870,24 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       modelKeyFor?: (slot: FlowCredentialSlot) => string;
       exclude?: ReadonlySet<string>;
       allowedOwnerScopeIds?: FlowAccountAllowlist;
+      isEligible?: (slot: FlowCredentialSlot) => boolean;
     }): Lane {
     const allowed = options?.allowedOwnerScopeIds?.length ? new Set(options.allowedOwnerScopeIds) : undefined;
     const connectedAll = [...this.sockets.values()].filter(({ slot, socket }) => (
       slot.state === 'ready'
       && socket.readyState === WebSocket.OPEN
-      && (!slot.tokenCapturedAt || Date.now() - slot.tokenCapturedAt <= 70 * 60_000)
+      && (this.usesBatchTransport(slot) || !slot.tokenCapturedAt || Date.now() - slot.tokenCapturedAt <= 70 * 60_000)
     ));
     if (!connectedAll.length) throw new Error('No ready Google Flow extension. Open Google Flow in Chrome and connect the extension.');
-    const connected = allowed ? connectedAll.filter(({ slot }) => allowed.has(slot.ownerScopeId)) : connectedAll;
+    let connected = allowed ? connectedAll.filter(({ slot }) => allowed.has(slot.ownerScopeId)) : connectedAll;
     if (!connected.length) {
       // The job restricted itself to accounts that are not connected right now.
       // Say so plainly: silently spilling onto an account the user excluded would
       // spend quota they were deliberately protecting.
       throw new Error(`${FLOW_NO_ALLOWED_ACCOUNT}: Không có tài khoản Google Flow nào trong danh sách đã chọn đang kết nối. Mở lại tài khoản đó hoặc bỏ giới hạn tài khoản trong phần nâng cao.`);
     }
+    connected = connected.filter(({ slot }) => !options?.isEligible || options.isEligible(slot));
+    if (!connected.length) throw new Error('FLOW_ULTRA_REQUIRED: Không có tài khoản phù hợp cho Veo 4/6 giây. Đánh dấu Google AI Ultra trong Settings và dùng ảnh đầu, hoặc chọn 8 giây. Chế độ ảnh tham chiếu 4/6 giây có thể dùng Omni.');
     const modelKeyFor = options?.modelKeyFor;
     const ready = connected.filter(({ slot }) => (
       !options?.exclude?.has(slot.credentialId)
@@ -955,6 +972,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     if (this.usesBatchTransport(slot)) {
       const adopted = await this.adoptPageProject(longddProjectId, slot, requestedTitle);
       if (adopted) return adopted;
+      throw new Error('Google Flow chưa có project khả dụng. Mở flow.google.com bằng tài khoản này, tạo hoặc mở một project rồi thử lại. Nếu dùng extension, hãy tải lại extension logdd 1.1.28 trở lên.');
     }
     try {
       return await this.createFlowProject(longddProjectId, slot, signal, requestedTitle);
@@ -978,13 +996,17 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private async adoptPageProject(longddProjectId: string, slot: FlowCredentialSlot, requestedTitle?: string): Promise<ProjectBinding | undefined> {
     const account = slot.extensionInstanceId.slice(0, 8);
     const bridge = this.inAppBridges.get(slot.extensionInstanceId);
-    if (!bridge) {
-      console.warn(`[video-studio][google-flow] ${account}: không có bridge để đọc project từ tab`);
-      return undefined;
-    }
     let ids: string[] = [];
     try {
-      ids = await bridge.listPageProjectIds();
+      if (bridge) ids = await bridge.listPageProjectIds();
+      else if (slot.canListProjects) {
+        const result = await proxyRequest(this.socketContext, slot, 'flow_projects', {}, 40_000) as { projectIds?: unknown };
+        ids = Array.isArray(result.projectIds) ? result.projectIds.filter((id): id is string => typeof id === 'string' && isUuid(id)) : [];
+      } else {
+        // A standard FlowKit extension has no project-discovery command. A
+        // project already bound to this owner is still usable after reconnect.
+        ids = this.bindings.filter(item => item.longddProjectId === longddProjectId && item.ownerScopeId === slot.ownerScopeId && isUuid(item.flowProjectId)).map(item => item.flowProjectId);
+      }
     } catch (error) {
       console.warn(`[video-studio][google-flow] ${account}: đọc project từ tab lỗi — ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -994,7 +1016,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
       // user off to do it by hand. Only reached for an account that owns no Flow
       // project at all, which is once in its lifetime.
       console.log(`[video-studio][google-flow] ${account}: chưa có project nào — thử tự bấm "New project" trên trang Flow`);
-      const created = await bridge.createPageProject().catch(() => undefined);
+      const created = await bridge?.createPageProject().catch(() => undefined);
       if (!created) {
         console.warn(`[video-studio][google-flow] ${account}: không tự tạo được project — hãy mở Google Flow bằng tài khoản này và tạo một project bất kỳ, một lần duy nhất`);
         return undefined;
@@ -1137,6 +1159,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     aspectRatio: string;
     model: string;
     referenceMediaIds: string[];
+    baseMediaId?: string;
   }, signal: AbortSignal): Promise<{ mediaId?: string; remoteUrl?: string }> {
     const text = await this.batchRpc(slot, {
       rpcid: RPC_GEN_IMAGE,
@@ -1146,6 +1169,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         aspect: input.aspectRatio,
         model: input.model,
         referenceMediaIds: input.referenceMediaIds,
+        baseMediaId: input.baseMediaId,
       }),
       captchaAction: 'IMAGE_GENERATION',
       flowProjectId,
@@ -1163,6 +1187,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
    * image switch did.
    */
   private async batchSubmitVideo(slot: FlowCredentialSlot, flowProjectId: string, input: {
+    ultra?: boolean;
     prompt: string;
     sourceMediaId: string;
     referenceMediaIds?: string[];
@@ -1179,6 +1204,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         prompt: input.prompt,
         projectId: flowProjectId,
         sourceMediaId: input.sourceMediaId,
+        ultra: input.ultra,
         aspect: input.aspectRatio,
         model: input.model,
       }),
@@ -1431,12 +1457,17 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
 
   /** Google said the bearer cannot be renewed: this account speaks batchexecute from now on. */
   markLegacyTransportDead(extensionInstanceId: string, reason: string): void {
-    if (!extensionInstanceId || this.deadLegacyAccounts.has(extensionInstanceId)) return;
-    this.deadLegacyAccounts.add(extensionInstanceId);
-    writeFlowDiagnostic(this.options?.userDataPath, 'transport_switched', { account: extensionInstanceId, transport: 'batch', ...errorSummary(reason) });
-    console.log(`[video-studio][google-flow] tài khoản ${extensionInstanceId.slice(0, 8)}: đường REST cũ đã chết (${reason}) — chuyển sang batchexecute`);
+    if (!extensionInstanceId) return;
+    if (!this.deadLegacyAccounts.has(extensionInstanceId)) {
+      this.deadLegacyAccounts.add(extensionInstanceId);
+      writeFlowDiagnostic(this.options?.userDataPath, 'transport_switched', { account: extensionInstanceId, transport: 'batch', ...errorSummary(reason) });
+      console.log(`[video-studio][google-flow] tài khoản ${extensionInstanceId.slice(0, 8)}: chuyển sang batchexecute (${reason})`);
+    }
     for (const { slot } of this.sockets.values()) {
-      if (slot.extensionInstanceId === extensionInstanceId) slot.transport = 'batch';
+      if (slot.extensionInstanceId === extensionInstanceId) {
+        slot.transport = 'batch';
+        slot.tokenCapturedAt = undefined;
+      }
     }
     this.emitStatus();
   }

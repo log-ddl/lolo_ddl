@@ -106,6 +106,7 @@ async function main() {
   const { videoDurations, videoDuration } = require('../lib/ai/video-duration');
   assert.deepEqual(videoDurations('Gemini Omni Flash'), [4, 6, 8, 10]);
   assert.deepEqual(videoDurations('Veo_3.1-Fast'), [4, 6, 8]);
+  assert.equal(videoDuration('Veo_3.1-Lite', 6), 6, 'keep requested duration; runtime enforces Ultra eligibility');
   assert.equal(videoDuration('Gemini Omni Flash', 6), 6);
   assert.equal(videoDuration('Gemini Omni Flash'), 8);
   const exportSpace = api.createSpace('Output test');

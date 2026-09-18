@@ -1,4 +1,5 @@
 importScripts('grok-background.js');
+importScripts('flow-batch-bridge.js');
 
 /**
  * Flow Kit — Chrome Extension Background Service Worker
@@ -7,7 +8,7 @@ importScripts('grok-background.js');
  * Captures bearer token, solves reCAPTCHA, proxies API calls through browser.
  */
 
-const AGENT_WS_URL = 'ws://127.0.0.1:9222';
+const AGENT_WS_URL = 'ws://127.0.0.1:9224';
 // NOTE: This is a browser-restricted public API key — safe to ship in extension bundles.
 const API_KEY = 'AIzaSyDSjGxWlo68HcGt6mbaIq9YbkKhFQnt3sk';
 
@@ -136,7 +137,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-async function init() {
+let initialization;
+function init() {
+  if (initialization) return initialization;
+  initialization = initializeFlow();
+  return initialization;
+}
+
+async function initializeFlow() {
   const data = await chrome.storage.local.get(['flowKey', 'metrics', 'callbackSecret', 'extensionInstanceId']);
   if (data.flowKey) flowKey = data.flowKey;
   if (data.metrics) Object.assign(metrics, data.metrics);
@@ -180,7 +188,7 @@ let _openingFlowTab = false;
 
 async function captureTokenFromFlowTab() {
   const tabs = await chrome.tabs.query({
-    url: ['https://labs.google/fx/tools/flow*', 'https://labs.google/fx/*/tools/flow*'],
+    url: FLOW_PAGE_PATTERNS,
   });
   if (!tabs.length) {
     if (_openingFlowTab) {
@@ -190,10 +198,10 @@ async function captureTokenFromFlowTab() {
     _openingFlowTab = true;
     try {
       console.log('[FlowAgent] No Flow tab found — opening one in background');
-      await chrome.tabs.create({ url: 'https://labs.google/fx/tools/flow', active: false });
+      await chrome.tabs.create({ url: 'https://flow.google.com/', active: false });
       await sleep(3000);
       const retryTabs = await chrome.tabs.query({
-        url: ['https://labs.google/fx/tools/flow*', 'https://labs.google/fx/*/tools/flow*'],
+        url: FLOW_PAGE_PATTERNS,
       });
       if (!retryTabs.length) {
         console.log('[FlowAgent] Flow tab not ready yet after open');
@@ -224,8 +232,14 @@ async function captureTokenFromFlowTab() {
 
 // ─── WebSocket to Agent ─────────────────────────────────────
 
-function connectToAgent() {
+async function connectToAgent() {
   if (manualDisconnect) return;
+  // MV3 can restart the worker without onStartup/onInstalled. Restore the
+  // identity before the first handshake, including reconnect alarms.
+  if (!extensionInstanceId) {
+    await init();
+    return;
+  }
   if (ws?.readyState === WebSocket.CONNECTING) return;
   if (ws?.readyState === WebSocket.OPEN) return;
 
@@ -249,19 +263,37 @@ function connectToAgent() {
     ws.send(JSON.stringify({
       type: 'extension_ready',
       legacyInstanceId: extensionInstanceId,
+      extensionVersion: chrome.runtime.getManifest().version,
+      flowUrlSupported: true,
+      transport: 'batch',
+      capabilities: ['batch_rpc', 'flow_projects'],
       flowKeyPresent: !!flowKey,
       tokenAge: flowKey && metrics.tokenCapturedAt ? Date.now() - metrics.tokenCapturedAt : null,
     }));
     if (flowKey) {
       ws.send(JSON.stringify({ type: 'token_captured', flowKey }));
     }
+    // Identity only. Never use session access_token/error to decide readiness.
+    const identitySocket = ws;
+    void fetch('https://labs.google/fx/api/auth/session', {
+      credentials: 'include', signal: AbortSignal.timeout(10000),
+    }).then(response => response.ok ? response.json() : null).then(session => {
+      const email = session?.user?.email;
+      if (typeof email === 'string' && email.includes('@') && ws === identitySocket && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'account_identity', email }));
+      }
+    }).catch(() => {});
   };
 
   ws.onmessage = async ({ data }) => {
     try {
       const msg = JSON.parse(data);
 
-      if (msg.method === 'api_request') {
+      if (msg.method === 'batch_rpc') {
+        await handleFlowBatchRpc(msg);
+      } else if (msg.method === 'flow_projects') {
+        await handleFlowProjects(msg);
+      } else if (msg.method === 'api_request') {
         await handleApiRequest(msg);
       } else if (msg.method === 'trpc_request') {
         await handleTrpcRequest(msg);
@@ -369,17 +401,17 @@ async function requestCaptchaFromTab(tabId, requestId, pageAction) {
 
 async function solveCaptcha(requestId, captchaAction) {
   const tabs = await chrome.tabs.query({
-    url: ['https://labs.google/fx/tools/flow*', 'https://labs.google/fx/*/tools/flow*'],
+    url: FLOW_PAGE_PATTERNS,
   });
 
   if (!tabs.length) {
     // Auto-open Flow tab and wait briefly before returning error
     try {
-      await chrome.tabs.create({ url: 'https://labs.google/fx/tools/flow', active: false });
+      await chrome.tabs.create({ url: 'https://flow.google.com/', active: false });
       await sleep(3000);
       // Retry tab query after opening
       const retryTabs = await chrome.tabs.query({
-        url: ['https://labs.google/fx/tools/flow*', 'https://labs.google/fx/*/tools/flow*'],
+        url: FLOW_PAGE_PATTERNS,
       });
       if (!retryTabs.length) return { error: 'NO_FLOW_TAB' };
       const resp = await Promise.race([
@@ -630,6 +662,7 @@ chrome.runtime.onMessage.addListener((msg, _, reply) => {
       connected: ws?.readyState === WebSocket.OPEN,
       agentConnected: ws?.readyState === WebSocket.OPEN,
       flowKeyPresent: !!flowKey,
+      transport: 'batch',
       manualDisconnect,
       tokenAge: metrics.tokenCapturedAt ? Date.now() - metrics.tokenCapturedAt : null,
       metrics: {
@@ -663,13 +696,13 @@ chrome.runtime.onMessage.addListener((msg, _, reply) => {
 
   if (msg.type === 'OPEN_FLOW_TAB') {
     chrome.tabs.query({
-      url: ['https://labs.google/fx/tools/flow*', 'https://labs.google/fx/*/tools/flow*'],
+      url: FLOW_PAGE_PATTERNS,
     }).then((tabs) => {
       if (tabs.length) {
         chrome.tabs.update(tabs[0].id, { active: true });
         reply({ ok: true, tabId: tabs[0].id });
       } else {
-        chrome.tabs.create({ url: 'https://labs.google/fx/tools/flow' })
+        chrome.tabs.create({ url: 'https://flow.google.com/' })
           .then((tab) => reply({ ok: true, tabId: tab.id }))
           .catch((e) => reply({ error: e.message }));
       }
@@ -844,3 +877,4 @@ setInterval(() => { _telemetrySessionId = `;${Date.now()}`; }, _rand(25, 35) * 6
 scheduleTelemetry();
 
 console.log('[FlowAgent] Extension loaded');
+void init();

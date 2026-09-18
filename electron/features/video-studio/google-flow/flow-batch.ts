@@ -140,15 +140,16 @@ export function resolveBatchImageModel(key: string | undefined): string {
   return DEFAULT_IMAGE_MODEL;
 }
 
-export function resolveBatchVideoModel(key: string | undefined): string {
+export function resolveBatchVideoModel(key: string | undefined, ultra = false): string {
   const value = (key || '').trim();
-  // Runtime has already resolved the model, mode and duration. Never coerce a
-  // wire key to another model: that silently changed Omni into an 8s Veo job.
-  // Let Flow report availability for the requested key on this account.
-  if (/^(?:abra|veo)_/.test(value)) return value;
+  // Short Veo keys are opt-in for manually marked Ultra accounts only.
+  if (ultra && /^veo_3_1_i2v_s_(?:lite|fast)_(?:4|6)s(?:_low_priority|_fl)?$/.test(value)) return value;
+  if (/^(?:abra|omni_flash)_/.test(value)) return value;
+  // Ingredients uses a different RPC; never turn a reference key into I2V.
+  if (/^veo_3_1_r2v_/.test(value)) return value;
   if (BATCH_VIDEO_MODELS.has(value)) return value;
-  if (/ultra/i.test(value)) return 'veo_3_1_i2v_s_fast_ultra';
-  if (/lite_low_priority|lower.?priority/i.test(value)) return 'veo_3_1_i2v_lite_low_priority';
+  if (/low_priority|lower.?priority|ultra_relaxed/i.test(value)) return 'veo_3_1_i2v_lite_low_priority';
+  if (/ultra|fast/i.test(value)) return 'veo_3_1_i2v_s_fast_ultra';
   if (/lite/i.test(value)) return 'veo_3_1_i2v_lite';
   if (!value) return DEFAULT_VIDEO_MODEL;
   throw new Error(`Unsupported Google Flow video model: ${value}`);
@@ -314,11 +315,15 @@ export function imageRequest(input: {
   seed?: number;
   model?: string;
   referenceMediaIds?: string[];
+  baseMediaId?: string;
 }): string {
   const ratio = resolveImageAspect(input.aspect);
   const model = resolveBatchImageModel(input.model);
   const base = input.seed ?? Math.floor(Math.random() * 1_000_000_000) + 1;
-  const refs = (input.referenceMediaIds || []).map(reference);
+  const refs = [
+    ...(input.baseMediaId ? [[input.baseMediaId, null, null, null, 2]] : []),
+    ...(input.referenceMediaIds || []).filter(id => id !== input.baseMediaId).map(reference),
+  ];
   const items: unknown[] = [];
   for (let index = 0; index < Math.max(1, input.count ?? 1); index += 1) {
     items.push([
@@ -345,6 +350,7 @@ export function referenceVideoRequest(input: {
 }
 
 export function videoRequest(input: {
+  ultra?: boolean;
   prompt: string;
   projectId: string;
   sourceMediaId: string;
@@ -355,7 +361,7 @@ export function videoRequest(input: {
   const inner = [
     [[
       [null, null, [[[input.prompt]]]],
-      resolveBatchVideoModel(input.model),
+      resolveBatchVideoModel(input.model, input.ultra),
       resolveVideoAspect(input.aspect),
       null,
       [null, input.sourceMediaId, null, null, null, input.crop ?? FULL_FRAME_CROP],
@@ -498,10 +504,16 @@ const MEDIA_SLOT_RE = /null,null,\\?"([0-9a-fA-F-]{36})\\?"/;
  * want is sitting in it intact. Scanning the text finds it anyway.
  */
 export function findMediaIdInText(text: string, operationId: string): string | undefined {
-  const start = text.indexOf(operationId);
-  if (start === -1) return undefined;
-  const match = MEDIA_SLOT_RE.exec(text.slice(start, start + 800));
-  return match ? match[1] : undefined;
+  if (!operationId) return undefined;
+  for (let start = text.indexOf(operationId); start !== -1; start = text.indexOf(operationId, start + operationId.length)) {
+    const fragment = text.slice(start + operationId.length, start + 4000);
+    // Only a listing record has this prefix. An earlier occurrence in metadata
+    // must not match a neighbouring operation's media id.
+    if (!/^\\?"\s*,\s*null\s*,\s*null\s*,\s*\[/.test(fragment)) continue;
+    const match = MEDIA_SLOT_RE.exec(fragment);
+    if (match) return match[1];
+  }
+  return undefined;
 }
 
 export function readMediaUrls(payload: unknown, mediaId: string): MediaUrls {

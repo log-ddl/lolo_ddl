@@ -168,6 +168,7 @@ export async function runSingleShotRegeneration(
               startImage: { source: mediaOutput.imagePath, provider: 'googleflow', flowProjectId },
               allowedOwnerScopeIds: routing.accountsFor('video', model),
               modelChainByOwnerScope: videoModelChains,
+              ultraOwnerScopeIds: job.input.ultraOwnerScopeIds ?? [],
               taskId: mediaOutput.videoTaskId,
               onSubmitted: (submittedAt) => { mediaOutput.videoSubmittedAt = submittedAt ?? Date.now(); mediaOutput.videoStatus = 'generating'; syncMediaOutputs(); },
               signal,

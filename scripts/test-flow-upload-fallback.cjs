@@ -87,6 +87,44 @@ async function main() {
     assert.equal(cachedVideo.restCalls, 1);
     assert.equal(cachedVideo.batchCalls, 1, 'submit fallback is bounded on the same account');
     assert.equal(cachedReads, 2);
+    // The model used for lane/quota selection must match the key sent to batch.
+    let selectedKey;
+    cachedVideo.runOnLane = async (_kind, _task, _preferred, executor, modelKeyFor, _allowed, eligible) => {
+      if (!eligible(slot)) throw new Error('FLOW_ULTRA_REQUIRED');
+      selectedKey = modelKeyFor(slot);
+      return executor(slot, {}, signal);
+    };
+    cachedVideo.batchSubmitVideo = async (_slot, _project, input) => {
+      assert.equal(input.model, 'veo_3_1_i2v_lite');
+      assert.equal(selectedKey, input.model, 'quota selection and submission use the same migrated key');
+      throw new Error('test migrated Veo submit');
+    };
+    await assert.rejects(cachedVideo.generateVideo({ ...video, model: 'Veo_3.1-Lite', startImage: ref, duration: 8 }), /test migrated Veo submit/);
+    await assert.rejects(cachedVideo.generateVideo({ ...video, model: 'Veo_3.1-Lite', startImage: ref, duration: 6 }), /FLOW_ULTRA_REQUIRED/);
+    cachedVideo.batchSubmitVideo = async (_slot, _project, input) => {
+      assert.equal(input.model, 'veo_3_1_i2v_s_lite_6s');
+      assert.equal(input.ultra, true);
+      assert.equal(selectedKey, input.model);
+      throw new Error('test Ultra six seconds');
+    };
+    await assert.rejects(cachedVideo.generateVideo({ ...video, model: 'Veo_3.1-Lite', startImage: ref, duration: 6, ultraOwnerScopeIds: ['owner'] }), /test Ultra six seconds/);
+    await assert.rejects(cachedVideo.generateVideo({ ...video, model: 'Veo_3.1-Lite', references: [ref], duration: 6, ultraOwnerScopeIds: ['owner'] }), /FLOW_ULTRA_REQUIRED/);
+
+    // Exercise real lane selection: no empty-allowlist escape and no regular
+    // account selected after all eligible Ultra accounts have failed.
+    const routing = Object.create(GoogleFlowRuntime.prototype);
+    const regular = { credentialId: 'regular', ownerScopeId: 'regular', state: 'ready' };
+    const ultra = { credentialId: 'ultra', ownerScopeId: 'ultra', state: 'ready' };
+    routing.sockets = new Map([regular, ultra].map(s => [s.credentialId, { slot: s, socket: { readyState: 1 } }]));
+    routing.usesBatchTransport = () => true;
+    routing.quotaLocks = { isLocked: () => false, lockedUntil: () => undefined };
+    routing.lanes = new Map(); routing.videoLanesPerToken = 1; routing.nextLaneCursor = 0;
+    const options = { modelKeyFor: () => 'veo_3_1_i2v_s_lite_6s', isEligible: s => s.ownerScopeId === 'ultra' };
+    assert.equal(routing.selectLane('video', 'regular', options).credentialId, 'ultra');
+    assert.throws(() => routing.selectLane('video', undefined, { ...options, allowedOwnerScopeIds: ['regular'] }), /FLOW_ULTRA_REQUIRED/);
+    assert.throws(() => routing.selectLane('video', undefined, { ...options, exclude: new Set(['ultra']) }));
+    routing.sockets.delete('ultra');
+    assert.throws(() => routing.selectLane('video', undefined, options), /FLOW_ULTRA_REQUIRED/);
     console.log('Flow upload: 401 fallback, concurrent uploads, cache, filename, cancellation and non-auth errors passed.');
   } finally {
     const cache = path.join(folder, 'cache.json'); if (fs.existsSync(cache)) fs.unlinkSync(cache); fs.rmdirSync(folder);

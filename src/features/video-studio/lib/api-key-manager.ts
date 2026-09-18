@@ -54,7 +54,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   GEM_PIX_2: 'Nano Pro',
   NARWHAL: 'Nano 2',
   Gemini_Omni_Flash: 'Gemini Omni Flash',
-  'Veo_3.1-Fast': 'Veo 3.1 Fast',
+  'Veo_3.1-Fast': 'Veo 3.1 Fast (Ultra)',
   'Veo_3.1-Lite': 'Veo 3.1 Lite',
   'Veo_3.1-Lite_Lower_Priority': 'Veo 3.1 Lite – Lower Priority',
 };

@@ -60,6 +60,7 @@ export interface FlowSocketContext {
     phase?: FlowTaskEvent['phase'],
   ): void;
   emitStatus(): void;
+  updateAccountEmail(extensionInstanceId: string, email: string): void;
   hashIdentity(value: string): string;
   apiRequest(
     slot: FlowCredentialSlot,
@@ -93,13 +94,17 @@ export function attachSocket(ctx: FlowSocketContext, socket: WebSocket): void {
         previous?.socket.close(4001, 'Replaced by reconnect');
         const accountId = typeof message.accountId === 'string' ? ctx.hashIdentity(message.accountId) : undefined;
         const legacyTokenAge = typeof message.tokenAge === 'number' ? Math.max(0, message.tokenAge) : undefined;
+        const batch = message.transport === 'batch' || message.flowUrlSupported === true;
         const slot: FlowCredentialSlot = {
           credentialId, extensionInstanceId: instanceId, connectionId: randomUUID(), accountId,
           ownerScopeId: accountId || credentialId,
-          tokenCapturedAt: typeof message.tokenCapturedAt === 'number'
+          tokenCapturedAt: batch ? undefined : typeof message.tokenCapturedAt === 'number'
             ? message.tokenCapturedAt
             : message.flowKeyPresent ? Date.now() - (legacyTokenAge || 0) : undefined,
-          state: message.flowKeyPresent ? 'ready' : 'stale',
+          state: batch || message.flowKeyPresent ? 'ready' : 'stale',
+          transport: batch ? 'batch' : 'legacy',
+          canListProjects: Array.isArray(message.capabilities) && message.capabilities.includes('flow_projects'),
+          supportsBatchRpc: !isLegacyFlowKit || batch,
         };
         assignedCredentialId = credentialId;
         ctx.instanceToCredential.set(instanceId, credentialId);
@@ -129,7 +134,7 @@ export function attachSocket(ctx: FlowSocketContext, socket: WebSocket): void {
         throw new Error('Invalid Google Flow extension session');
       }
       if (message.type === 'token_updated' || message.type === 'token_captured') {
-        state.slot.tokenCapturedAt = Date.now();
+        state.slot.tokenCapturedAt = state.slot.transport === 'batch' ? undefined : Date.now();
         state.slot.state = 'ready';
         if (typeof message.accountId === 'string') {
           state.slot.accountId = ctx.hashIdentity(message.accountId);
@@ -143,10 +148,15 @@ export function attachSocket(ctx: FlowSocketContext, socket: WebSocket): void {
         return;
       }
       if (message.type === 'ping') {
+        // Keep identity separate from token/readiness messages.
         socket.send(JSON.stringify({ type: 'pong' }));
         return;
       }
       if (message.type === 'pong') return;
+      if (message.type === 'account_identity') {
+        if (typeof message.email === 'string') ctx.updateAccountEmail(state.slot.extensionInstanceId, message.email);
+        return;
+      }
       const requestId = typeof message.requestId === 'string' ? message.requestId : typeof message.id === 'string' ? message.id : '';
       const pending = ctx.pending.get(requestId);
       if (!pending || pending.credentialId !== assignedCredentialId) return;
@@ -234,7 +244,8 @@ export async function runOnLane<T>(ctx: FlowSocketContext, kind: 'image' | 'vide
 }
 
 
-export function proxyRequest(ctx: FlowSocketContext, slot: FlowCredentialSlot, type: 'api_request' | 'trpc_request' | 'batch_rpc', params: Record<string, unknown>, timeout: number, signal?: AbortSignal): Promise<unknown> {
+export function proxyRequest(ctx: FlowSocketContext, slot: FlowCredentialSlot, type: 'api_request' | 'trpc_request' | 'batch_rpc' | 'flow_projects', params: Record<string, unknown>, timeout: number, signal?: AbortSignal): Promise<unknown> {
+  if (signal?.aborted) return Promise.reject(new Error('Cancelled by user'));
   const state = ctx.sockets.get(slot.credentialId);
   if (!state || state.socket.readyState !== WebSocket.OPEN) return Promise.reject(new Error('Google Flow extension disconnected'));
   // A batch RPC has no url to vet: the endpoint is a fixed path on the Flow app's
@@ -242,9 +253,14 @@ export function proxyRequest(ctx: FlowSocketContext, slot: FlowCredentialSlot, t
   // it does carry is an rpcid, and only the ids this app knows are allowed through.
   const url = String(params.url || '');
   if (type === 'batch_rpc') {
+    if (slot.supportsBatchRpc === false) {
+      return Promise.reject(new Error('Extension Flow cũ chưa hỗ trợ batch_rpc. Cập nhật và tải lại extension logdd 1.1.28 trở lên.'));
+    }
     if (!KNOWN_FLOW_RPC_IDS.has(String(params.rpcid || ''))) {
       return Promise.reject(new Error(`Google Flow rpcid không hợp lệ: ${String(params.rpcid || '')}`));
     }
+  } else if (type === 'flow_projects') {
+    if (!slot.canListProjects) return Promise.reject(new Error('Cập nhật extension logdd để đọc project Flow.'));
   } else if (!isAllowedFlowUrl(url)) {
     return Promise.reject(new Error('Google Flow URL is not allowed'));
   }

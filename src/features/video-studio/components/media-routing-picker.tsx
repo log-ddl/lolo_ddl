@@ -42,6 +42,7 @@ export interface MediaRoutingValue {
   videoModelFallbacks: string[];
   /** Accounts (`ownerScopeId`) the job may use. Empty = every connected account. */
   flowAccounts: string[];
+  ultraOwnerScopeIds: string[];
   /** ownerScopeId → that account's own run order. Missing entry = follows the shared order. */
   accountVideoModels: AccountVideoModelMap;
   accountImageModels: AccountVideoModelMap;
@@ -524,6 +525,21 @@ export function MediaRoutingPicker({
                         .join(" · ")}`}
                     </span>
                   </div>
+                  <label className="mt-2 flex items-center gap-2 text-2xs">
+                    <input
+                      type="checkbox"
+                      checked={(value.ultraOwnerScopeIds ?? []).includes(account.ownerScopeId)}
+                      onChange={(event) => patch({
+                        ultraOwnerScopeIds: event.target.checked
+                          ? [...(value.ultraOwnerScopeIds ?? []), account.ownerScopeId]
+                          : (value.ultraOwnerScopeIds ?? []).filter((id) => id !== account.ownerScopeId),
+                      })}
+                    />
+                    Google AI Ultra — cho phép Veo 4/6 giây
+                  </label>
+                  <p className="mt-1 text-2xs text-muted-foreground">
+                    Đánh dấu thủ công theo gói tài khoản. Veo 4/6 giây chỉ dùng tài khoản Ultra; 8 giây dùng luồng hiện tại. Google vẫn kiểm tra quyền model.
+                  </p>
                   {used && imageOnGoogleFlow && (
                     <AccountModelOrder
                       title="Model ảnh:"

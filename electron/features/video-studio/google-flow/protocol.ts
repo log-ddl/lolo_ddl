@@ -1,5 +1,7 @@
 export const GOOGLE_FLOW_PROTOCOL_VERSION = 1;
-export const GOOGLE_FLOW_DEFAULT_PORT = 9222;
+// 9222 is commonly occupied by Chrome remote debugging (including on this
+// workstation). Keep logdd's extension bridge separate from CDP and Grok 9223.
+export const GOOGLE_FLOW_DEFAULT_PORT = 9224;
 export const GOOGLE_FLOW_API_ROOT = 'https://aisandbox-pa.googleapis.com';
 // tRPC is called with a ROOT-RELATIVE path, never an absolute URL, because the
 // fetch runs inside the app-spawned Chrome tab (see in-app-bridge performFetch).
@@ -41,6 +43,9 @@ export type FlowCredentialSlot = {
   state: FlowCredentialState;
   tier?: string;
   credits?: number;
+  /** Extension can discover project ids in its own Chrome profile. */
+  canListProjects?: boolean;
+  supportsBatchRpc?: boolean;
   /**
    * Which transport this account's calls go out on.
    *
@@ -50,9 +55,8 @@ export type FlowCredentialSlot = {
    * token, so an account works only until its last good one lapses.
    *
    * `batch` is flow.google.com's batchexecute, signed in the page with the
-   * session cookie. An account is moved onto it the moment the old path is shown
-   * to be dead — never speculatively, so an account that still works is never
-   * put on a colder path for no reason.
+   * session cookie. Selected when the extension advertises it, when the signed-in
+   * WIZ page is detected, or after the legacy bearer is rejected.
    */
   transport?: 'legacy' | 'batch';
 };

@@ -130,6 +130,7 @@ export const googleFlowProvider: MediaGenerationProvider = {
     );
   },
   async generateVideo(input: VideoGenerationInput) {
+    const ultraOwnerScopeIds = [...(input.ultraOwnerScopeIds ?? useVideoStudioSettingsStore.getState().mediaRouting.ultraOwnerScopeIds ?? [])];
     if (!window.googleFlowRuntime) throw new Error('Google Flow chỉ hoạt động trong ứng dụng LONGDD trên máy tính');
     await syncRuntimeSettings();
     const startImage = input.startImage ? await normalizeSource(input.startImage) : undefined;
@@ -138,7 +139,7 @@ export const googleFlowProvider: MediaGenerationProvider = {
     const { onSubmitted, ...runtimeInput } = input;
     return withCancellation(
       input.signal,
-      (taskId) => window.googleFlowRuntime!.generateVideo({ ...runtimeInput, taskId, startImage, endImage, references }),
+      (taskId) => window.googleFlowRuntime!.generateVideo({ ...runtimeInput, ultraOwnerScopeIds, taskId, startImage, endImage, references }),
       onSubmitted,
       input.taskId,
       {

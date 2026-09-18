@@ -375,6 +375,7 @@ export async function runMediaStage(
               startImage: { source: item.imagePath, provider: 'googleflow', flowProjectId },
               allowedOwnerScopeIds: routing.accountsFor('video', model),
               modelChainByOwnerScope: videoModelChains,
+              ultraOwnerScopeIds: job.input.ultraOwnerScopeIds ?? [],
               taskId: item.videoTaskId,
               onSubmitted: (submittedAt) => {
                 item.videoSubmittedAt = submittedAt ?? Date.now();

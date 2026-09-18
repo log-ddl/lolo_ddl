@@ -77,6 +77,7 @@ export interface AutopilotSettings {
 export interface MediaRoutingSettings {
   /** Accounts (`ownerScopeId`) generation may use. Empty = every connected account. */
   flowAccounts: string[];
+  ultraOwnerScopeIds: string[];
   /** Models tried in order after the selected one runs out of daily quota everywhere. */
   imageModelFallbacks: string[];
   videoModelFallbacks: string[];
@@ -172,6 +173,7 @@ function mergeMaxStudioLaneSettings(settings?: Partial<MaxStudioLaneSettings>): 
 // the user says so.
 const defaultMediaRoutingSettings: MediaRoutingSettings = {
   flowAccounts: [],
+  ultraOwnerScopeIds: [],
   imageModelFallbacks: [],
   videoModelFallbacks: [],
   accountVideoModels: {},
@@ -204,6 +206,7 @@ function cleanAccountModels(value: unknown): Record<string, string[]> {
 function mergeMediaRoutingSettings(settings?: Partial<MediaRoutingSettings>): MediaRoutingSettings {
   return {
     flowAccounts: cleanModelList(settings?.flowAccounts),
+    ultraOwnerScopeIds: cleanModelList(settings?.ultraOwnerScopeIds),
     imageModelFallbacks: cleanModelList(settings?.imageModelFallbacks),
     videoModelFallbacks: cleanModelList(settings?.videoModelFallbacks),
     accountVideoModels: cleanAccountModels(settings?.accountVideoModels),
@@ -367,6 +370,17 @@ export const useVideoStudioSettingsStore = create<VideoStudioSettingsState & Vid
       name: "longdd-app-settings",
       storage: createJSONStorage(() => fileStorage),
       version: 10,
+      // Normalize on EVERY hydration, including saves at the current version.
+      // Zustand's default shallow merge otherwise drops new nested defaults.
+      merge: (persisted, current) => {
+        const saved = persisted && typeof persisted === 'object'
+          ? persisted as Partial<VideoStudioSettingsState> : {};
+        return {
+          ...current,
+          ...saved,
+          mediaRouting: mergeMediaRoutingSettings(saved.mediaRouting),
+        };
+      },
       migrate: (persisted: unknown, version) => {
         const typedPersisted = (persisted && typeof persisted === 'object')
           ? persisted as Partial<VideoStudioSettingsState> & { googleFlowLanes?: Partial<MaxStudioLaneSettings> }

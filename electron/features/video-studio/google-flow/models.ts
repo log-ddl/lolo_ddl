@@ -118,7 +118,7 @@ export function flowModelDisplayName(modelKey: string): string {
   if (key.startsWith('veo')) {
     if (key.includes('low_priority') || key.includes('ultra_relaxed')) return 'Veo 3.1 Lite – Lower Priority';
     if (key.includes('lite')) return 'Veo 3.1 Lite';
-    if (key.includes('fast')) return 'Veo 3.1 Fast';
+    if (key.includes('fast')) return 'Veo 3.1 Fast (Ultra)';
   }
   return modelKey;
 }

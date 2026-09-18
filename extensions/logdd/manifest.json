@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "logdd",
-  "version": "1.1.27",
+  "version": "1.1.28",
   "description": "Cầu nối cục bộ Google Flow và Grok Video cho ứng dụng logdd.",
   "icons": {
     "16": "logo.png",
@@ -11,6 +11,7 @@
   },
   "permissions": ["storage", "alarms", "tabs", "webRequest", "scripting", "declarativeNetRequest", "sidePanel"],
   "host_permissions": [
+    "https://flow.google.com/*",
     "https://labs.google/*",
     "https://aisandbox-pa.googleapis.com/*",
     "https://flow-content.google/*",
@@ -25,6 +26,7 @@
   "content_scripts": [
     {
       "matches": [
+        "https://flow.google.com/*",
         "https://labs.google/fx/tools/flow*",
         "https://labs.google/fx/*/tools/flow*"
       ],
@@ -46,7 +48,7 @@
   "web_accessible_resources": [
     {
       "resources": ["injected.js"],
-      "matches": ["https://labs.google/*"]
+      "matches": ["https://labs.google/*", "https://flow.google.com/*"]
     }
   ],
   "declarative_net_request": {

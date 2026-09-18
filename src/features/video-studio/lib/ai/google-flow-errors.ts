@@ -26,6 +26,9 @@ export function getGoogleFlowUserFacingError(error: unknown): string {
   // stop and tell the user which accounts to reconnect), and the generic quota
   // branch below would flatten all of that into one vague sentence.
   if (CODED_ERRORS.some((code) => message.includes(code))) return withTag(message);
+  if (/PUBLIC_ERROR_MODEL_ACCESS_DENIED/i.test(message)) return withTag('Google Flow từ chối model video đã chọn trên tài khoản này. Hãy chọn model khác hoặc tài khoản có quyền dùng model đó.');
+  if (/PUBLIC_ERROR_UNUSUAL_ACTIVITY/i.test(message)) return withTag('Google Flow tạm từ chối yêu cầu do kiểm tra bảo mật. Mở Flow trên tài khoản này để kiểm tra thông báo, thử tạo trực tiếp rồi chạy lại sau.');
+  if (/batch_rpc|1\.1\.28/.test(message) && /extension/i.test(message)) return withTag(message);
   if (/no ready|extension/i.test(message)) return withTag('Tiện ích Google Flow chưa kết nối với ứng dụng. Hãy mở Google Flow trong Chrome rồi kết nối lại tiện ích LONGDD.');
   if (/captcha/i.test(message)) return withTag(`Google Flow không vượt qua được CAPTCHA: ${message.replace(/^CAPTCHA:\s*/i, '')}`);
   if (/token|flow_key|401|403/i.test(message)) return withTag('Phiên Google Flow của tài khoản này đã hết hạn và Google không cấp lại. Mở Google Flow bằng tài khoản đó rồi đăng nhập lại, hoặc bỏ nó ra khỏi danh sách khi chạy.');

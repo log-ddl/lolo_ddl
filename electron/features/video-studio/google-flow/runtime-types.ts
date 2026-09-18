@@ -48,6 +48,7 @@ export type FlowImageInput = {
   modelChainByOwnerScope?: FlowModelChainMap;
 };
 export type FlowVideoInput = {
+  ultraOwnerScopeIds?: string[];
   taskId?: string; projectId: string; sceneId: string; prompt: string; model: string; aspectRatio: string; duration?: number;
   startImage?: FlowMediaRefInput; endImage?: FlowMediaRefInput; references?: FlowMediaRefInput[]; preferredCredentialId?: string;
   allowedOwnerScopeIds?: FlowAccountAllowlist;

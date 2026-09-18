@@ -120,6 +120,8 @@ export interface AutopilotJobInput {
    * account, which is what jobs created before this field did.
    */
   flowAccounts?: string[];
+  /** Snapshot of accounts manually marked Google AI Ultra. */
+  ultraOwnerScopeIds?: string[];
   /**
    * Video models each account actually owns, keyed by `ownerScopeId`. Omni Flash
    * and the low-priority Veo keys are missing on some Flow accounts, and asking
