@@ -172,6 +172,11 @@ export interface CanvasSpace {
 
 export function nodeSpec(node: CanvasNodeState): NodeSpec {
   const spec = NODE_SPECS[node.kind];
+  // Ref reuses the start-image handle, but collects images instead of replacing
+  // the previous frame. Keep the handle id stable for saved graphs.
+  if (node.kind === 'videoGenerator' && node.videoMode === 'ref') {
+    return { ...spec, inputs: spec.inputs.map((port) => port.id === 'start' ? { ...port, multi: true } : port) };
+  }
   if (['list', 'router', 'selectResult'].includes(node.kind)) {
     const type = node.valueType || (node.kind === 'selectResult' ? 'image' : 'text');
     return { ...spec, output: type, inputs: spec.inputs.map((port) => ({ ...port, type })) };

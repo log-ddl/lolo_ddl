@@ -134,3 +134,22 @@ assert.deepEqual(connectedMentionNodes(ms().nodes, ms().edges, isolatedCopy), []
 assert.ok(!ms().nodes.find((n) => n.id === generator)!.prompt.includes(`@{${logo}}`));
 assert.throws(() => expandMentions('@{node_missing}', ms().nodes, ms().edges, []), /INPUT_REQUIRED/);
 console.log('Mentions: wiring, expansion, rename, import ID remap, removal and undo passed.');
+
+const refSpace = api.createSpace('Video Ref multi-wire');
+const refVideo = api.addNode(refSpace, 'videoGenerator', { x: 400, y: 0 });
+const refSources = [0, 1, 2].map((y) => api.addNode(refSpace, 'localImage', { x: 0, y: y * 200 }));
+const refGraph = () => store.getState().spaces.find((s) => s.id === refSpace)!;
+api.updateNode(refSpace, refVideo, { videoMode: 'ref' });
+for (const source of refSources) api.connect(refSpace, { source, target: refVideo, targetHandle: 'start' });
+assert.deepEqual(refGraph().edges.map((e) => e.source), refSources, 'Ref retains all three wires on the same image input');
+api.connect(refSpace, { source: refSources[0], target: refVideo, targetHandle: 'start' });
+assert.equal(refGraph().edges.length, 3, 'reconnecting the same source does not duplicate it');
+const importedRef = api.importSpace(structuredClone(refGraph()));
+assert.equal(store.getState().spaces.find((s) => s.id === importedRef)!.edges.length, 3, 'Ref multi-wires survive import validation');
+api.updateNode(refSpace, refVideo, { videoMode: 'first' });
+const replacement = api.addNode(refSpace, 'localImage', { x: 0, y: 600 });
+api.connect(refSpace, { source: replacement, target: refVideo, targetHandle: 'start' });
+assert.deepEqual(refGraph().edges.map((e) => e.source), [replacement], 'First still replaces the start frame');
+api.undo(refSpace);
+assert.equal(refGraph().edges.length, 3, 'undo restores replaced wires');
+console.log('Video ports: Ref multi-wire, duplicate prevention, import, First replacement and undo passed.');
