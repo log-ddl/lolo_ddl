@@ -176,8 +176,15 @@ export async function upscaleGoogleFlowImage(input: {
   if (!window.googleFlowRuntime?.upscaleImage) throw new Error('Hãy mở lại ứng dụng để dùng upscale ảnh');
   await syncRuntimeSettings();
   const { signal, ...payload } = input;
-  return withCancellation(signal, (taskId) => window.googleFlowRuntime!.upscaleImage({
-    ...payload, taskId,
-    ultraOwnerScopeIds: useVideoStudioSettingsStore.getState().mediaRouting.ultraOwnerScopeIds || [],
-  }), undefined, input.taskId, { kind: 'image', provider: 'Google Flow', model: `Upscale ${input.resolution}`, details: { resolution: input.resolution } });
+  return withCancellation(signal, async (taskId) => {
+    const result = await window.googleFlowRuntime!.upscaleImage({
+      ...payload, taskId,
+      ultraOwnerScopeIds: useVideoStudioSettingsStore.getState().mediaRouting.ultraOwnerScopeIds || [],
+    });
+    if (signal?.aborted) throw new DOMException('Cancelled by user', 'AbortError');
+    const imageUrl = result.localUrl || result.remoteUrl;
+    const cleaned = imageUrl ? await cleanGeneratedWatermark(imageUrl) : null;
+    if (signal?.aborted) throw new DOMException('Cancelled by user', 'AbortError');
+    return cleaned ? { ...result, localUrl: cleaned } : result;
+  }, undefined, input.taskId, { kind: 'image', provider: 'Google Flow', model: `Upscale ${input.resolution}`, details: { resolution: input.resolution } });
 }
