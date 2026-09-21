@@ -1,6 +1,7 @@
 import { autopilotEngine } from '@/features/video-studio/stores/autopilot-store';
 import { buildEngineStatus } from '@/features/video-studio/stores/autopilot-store';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
+import { generateImageWithSelectedProvider } from '@/features/video-studio/lib/ai/qwen-local-provider';
 import { resolveFlowProjectBinding } from '@/features/video-studio/autopilot/flow-binding';
 import { useAutoVideoStore } from '@/features/video-studio/stores/auto-video-store';
 import { useLicenseStore } from '@/shared/stores/license-store';
@@ -254,9 +255,12 @@ async function route(request: AutopilotHttpRequest, emit: Emit): Promise<Autopil
   if (method === 'POST' && path === '/flow/image') {
     const body = isObject(request.body) ? request.body : {};
     try {
-      const { longddProjectId } = await resolveFlowProject();
-      const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('image', String(body.model ?? 'GEM_PIX_2'));
-      const { result } = await runWithModelFallback(chain, (model) => googleFlowProvider.generateImage({
+      const requestedModel = String(body.model ?? 'GEM_PIX_2');
+      const longddProjectId = requestedModel === 'Qwen/Qwen-Image-2.1'
+        ? String(body.projectId ?? 'default-project')
+        : (await resolveFlowProject()).longddProjectId;
+      const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('image', requestedModel);
+      const { result } = await runWithModelFallback(chain, (model) => generateImageWithSelectedProvider({
         projectId: longddProjectId,
         sceneId: String(body.sceneId ?? 'http-image'),
         prompt: String(body.prompt ?? ''),

@@ -5,15 +5,15 @@
  * and re-runs never pay to regenerate a reference that is already on disk.
  */
 
-import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
+import { generateImageWithSelectedProvider, imageModelChain } from '@/features/video-studio/lib/ai/qwen-local-provider';
 import { resolveFlowProjectBinding } from '@/features/video-studio/autopilot/flow-binding';
 import { useCharacterLibraryStore } from '@/features/video-studio/stores/character-library-store';
 import { useSceneStore } from '@/features/video-studio/stores/scene-store';
 import { useMediaStore } from '@/features/video-studio/stores/media-store';
 import { saveImageToLocal } from '@/features/video-studio/lib/image-storage';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prompts';
-import { buildModelChain, runWithModelFallback } from '../model-fallback';
-import { googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
+import { runWithModelFallback } from '../model-fallback';
+import { configuredImageModel } from '@/features/video-studio/lib/ai/media-routing';
 import type { AutopilotCharacterPlan, AutopilotJob, AutopilotScenePlan } from '../types';
 import {
   runGoogleFlowQueueOrdered,
@@ -36,11 +36,12 @@ export async function runCharactersStage(
   }
 
   const runtime = window.googleFlowRuntime;
-  if (!runtime) throw new Error('Google Flow runtime không có sẵn');
-  const { longddProjectId } = await resolveFlowProjectBinding(runtime, job.projectId);
+  const localImage = (job.input.imageModel || configuredImageModel('character_generation')) === 'Qwen/Qwen-Image-2.1';
+  if (!runtime && !localImage) throw new Error('Google Flow runtime không có sẵn');
+  const longddProjectId = localImage ? (job.projectId || 'default-project') : (await resolveFlowProjectBinding(runtime!, job.projectId)).longddProjectId;
   const activeProjectId = job.projectId;
   const library = useCharacterLibraryStore.getState();
-  const characterModel = googleFlowBoundModel('character_generation') || DEFAULT_IMAGE_MODEL;
+  const characterModel = job.input.imageModel || configuredImageModel('character_generation') || DEFAULT_IMAGE_MODEL;
   const visualStyleLine = job.visualStylePrompt
     ? `Mandatory project visual style: ${job.visualStylePrompt}.`
     : '';
@@ -84,8 +85,8 @@ export async function runCharactersStage(
       if (!imagePath) {
         const prompt = `Single reusable character reference for a documentary. ${name}. ${characterPrompt}. ${description}. Centered full-body neutral pose, clearly visible construction and identity markers, isolated simple background, clean silhouette, no scenery, no typography, no watermark. ${visualStyleLine}`;
         const result = (await runWithModelFallback(
-          buildModelChain(characterModel, job.input.imageModelFallbacks),
-          (model, modelIndex) => googleFlowProvider.generateImage({
+          imageModelChain(characterModel, job.input.imageModelFallbacks || []),
+          (model, modelIndex) => generateImageWithSelectedProvider({
             projectId: longddProjectId,
             sceneId: `autopilot-character-${job.id}-${index}`,
             prompt,
@@ -133,11 +134,12 @@ export async function runScenesStage(
   }
 
   const runtime = window.googleFlowRuntime;
-  if (!runtime) throw new Error('Google Flow runtime không có sẵn');
-  const { longddProjectId } = await resolveFlowProjectBinding(runtime, job.projectId);
+  const localImage = (job.input.imageModel || configuredImageModel('scene_generation')) === 'Qwen/Qwen-Image-2.1';
+  if (!runtime && !localImage) throw new Error('Google Flow runtime không có sẵn');
+  const longddProjectId = localImage ? (job.projectId || 'default-project') : (await resolveFlowProjectBinding(runtime!, job.projectId)).longddProjectId;
   const activeProjectId = job.projectId;
   const sceneStore = useSceneStore.getState();
-  const sceneModel = googleFlowBoundModel('scene_generation') || job.input.imageModel || DEFAULT_IMAGE_MODEL;
+  const sceneModel = job.input.imageModel || configuredImageModel('scene_generation') || DEFAULT_IMAGE_MODEL;
   const sceneAspectRatio = (['1:1', '3:4', '4:3', '9:16', '16:9'] as const).find((value) => value === job.input.aspectRatio) || '16:9';
   const visualStyleLine = job.visualStylePrompt ? `Mandatory project visual style: ${job.visualStylePrompt}.` : '';
   let completed = 0;
@@ -187,8 +189,8 @@ export async function runScenesStage(
       if (!imagePath) {
         const prompt = `Reusable empty environment reference for a documentary. ${name}. ${scenePrompt}. ${description}. Environment only, stable layout, camera-neutral wide establishing view, no characters, no temporary action, no typography, no watermark. ${visualStyleLine}`;
         const result = (await runWithModelFallback(
-          buildModelChain(sceneModel, job.input.imageModelFallbacks),
-          (model, modelIndex) => googleFlowProvider.generateImage({
+          imageModelChain(sceneModel, job.input.imageModelFallbacks || []),
+          (model, modelIndex) => generateImageWithSelectedProvider({
             projectId: longddProjectId,
             sceneId: `autopilot-scene-${job.id}-${index}`,
             prompt,

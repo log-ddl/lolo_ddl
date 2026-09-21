@@ -10,19 +10,34 @@ type GrokRuntimeState = {
   clearFinished: () => void;
 };
 
+let subscribers = 0;
+let offStatus: (() => void) | undefined;
+let offTask: (() => void) | undefined;
+
 export const useGrokRuntimeStore = create<GrokRuntimeState>((set, get) => ({
   status: null,
   tasks: {},
   initialized: false,
   initialize: () => {
-    if (get().initialized || !window.grokVideoRuntime) return () => {};
-    set({ initialized: true });
-    const offStatus = window.grokVideoRuntime.onStatus((status) => set({ status }));
-    const offTask = window.grokVideoRuntime.onTask((task) => set((state) => ({ tasks: { ...state.tasks, [task.taskId]: task } })));
-    void (window.videoStudioBrowser?.startRuntimes() ?? Promise.resolve())
-      .then(() => get().refresh())
-      .catch((error) => console.warn('[Grok] Runtime startup failed:', error));
-    return () => { offStatus(); offTask(); set({ initialized: false }); };
+    if (!window.grokVideoRuntime) return () => {};
+    subscribers += 1;
+    if (subscribers === 1) {
+      set({ initialized: true });
+      offStatus = window.grokVideoRuntime.onStatus((status) => set({ status }));
+      offTask = window.grokVideoRuntime.onTask((task) => set((state) => ({ tasks: { ...state.tasks, [task.taskId]: task } })));
+      void (window.videoStudioBrowser?.startRuntimes() ?? Promise.resolve())
+        .then(() => get().refresh())
+        .catch((error) => console.warn('[Grok] Runtime startup failed:', error));
+    } else {
+      void window.grokVideoRuntime.getStatus().then((status) => set({ status })).catch(() => {});
+    }
+    return () => {
+      subscribers = Math.max(0, subscribers - 1);
+      if (subscribers > 0) return;
+      offStatus?.(); offTask?.();
+      offStatus = undefined; offTask = undefined;
+      set({ initialized: false });
+    };
   },
   refresh: async () => {
     if (!window.grokVideoRuntime) return;

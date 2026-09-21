@@ -24,11 +24,11 @@ export async function generateImage(
 ): Promise<string> {
   const apiKey = config.apiKey || (config as any).imageApiKey || '';
   const provider = (config as any).imageProvider || 'mock';
-  if (provider === 'googleflow') {
+  if (provider === 'googleflow' || provider === 'qwen-local') {
     return requestDesktopRuntime('image', {
       provider,
       prompt, negativePrompt, aspectRatio: config.aspectRatio || '9:16',
-      model: (config as any).imageModel || 'GEM_PIX_2', referenceImages,
+      model: (config as any).imageModel || (provider === 'qwen-local' ? 'Qwen/Qwen-Image-2.1' : 'GEM_PIX_2'), referenceImages,
     });
   }
   

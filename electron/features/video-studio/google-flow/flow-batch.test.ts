@@ -3,6 +3,7 @@ import {
   CAPTCHA_SLOT,
   RPC_GEN_IMAGE,
   RPC_GEN_VIDEO,
+  RPC_GEN_TEXT_VIDEO,
   RPC_GEN_REFERENCE_VIDEO,
   referenceVideoRequest,
   RPC_OPERATION,
@@ -17,12 +18,14 @@ import {
   readImages,
   readMediaUrls,
   readOperation,
+  readTextVideoOperation,
   readUploadedMediaId,
   resolveBatchImageModel,
   resolveBatchVideoModel,
   resolveImageAspect,
   resolveVideoAspect,
   videoRequest,
+  textVideoRequest,
 } from './flow-batch.ts';
 
 // ==================== envelope codec ====================
@@ -37,6 +40,13 @@ for (const profile of ['lite', 'fast']) {
 }
 assert.equal(resolveBatchVideoModel('veo_3_1_i2v_s_lite_6s_low_priority', true), 'veo_3_1_i2v_s_lite_6s_low_priority');
 assert.equal(resolveBatchVideoModel('veo_3_1_i2v_s_lite', true), 'veo_3_1_i2v_lite');
+const textWire = JSON.parse(textVideoRequest({ prompt: 'A cat runs', projectId: 'project', aspect: '16:9', model: 'abra_t2v_8s' }));
+assert.equal(textWire[0][0][0], RPC_GEN_TEXT_VIDEO);
+const textBody = JSON.parse(textWire[0][0][1]);
+assert.equal(textBody[0][0][1], 'abra_t2v_8s');
+assert.equal(textBody[0][0][0][2][0][0][0], 'A cat runs');
+assert.equal(textBody[0][0].length, 5, 'text-to-video sends no media slot');
+assert.equal(readTextVideoOperation([null, 881, [['media-id']], [[['workflow-id', 'project-id', 'media-id']]]]).operationId, 'workflow-id');
 
 const envelope = buildEnvelope('abc123', [1, 'two', null]);
 assert.deepEqual(JSON.parse(envelope), [[['abc123', '[1,"two",null]', null, 'generic']]]);

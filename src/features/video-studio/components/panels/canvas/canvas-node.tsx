@@ -3,9 +3,11 @@ import { effectivePrompt } from '@/features/video-studio/canvas/graph';
 "use client";
 
 import { ImageEditControls } from "./image-edit-controls";
+import { ImageDownloadMenu } from './image-download-menu';
+import { UpscaleNodeControls } from './upscale-node-controls';
 
 import { videoDuration, videoDurations } from '@/features/video-studio/lib/ai/video-duration';
-import { googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
+import { configuredImageModel, configuredVideoModel, videoPlatformForModel } from '@/features/video-studio/lib/ai/media-routing';
 import { CompareResults } from "./compare-results";
 import { extractVideoFrame } from "@/features/video-studio/canvas/video-frame";
 import type { GroupPort } from "@/features/video-studio/canvas/group-ports";
@@ -38,7 +40,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { Pencil, Maximize2, Square, History, AlertTriangle, Copy, Download, ImageIcon, Loader2, Play, Plus, Trash2, TypeIcon, VideoIcon, X } from "lucide-react";
+import { Pencil, Maximize2, Square, History, Copy, Download, ImageIcon, Loader2, Play, Plus, Trash2, TypeIcon, VideoIcon, X } from "lucide-react";
 import { EMPTY_PROMPT } from "@/features/video-studio/canvas/runner";
 import {
   CANVAS_ASPECT_RATIOS,
@@ -48,7 +50,7 @@ import {
   type NodeOutput,
   type PortType,
 } from "@/features/video-studio/canvas/types";
-import { GOOGLE_FLOW_IMAGE_MODELS, GOOGLE_FLOW_VIDEO_MODELS, getModelDisplayName } from "@/features/video-studio/lib/api-key-manager";
+import { GOOGLE_FLOW_IMAGE_MODELS, GOOGLE_FLOW_VIDEO_MODELS, GROK_VIDEO_MODELS, QWEN_LOCAL_IMAGE_MODEL, getModelDisplayName } from "@/features/video-studio/lib/api-key-manager";
 import { toast } from "sonner";
 import { mediaBlob, downloadBlob } from "@/features/video-studio/canvas/archive";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/components/ui/dialog";
@@ -66,6 +68,7 @@ const PORT_TOP = 20;
 const PORT_GAP = 34;
 
 const KIND_ICONS: Record<CanvasNodeKind, typeof ImageIcon> = {
+  imageUpscale: Maximize2,
   ai: TypeIcon,
   output: Download,
   reference: ImageIcon, list: TypeIcon, router: TypeIcon, selectResult: ImageIcon, imageEdit: ImageIcon,
@@ -94,6 +97,7 @@ const PORT_TONES: Record<PortType, { on: string; wire: string }> = {
 export interface CanvasNodeRenderData extends Record<string, unknown> {
   mentionOptions: MentionOption[];
   state: CanvasNodeState;
+  upscaleSources?: NodeOutput[];
   values?: string[];
   hasOutgoing?: boolean;
   groupPorts?: GroupPort[];
@@ -110,6 +114,7 @@ export interface CanvasNodeRenderData extends Record<string, unknown> {
   onUpload: (files: FileList) => void;
   onRemoveRef: (path: string) => void;
   onRun: () => void;
+  onUpscaleImage?: (resolution: '2K' | '4K', download: (output: NodeOutput) => Promise<void>) => Promise<void>;
   onCancel: () => void;
   onSelectOutput: (output: NodeOutput) => void;
   onDuplicate: () => void;
@@ -151,13 +156,14 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
   const [preview, setPreview] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<{ url: string; width: number; height: number } | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const download = async () => {
-    if (!state.output || downloading) return;
+  const download = async (output = state.output) => {
+    if (!output || downloading) return;
     setDownloading(true);
     try {
-      const blob = await mediaBlob(state.output.url);
-      const extension = blob.type.split("/")[1]?.split(";")[0] || (state.output.kind === "video" ? "mp4" : "png");
-      downloadBlob(blob, `${mediaFileStem(state.name || `${t(spec.labelKey)} #${state.index}`)}.${extension}`);
+      const blob = await mediaBlob(output.url);
+      const extension = blob.type.split("/")[1]?.split(";")[0] || (output.kind === "video" ? "mp4" : "png");
+      const suffix = output.upscaleResolution ? `-${output.upscaleResolution}` : '';
+      downloadBlob(blob, `${mediaFileStem(state.name || `${t(spec.labelKey)} #${state.index}`)}${suffix}.${extension}`);
 
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("canvas.error.downloadFailed"));
@@ -169,9 +175,17 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
   const resolvedOutput = useResolvedImageUrl(state.output?.url);
   const resolvedPreview = useResolvedImageUrl(preview);
   const isImageEdit = state.kind === "imageEdit";
+  const isUpscale = state.kind === 'imageUpscale';
   const isAi = state.kind === 'ai';
   const isText = state.kind === "text" || state.kind === "note";
-  const models = state.kind === "videoGenerator" ? GOOGLE_FLOW_VIDEO_MODELS : GOOGLE_FLOW_IMAGE_MODELS;
+  const [qwenReady, setQwenReady] = useState(false);
+  useEffect(() => {
+    void window.qwenImage?.status().then((status) => setQwenReady(status.installed));
+  }, []);
+  const models = state.kind === "videoGenerator" ? [...GOOGLE_FLOW_VIDEO_MODELS, ...GROK_VIDEO_MODELS] : qwenReady ? [...GOOGLE_FLOW_IMAGE_MODELS, QWEN_LOCAL_IMAGE_MODEL] : GOOGLE_FLOW_IMAGE_MODELS;
+  const selectedVideoModel = state.kind === 'videoGenerator' ? state.model || configuredVideoModel() || 'Veo_3.1-Fast' : '';
+  const isGrokVideo = state.kind === 'videoGenerator' && videoPlatformForModel(selectedVideoModel) === 'grok';
+  const isQwenImage = state.kind === 'imageGenerator' && (state.model || configuredImageModel('scene_generation')) === QWEN_LOCAL_IMAGE_MODEL;
 
   if (state.kind === 'output') return <OutputNode data={data} selected={selected} />;
   if (["reference", "list", "router", "selectResult"].includes(state.kind)) return <UtilityNode data={data} selected={selected} />;
@@ -200,7 +214,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             </NodeToolButton>
           )}
           <NodeToolButton title={t("canvas.rename")} onClick={() => setNaming(true)}><Pencil className="size-3.5" /></NodeToolButton>
-          {!isLocal && !isImageEdit && <NodeToolButton title={t("canvas.promptEditor")} onClick={() => { setEditPrompt(displayedPrompt); setEditorOpen(true); }}><Maximize2 className="size-3.5" /></NodeToolButton>}
+          {!isLocal && !isImageEdit && !isUpscale && <NodeToolButton title={t("canvas.promptEditor")} onClick={() => { setEditPrompt(displayedPrompt); setEditorOpen(true); }}><Maximize2 className="size-3.5" /></NodeToolButton>}
           {running && <NodeToolButton title={t("canvas.stop")} onClick={onCancel}><Square className="size-3.5" /></NodeToolButton>}
           <NodeToolButton title={t("canvas.node.duplicate")} onClick={onDuplicate}>
             <Copy className="size-3.5" />
@@ -326,10 +340,11 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
         {state.output && (
           <div className="canvas-download-row absolute right-2 z-10 flex items-center gap-2 text-xs" style={{ top: running ? 38 : 8 }}>
             {state.output.kind === "video" && <button type="button" title={t("canvas.node.openOutput")} onClick={() => { setDuration(null); setPreview(state.output!.url); }}><Maximize2 className="size-3.5" /></button>}
-            <button type="button" disabled={downloading} onClick={() => void download()} className="nodrag nopan ml-auto flex items-center gap-1.5 hover:text-primary disabled:opacity-50">{downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="sr-only">{t(state.output?.kind === "video" ? "canvas.downloadVideo" : "canvas.node.download")}</span></button>
+            {state.output.kind === 'image' ? <ImageDownloadMenu state={state} downloading={downloading} onDownload={download} onUpscale={data.onUpscaleImage} />
+              : <button type="button" disabled={downloading} onClick={() => void download()} className="nodrag nopan ml-auto flex items-center gap-1.5 hover:text-primary disabled:opacity-50">{downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="sr-only">{t("canvas.downloadVideo")}</span></button>}
           </div>
         )}
-        {!isText && !isLocal && (
+        {!isText && !isLocal && !isUpscale && (
           <div className="canvas-node-refs flex min-h-7 flex-wrap items-center gap-1.5 px-3">
             <label
               title={t("canvas.node.attach")}
@@ -404,7 +419,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             <input type="file" accept={isLocalVideo ? "video/*" : "image/*"} className="hidden" onChange={(event) => { if (event.target.files?.length) onUpload(event.target.files); event.target.value = ""; }} />
           </label>
         )}
-        {isImageEdit ? <ImageEditControls data={data} /> : !isLocal && !isText && state.kind !== 'note' ? <MentionEditor value={displayedPrompt} onCommit={commitPrompt} placeholder={t(state.kind === 'videoGenerator' ? 'canvas.node.videoPromptPlaceholder' : 'canvas.node.promptPlaceholder') + ' (@)'} rows={textInputs.length ? 3 : 1} options={data.mentionOptions} /> :
+        {isUpscale ? <UpscaleNodeControls data={data} /> : isImageEdit ? <ImageEditControls data={data} /> : !isLocal && !isText && state.kind !== 'note' ? <MentionEditor value={displayedPrompt} onCommit={commitPrompt} placeholder={t(state.kind === 'videoGenerator' ? 'canvas.node.videoPromptPlaceholder' : 'canvas.node.promptPlaceholder') + ' (@)'} rows={textInputs.length ? 3 : 1} options={data.mentionOptions} /> :
 !isLocal && <PromptBox dragToMove={isText || state.kind === "note"}
           value={state.prompt}
           onCommit={(prompt) => onChange({ prompt })}
@@ -418,23 +433,31 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
         /> }
 
         {isAi && <AiNodeControls data={data} />}
-        {!isText && !isLocal && !isImageEdit && !isAi && (
+        {!isText && !isLocal && !isImageEdit && !isUpscale && !isAi && (
           <>
-          <NodeAccountPicker state={state} onChange={onChange} disabled={running} />
+          {!isQwenImage && <NodeAccountPicker state={state} onChange={onChange} disabled={running} platform={isGrokVideo ? 'grok' : 'googleflow'} model={state.kind === 'videoGenerator' ? selectedVideoModel : state.model || configuredImageModel('scene_generation') || 'GEM_PIX_2'} kind={state.kind === 'videoGenerator' ? 'video' : 'image'} />}
           {state.kind === 'videoGenerator' && <div className="canvas-node-controls flex items-center gap-2 px-3 pb-1">
             <select aria-label={t('canvas.videoMode')} title={t('canvas.videoMode')}
               value={state.videoMode || 'first'} disabled={running}
               onChange={(event) => onChange({ videoMode: event.target.value as 'first' | 'ref' })}
               className="nodrag nopan shrink-0 rounded-full bg-muted/50 px-2 py-1 text-2xs outline-none">
               <option value="first">{t('canvas.videoMode.first')}</option>
-              <option value="ref">{t('canvas.videoMode.ref')}</option>
+              {isGrokVideo && state.videoMode === 'ref' && <option value="ref" disabled>{t('canvas.videoMode.ref')}</option>}
+              {!isGrokVideo && <option value="ref">{t('canvas.videoMode.ref')}</option>}
             </select>
-            <span className="text-2xs text-muted-foreground">{t(state.videoMode === 'ref' ? 'canvas.videoMode.refHint' : 'canvas.videoMode.hint')}</span>
+            <span className="text-2xs text-muted-foreground">{isGrokVideo ? 'Grok: tạo từ chữ hoặc ảnh khung đầu/cuối' : t(state.videoMode === 'ref' ? 'canvas.videoMode.refHint' : 'canvas.videoMode.hint')}</span>
           </div>}
           <div className="canvas-node-controls flex h-9 items-center gap-1.5 px-3 pb-2">
             <select
               value={state.model || AUTO_VALUE}
-              onChange={(event) => onChange({ model: event.target.value === AUTO_VALUE ? "" : event.target.value, ...(state.kind === "videoGenerator" ? { videoDuration: videoDuration(event.target.value === AUTO_VALUE ? googleFlowBoundModel("video_generation") || "" : event.target.value, state.videoDuration) } : {}) })}
+              onChange={(event) => {
+                const model = event.target.value === AUTO_VALUE ? '' : event.target.value;
+                const effectiveModel = model || configuredVideoModel() || 'Veo_3.1-Fast';
+                onChange({ model, ...(state.kind === 'videoGenerator' ? {
+                  videoDuration: videoDuration(effectiveModel, state.videoDuration),
+                  ...(videoPlatformForModel(effectiveModel) === 'grok' ? { videoMode: 'first' as const } : {}),
+                } : {}) });
+              }}
               title={t("canvas.node.modelAutoHint")}
               className="nodrag min-w-0 flex-1 truncate rounded-full bg-muted/50 px-2 py-1 text-2xs outline-none"
             >
@@ -453,10 +476,10 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
               ))}
             </select>
             {state.kind === 'videoGenerator' && <select aria-label={t('canvas.duration')} title={t('canvas.duration')}
-              value={videoDuration(state.model || googleFlowBoundModel('video_generation') || '', state.videoDuration)}
+              value={videoDuration(selectedVideoModel, state.videoDuration)}
               onChange={(event) => onChange({ videoDuration: Number(event.target.value) })}
               className="nodrag nopan shrink-0 rounded-full bg-muted/50 px-1 py-1 text-2xs outline-none">
-              {videoDurations(state.model || googleFlowBoundModel('video_generation') || '').map((seconds) => <option key={seconds} value={seconds}>{seconds}s</option>)}
+              {videoDurations(selectedVideoModel).map((seconds) => <option key={seconds} value={seconds}>{seconds}s</option>)}
             </select>}
             <button
               type="button"
@@ -541,7 +564,8 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
                   {(state.output?.prompt ?? displayedPrompt) || "—"}
                 </p>
               </div>}
-              <button type="button" disabled={downloading} onClick={() => void download()} className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50">{downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{t(state.output?.kind === "video" ? "canvas.downloadVideo" : "canvas.node.download")}</button>
+              {state.output?.kind === 'image' ? <ImageDownloadMenu state={state} downloading={downloading} onDownload={download} onUpscale={data.onUpscaleImage} expanded />
+                : <button type="button" disabled={downloading} onClick={() => void download()} className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50">{downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{t("canvas.downloadVideo")}</button>}
             </aside>
           </div>
         </DialogContent>

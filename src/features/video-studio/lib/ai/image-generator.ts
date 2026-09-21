@@ -5,6 +5,7 @@
 
 import { getFeatureConfig, getFeatureNotConfiguredMessage } from '@/features/video-studio/lib/ai/feature-router';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
+import { generateQwenLocalImage } from '@/features/video-studio/lib/ai/qwen-local-provider';
 import { resolveSettingsMediaRouting } from '@/features/video-studio/lib/ai/media-routing';
 import { runWithModelFallback } from '@/features/video-studio/autopilot/model-fallback';
 import { useProjectStore } from '@/features/video-studio/stores/project-store';
@@ -44,6 +45,19 @@ async function generateImage(
   const featureConfig = getFeatureConfig(feature);
   if (!featureConfig) throw new Error(getFeatureNotConfiguredMessage(feature));
 
+  if (featureConfig.platform === 'qwen-local') {
+    const result = await generateQwenLocalImage({
+      projectId: useProjectStore.getState().activeProjectId || 'default-project',
+      prompt: params.prompt,
+      model: featureConfig.model,
+      aspectRatio: params.aspectRatio || '1:1',
+      references: params.referenceImages?.map((source) => ({ source, provider: 'qwen-local' })),
+      onSubmitted: params.onSubmitted,
+      signal: params.signal,
+    });
+    if (!result.localUrl) throw new Error('Qwen local không trả về ảnh');
+    return { imageUrl: result.localUrl, taskId: result.taskId };
+  }
   if (featureConfig.platform !== 'googleflow') {
     throw new Error(`Unsupported image platform: ${featureConfig.platform}. Only "googleflow" is supported.`);
   }
@@ -110,6 +124,15 @@ export async function submitGridImageRequest(params: {
 }): Promise<{ imageUrl?: string; taskId?: string; mediaId?: string; jwtHash?: string; credentialId?: string; accountId?: string; ownerScopeId?: string; flowProjectId?: string }> {
   const { model, prompt, aspectRatio, referenceImages, onSubmitted, signal } = params;
 
+  if (params.platform === 'qwen-local') {
+    const result = await generateQwenLocalImage({
+      projectId: useProjectStore.getState().activeProjectId || 'default-project', prompt, model,
+      aspectRatio, references: referenceImages?.map((source) => ({ source, provider: 'qwen-local' })),
+      taskId: params.taskId, onSubmitted, signal,
+    });
+    if (!result.localUrl) throw new Error('Qwen local không trả về ảnh');
+    return { imageUrl: result.localUrl, taskId: result.taskId };
+  }
   if (params.platform !== 'googleflow') {
     throw new Error(`Unsupported image platform: ${params.platform}. Only "googleflow" is supported.`);
   }

@@ -14,6 +14,18 @@ function hashIdentity(value: string): string {
   return createHash('sha256').update(value).digest('hex').slice(0, 24);
 }
 
+export function saveUpscaledImage(mediaRoot: string, encoded: string): string {
+  const bytes = Buffer.from(encoded, 'base64');
+  const jpeg = bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const png = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if ((!jpeg && !png) || bytes.length > 60_000_000) throw new Error('Google Flow upscale result is not a valid image');
+  const outputDir = path.join(mediaRoot, 'images');
+  fs.mkdirSync(outputDir, { recursive: true });
+  const filename = `google-flow-upscale-${randomUUID()}.${png ? 'png' : 'jpg'}`;
+  fs.writeFileSync(path.join(outputDir, filename), bytes);
+  return `local-image://images/${filename}`;
+}
+
 export function saveVideoBytes(mediaRoot: string, bytes: Buffer, id: string): string {
   const outputDir = path.join(mediaRoot, 'videos');
   fs.mkdirSync(outputDir, { recursive: true });
@@ -109,7 +121,7 @@ export function validateImageInput(input: FlowImageInput): void {
 export function validateVideoInput(input: FlowVideoInput): void {
   assertRecord(input, 'video payload'); assertString(input.projectId, 'projectId', 256); assertString(input.sceneId, 'sceneId', 256);
   assertString(input.prompt, 'prompt', 100_000); assertString(input.model, 'model', 256); assertString(input.aspectRatio, 'aspectRatio', 16);
-  if (!input.startImage?.source && !input.references?.length) throw new Error('Google Flow requires a start image or reference images for video generation');
+  if (input.endImage?.source && !input.startImage?.source && !input.references?.length) throw new Error('Google Flow requires a start image when an end image is provided');
   if ((input.references?.length || 0) > 3) throw new Error('Google Flow supports at most 3 video references');
 }
 

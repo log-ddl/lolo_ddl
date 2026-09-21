@@ -59,6 +59,8 @@ export async function generateProviderVideo(params: VideoGenerationParams): Prom
       model: params.model,
       aspectRatio: params.aspectRatio || '16:9',
       duration: Number(params.length as VideoLength | undefined) || undefined,
+      taskId: params.taskId,
+      preferredCredentialId: params.preferredCredentialId,
       startImage: params.startImageUrl ? { source: params.startImageUrl, provider: 'grok' } : undefined,
       endImage: params.endImageUrl ? { source: params.endImageUrl, provider: 'grok' } : undefined,
       onSubmitted: params.onSubmitted,

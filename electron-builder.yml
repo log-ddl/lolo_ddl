@@ -33,6 +33,8 @@ extraResources:
     to: tts-worker
   - from: electron/features/video-studio/python
     to: watermark
+  - from: electron/features/video-studio/qwen-image/worker.py
+    to: qwen-image-worker/worker.py
   - from: electron/features/tts-voice/vendor/omnivoice
     to: omnivoice-package
     filter:

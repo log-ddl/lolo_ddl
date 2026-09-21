@@ -35,6 +35,7 @@ export const GOOGLE_FLOW_VIDEO_MODELS = [
 ];
 export const GOOGLE_FLOW_MODELS = [...GOOGLE_FLOW_IMAGE_MODELS, ...GOOGLE_FLOW_VIDEO_MODELS];
 export const GROK_VIDEO_MODELS = ['Grok Imagine Video'];
+export const QWEN_LOCAL_IMAGE_MODEL = 'Qwen/Qwen-Image-2.1';
 
 /**
  * Canonical model list for the browser-runtime platforms.
@@ -45,6 +46,7 @@ export const GROK_VIDEO_MODELS = ['Grok Imagine Video'];
  * Returns null for platforms whose models really do come from a sync.
  */
 export function getRuntimeProviderModels(platform: string): string[] | null {
+  if (platform === 'qwen-local') return [QWEN_LOCAL_IMAGE_MODEL];
   if (platform === 'googleflow') return GOOGLE_FLOW_MODELS;
   if (platform === 'grok') return GROK_VIDEO_MODELS;
   return null;
@@ -292,7 +294,7 @@ export function getProviderCredentialCount(platform: string, apiKey: string): nu
 export function isProviderCredentialConfigured(platform: string, apiKey: string): boolean {
   // Google Flow is backed by the local Electron/extension runtime. Readiness is
   // checked when the task is submitted; it intentionally has no persisted key.
-  if (platform === 'googleflow' || platform === 'grok') return true;
+  if (platform === 'googleflow' || platform === 'grok' || platform === 'qwen-local') return true;
   return parseApiKeys(apiKey).length > 0;
 }
 

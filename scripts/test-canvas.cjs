@@ -5,9 +5,10 @@ const mocks = {
   'image-processing': 'export const processImage=async(source,settings)=>{globalThis.__localEdits=(globalThis.__localEdits||0)+1;return new Blob([source],{type:"image/png"})};',
   'feature-router': 'export const getFeatureConfig=()=>null;',
   'script-parser': 'export const callChatAPI=()=>{throw new Error("No external AI calls in tests")};',
-  'google-flow-provider': 'export const googleFlowProvider={generateImage:async(input)=>{if(input.signal?.aborted)throw new DOMException("Cancelled","AbortError");return globalThis.__canvasGenerate(input)}};',
+  'google-flow-provider': 'export const googleFlowProvider={generateImage:async(input)=>{if(input.signal?.aborted)throw new DOMException("Cancelled","AbortError");return globalThis.__canvasGenerate(input)}}; export const upscaleGoogleFlowImage=(input)=>globalThis.__canvasUpscale(input);',
+  'qwen-local-provider': 'export const generateImageWithSelectedProvider=async(input)=>{if(input.signal?.aborted)throw new DOMException("Cancelled","AbortError");return globalThis.__canvasGenerate(input)};',
   'video-generator': 'export const generateProviderVideo=(input)=>{if(globalThis.__canvasGenerateVideo)return globalThis.__canvasGenerateVideo(input);throw new Error("Unexpected video call")};',
-  'media-routing': 'export const googleFlowBoundModel=()=>"mock";export const resolveSettingsMediaRouting=async()=>({chain:["mock"],accountsFor:()=>undefined,modelChains:{}});',
+  'media-routing': 'export const googleFlowBoundModel=()=>"mock";export const configuredImageModel=()=>"mock";export const configuredVideoModel=()=>globalThis.__canvasVideoModel||"Veo_3.1-Fast";export const videoPlatformForModel=(model)=>model==="Grok Imagine Video"?"grok":"googleflow";export const resolveSettingsMediaRouting=async()=>({chain:["mock"],accountsFor:()=>undefined,modelChains:{}});',
   'image-storage': 'export const readImageAsBase64=async(url)=>url;',
   'browser-image-storage': 'globalThis.__canvasBlobs=new Map();export const isIdbImagePath=(url)=>url.startsWith("idb-image://");export const readBlobFromBrowserStorage=async(url)=>globalThis.__canvasBlobs.get(url);export const saveBlobToBrowserStorage=async(blob)=>{const id="idb-image://"+crypto.randomUUID();globalThis.__canvasBlobs.set(id,blob);return id};export const deleteFromBrowserStorage=async(id)=>globalThis.__canvasBlobs.delete(id);',
 };
@@ -16,7 +17,7 @@ async function main() {
   const entry = `src/features/video-studio/canvas/${test}.test.ts`;
   const result = await esbuild.build({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', write: false, plugins: [{ name: 'canvas-test-mocks', setup(build) {
     if(test === 'canvas-runner') build.onResolve({ filter: /\/image-processing$/ }, () => ({ path: 'image-processing', namespace: 'mock' }));
-    build.onResolve({ filter: /\/(feature-router|script-parser|google-flow-provider|video-generator|media-routing|image-storage|browser-image-storage)$/ }, (args) => ({ path: args.path.split('/').pop(), namespace: 'mock' }));
+    build.onResolve({ filter: /\/(feature-router|script-parser|google-flow-provider|qwen-local-provider|video-generator|media-routing|image-storage|browser-image-storage)$/ }, (args) => ({ path: args.path.split('/').pop(), namespace: 'mock' }));
     build.onLoad({ filter: /.*/, namespace: 'mock' }, (args) => ({ contents: mocks[args.path], loader: 'js' }));
   } }] });
   const module = new Module(path.resolve(entry), moduleParent());

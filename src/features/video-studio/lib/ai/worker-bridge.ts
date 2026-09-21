@@ -18,6 +18,7 @@ import { useMediaStore } from '@/features/video-studio/stores/media-store';
 import { useProjectStore } from '@/features/video-studio/stores/project-store';
 import { useDirectorStore } from '@/features/video-studio/stores/director-store';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
+import { generateImageWithSelectedProvider } from '@/features/video-studio/lib/ai/qwen-local-provider';
 import { grokVideoProvider } from '@/features/video-studio/lib/ai/grok-video-provider';
 import { resolveSettingsMediaRouting } from '@/features/video-studio/lib/ai/media-routing';
 import { runWithModelFallback } from '@/features/video-studio/autopilot/model-fallback';
@@ -337,7 +338,7 @@ export class AIWorkerBridge {
       const result = payload.kind === 'image'
         ? await (async () => {
           const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('image', payload.model);
-          return (await runWithModelFallback(chain, (model) => googleFlowProvider.generateImage({
+          return (await runWithModelFallback(chain, (model) => generateImageWithSelectedProvider({
             projectId, prompt: payload.prompt, model, aspectRatio: payload.aspectRatio,
             references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
             allowedOwnerScopeIds: accountsFor(model),

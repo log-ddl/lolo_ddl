@@ -29,6 +29,7 @@ import {
   safeMessage,
   type FlowAccountAllowlist,
   type FlowImageInput,
+  type FlowImageUpscaleInput,
   type FlowMediaRefInput,
   type FlowModelChainMap,
   type FlowProjectBindingInfo,
@@ -47,6 +48,7 @@ import {
   downloadVideo,
   readImageSource,
   saveVideoBytes,
+  saveUpscaledImage,
   validateImageInput,
   validateVideoInput,
 } from './media-io';
@@ -71,6 +73,7 @@ import {
 import {
   RPC_GEN_IMAGE,
   RPC_GEN_VIDEO,
+  RPC_GEN_TEXT_VIDEO,
   RPC_GEN_REFERENCE_VIDEO,
   referenceVideoRequest,
   resolveBatchVideoModel,
@@ -78,20 +81,25 @@ import {
   RPC_OPERATION,
   RPC_PROJECT_MEDIA,
   RPC_UPLOAD_IMAGE,
+  RPC_UPSCALE_IMAGE,
   STATUS_DONE,
   findMediaId,
   findMediaIdInText,
   firstPayload,
   imageRequest,
+  imageUpscaleRequest,
+  readUpscaledImage,
   mediaRequest,
   operationRequest,
   projectMediaRequest,
   readImages,
   readMediaUrls,
   readOperation,
+  readTextVideoOperation,
   readUploadedMediaId,
   uploadRequest,
   videoRequest,
+  textVideoRequest,
 } from './flow-batch';
 
 const UPSCALE_MODEL_KEY = 'veo_3_1_upsampler_4k';
@@ -535,6 +543,36 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     }, imageModelKeyFor, input.allowedOwnerScopeIds);
   }
 
+  async upscaleImage(input: FlowImageUpscaleInput): Promise<GenerationResult> {
+    assertRecord(input, 'image upscale payload');
+    assertString(input.projectId, 'projectId', 256);
+    assertString(input.ownerScopeId, 'ownerScopeId', 256);
+    assertString(input.mediaId, 'mediaId', 256);
+    if (!isUuid(input.mediaId)) throw new Error('Invalid Google Flow image media ID');
+    if (input.flowProjectId && !isUuid(input.flowProjectId)) throw new Error('Invalid Google Flow project ID');
+    if (input.resolution !== '2K' && input.resolution !== '4K') throw new Error('Image upscale resolution must be 2K or 4K');
+    const taskId = input.taskId || randomUUID();
+    return this.runOnLane('image', taskId, undefined, async (slot, lane, signal) => {
+      if (input.resolution === '4K' && slot.tier !== 'PAYGATE_TIER_TWO' && !input.ultraOwnerScopeIds?.includes(slot.ownerScopeId)) {
+        throw new Error('Upscale 4K cần tài khoản Google AI Ultra. Tài khoản này có thể upscale 2K.');
+      }
+      const flowProjectId = input.flowProjectId || (await this.ensureProject(input.projectId, slot, signal)).flowProjectId;
+      await this.reserveSubmitWindow(slot.credentialId, 'image', signal);
+      this.emitLaneTask(taskId, 'image', 'submitting', slot, lane, 30);
+      const response = await this.batchRpc(slot, {
+        rpcid: RPC_UPSCALE_IMAGE,
+        freq: imageUpscaleRequest(input.mediaId, input.resolution),
+        captchaAction: 'IMAGE_GENERATION', flowProjectId,
+      }, 150_000, signal);
+      if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+      this.emitLaneTask(taskId, 'image', 'downloading', slot, lane, 90);
+      const localUrl = saveUpscaledImage(this.options.mediaRoot, readUpscaledImage(firstPayload(response, RPC_UPSCALE_IMAGE)));
+      this.emitLaneTask(taskId, 'image', 'completed', slot, lane, 100);
+      return { taskId, provider: 'googleflow', credentialId: slot.credentialId, ownerScopeId: slot.ownerScopeId,
+        accountId: slot.accountId, flowProjectId, mediaId: input.mediaId, localUrl };
+    }, () => `IMAGE_UPSCALE_${input.resolution}`, [input.ownerScopeId]);
+  }
+
   async generateVideo(input: FlowVideoInput): Promise<GenerationResult> {
     validateVideoInput(input);
     const taskId = input.taskId || randomUUID();
@@ -543,7 +581,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
     // model, Omni Flash included. Resolved up here because the model key (and
     // therefore the daily-quota lock key) depends on it — the executor below
     // reuses this exact value.
-    const mode: 'frame' | 'startEnd' | 'reference' = input.references?.length ? 'reference' : input.endImage ? 'startEnd' : 'frame';
+    const mode: 'text' | 'frame' | 'startEnd' | 'reference' = input.references?.length ? 'reference' : input.endImage ? 'startEnd' : input.startImage ? 'frame' : 'text';
     const ultraAccounts = new Set(input.ultraOwnerScopeIds || []);
     const shortVeoDuration = input.duration === 4 || input.duration === 6;
     // The resolved key varies per account: the same request lands on a Fast key
@@ -578,7 +616,6 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         const refs = await Promise.all((input.references || []).slice(0, 3).map((ref) => this.resolveMedia(ref, binding.flowProjectId, slot, signal, reportUpload, forceReupload)));
         const startId = input.startImage ? await this.resolveMedia(input.startImage, binding.flowProjectId, slot, signal, reportUpload, forceReupload) : undefined;
         const endId = input.endImage ? await this.resolveMedia(input.endImage, binding.flowProjectId, slot, signal, reportUpload, forceReupload) : undefined;
-        if (!refs.length && !startId) throw new Error('Google Flow requires a start image or reference images for video generation');
         this.emitLaneTask(taskId, 'video', 'uploading', slot, lane, 18, undefined, 'media_ready');
         const resolvedVideoModel = videoModelKeyFor(slot);
         const endpoint = flowVideoEndpoint(mode);
@@ -605,7 +642,7 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
         // without one for a long time, so it keeps the leaner body.
         if (isOmniFlash) request.outputSpec = { resolution: 'VIDEO_RESOLUTION_720P' };
         if (refs.length) request.referenceImages = refs.map((mediaId) => ({ mediaId, imageUsageType: 'IMAGE_USAGE_TYPE_ASSET' }));
-        else request.startImage = { mediaId: startId };
+        else if (startId) request.startImage = { mediaId: startId };
         if (endId) request.endImage = { mediaId: endId };
         await this.reserveSubmitWindow(slot.credentialId, 'video', signal);
         this.emitLaneTask(taskId, 'video', 'submitting', slot, lane, 20);
@@ -613,7 +650,6 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
           if (this.usesBatchTransport(slot)) {
             // Ingredients has its own captured RPC; never replace refs with First.
             const source = startId || refs[0];
-            if (!source) throw new Error('Batchexecute cần ít nhất một ảnh nguồn để tạo video');
             if (endId) console.warn(`[video-studio][google-flow] ${taskId}: batchexecute chưa có đường nối frame đầu-cuối — bỏ qua frame cuối`);
             batchOperationId = await this.batchSubmitVideo(slot, binding.flowProjectId, {
               prompt: input.prompt,
@@ -1189,29 +1225,32 @@ export class GoogleFlowRuntime extends EventEmitter implements FlowSocketContext
   private async batchSubmitVideo(slot: FlowCredentialSlot, flowProjectId: string, input: {
     ultra?: boolean;
     prompt: string;
-    sourceMediaId: string;
+    sourceMediaId?: string;
     referenceMediaIds?: string[];
     aspectRatio: string;
     model: string;
   }, signal: AbortSignal): Promise<string> {
-    const rpcid = input.referenceMediaIds?.length ? RPC_GEN_REFERENCE_VIDEO : RPC_GEN_VIDEO;
+    const rpcid = input.referenceMediaIds?.length ? RPC_GEN_REFERENCE_VIDEO : input.sourceMediaId ? RPC_GEN_VIDEO : RPC_GEN_TEXT_VIDEO;
     const text = await this.batchRpc(slot, {
       rpcid,
       freq: input.referenceMediaIds?.length ? referenceVideoRequest({
         prompt: input.prompt, projectId: flowProjectId, referenceMediaIds: input.referenceMediaIds,
         aspect: input.aspectRatio, model: input.model,
-      }) : videoRequest({
+      }) : input.sourceMediaId ? videoRequest({
         prompt: input.prompt,
         projectId: flowProjectId,
         sourceMediaId: input.sourceMediaId,
         ultra: input.ultra,
         aspect: input.aspectRatio,
         model: input.model,
+      }) : textVideoRequest({
+        prompt: input.prompt, projectId: flowProjectId, aspect: input.aspectRatio, model: input.model,
       }),
       captchaAction: 'VIDEO_GENERATION',
       flowProjectId,
     }, 120_000, signal);
-    const operation = readOperation(firstPayload(text, rpcid));
+    const payload = firstPayload(text, rpcid);
+    const operation = rpcid === RPC_GEN_TEXT_VIDEO ? readTextVideoOperation(payload) : readOperation(payload);
     if (!operation.operationId) throw new Error('Google Flow batchexecute không trả về operation cho video');
     return operation.operationId;
   }

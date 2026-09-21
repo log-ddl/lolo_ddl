@@ -16,6 +16,7 @@ import { normalizeDelayRange, randomBetween } from '../browser-session/runtime-u
 export type GrokMediaRefInput = { source: string; mediaId?: string };
 export type GrokVideoInput = {
   taskId?: string;
+  preferredCredentialId?: string;
   projectId: string;
   sceneId: string;
   prompt: string;
@@ -213,7 +214,7 @@ export class GrokVideoRuntime extends EventEmitter {
     const attemptedCredentialIds = new Set<string>();
 
     while (true) {
-      const lane = this.selectVideoLane(attemptedCredentialIds);
+      const lane = this.selectVideoLane(attemptedCredentialIds, input.preferredCredentialId);
       try {
         return await this.generateVideoOnLane(input, taskId, lane);
       } catch (error) {
@@ -231,6 +232,7 @@ export class GrokVideoRuntime extends EventEmitter {
         }
         if (!quotaExhausted) throw error;
         this.markQuotaExhausted(lane.credentialId);
+        if (input.preferredCredentialId) throw new Error('Tài khoản Grok đã chọn hết lượt tạo video.');
         attemptedCredentialIds.add(lane.credentialId);
       }
     }
@@ -560,15 +562,22 @@ export class GrokVideoRuntime extends EventEmitter {
     return `local-image://videos/${encodeURIComponent(filename)}`;
   }
 
-  private selectVideoLane(excludedCredentialIds: ReadonlySet<string> = new Set()): VideoLane {
+  private selectVideoLane(excludedCredentialIds: ReadonlySet<string> = new Set(), preferredCredentialId?: string): VideoLane {
     const ready = [...this.connections.values()].filter((connection) => (
       connection.grokReady
       && connection.quotaSeen
       && connection.videoAvailable === true
       && connection.socket.readyState === WebSocket.OPEN
       && !excludedCredentialIds.has(connection.credentialId)
+      && (!preferredCredentialId || connection.credentialId === preferredCredentialId)
     ));
     if (!ready.length) {
+      if (preferredCredentialId) {
+        const selected = this.connections.get(preferredCredentialId);
+        if (!selected || selected.socket.readyState !== WebSocket.OPEN || !selected.grokReady) throw new Error('Tài khoản Grok đã chọn không còn kết nối.');
+        if (!selected.quotaSeen) throw new Error('Đang chờ kiểm tra lượt tạo video của tài khoản Grok đã chọn.');
+        throw new Error('Tài khoản Grok đã chọn hết lượt tạo video.');
+      }
       const pageReady = [...this.connections.values()].filter((connection) => (
         connection.grokReady && connection.socket.readyState === WebSocket.OPEN
       ));
@@ -656,6 +665,7 @@ export class GrokVideoRuntime extends EventEmitter {
     assertString(input.prompt, 'prompt');
     assertString(input.model, 'model', 256);
     assertString(input.aspectRatio, 'aspectRatio', 16);
+    if (input.preferredCredentialId !== undefined) assertString(input.preferredCredentialId, 'preferredCredentialId', 128);
     if (input.startImage) {
       assertRecord(input.startImage, 'startImage');
       assertString(input.startImage.source, 'startImage.source', 30_000_000);

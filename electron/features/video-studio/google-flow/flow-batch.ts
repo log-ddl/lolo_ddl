@@ -29,11 +29,13 @@ export const FLOW_MEDIA_HOST = 'flow-content.google';
 
 export const RPC_GEN_IMAGE = 'ogiZ0b';
 export const RPC_GEN_VIDEO = 'eb1hJf';
+export const RPC_GEN_TEXT_VIDEO = 'YhhmEf';
 export const RPC_GEN_REFERENCE_VIDEO = 'MZZa6b';
 export const RPC_OPERATION = 'jwpduf';
 export const RPC_PROJECT_MEDIA = 'Zzl0ze';
 export const RPC_MEDIA = 'as29s';
 export const RPC_UPLOAD_IMAGE = 'maseQ';
+export const RPC_UPSCALE_IMAGE = 'SPrCad';
 
 /**
  * Replaced with a freshly minted reCAPTCHA token immediately before the request
@@ -97,6 +99,9 @@ export const VIDEO_ASPECT: Record<string, number> = {
  * survives the mapping.
  */
 export const BATCH_VIDEO_MODELS = new Set([
+  'veo_3_1_t2v_lite_low_priority',
+  'veo_3_1_t2v_lite',
+  'veo_3_1_t2v_fast',
   'veo_3_1_i2v_lite_low_priority',
   'veo_3_1_i2v_lite',
   'veo_3_1_i2v_s_fast_ultra',
@@ -142,9 +147,11 @@ export function resolveBatchImageModel(key: string | undefined): string {
 
 export function resolveBatchVideoModel(key: string | undefined, ultra = false): string {
   const value = (key || '').trim();
+  if (/^veo_3_1_t2v_s_(?:lite|fast)_(?:4|6)s(?:_low_priority)?$/.test(value)) return value;
   // Short Veo keys are opt-in for manually marked Ultra accounts only.
   if (ultra && /^veo_3_1_i2v_s_(?:lite|fast)_(?:4|6)s(?:_low_priority|_fl)?$/.test(value)) return value;
   if (/^(?:abra|omni_flash)_/.test(value)) return value;
+  if (BATCH_VIDEO_MODELS.has(value)) return value;
   // Ingredients uses a different RPC; never turn a reference key into I2V.
   if (/^veo_3_1_r2v_/.test(value)) return value;
   if (BATCH_VIDEO_MODELS.has(value)) return value;
@@ -294,8 +301,22 @@ function clientUuid(): string {
 }
 
 /** The surface/project/captcha envelope every generate call repeats. */
-function context(projectId: string): unknown[] {
+function context(projectId: string | null): unknown[] {
   return [null, SURFACE_ID, null, null, null, projectId, null, null, null, null, [CAPTCHA_SLOT, 1]];
+}
+
+/** FlowKit's captured FlowService.UpsampleImage: 2K = 1, 4K = 2. */
+export function imageUpscaleRequest(mediaId: string, resolution: '2K' | '4K'): string {
+  if (resolution !== '2K' && resolution !== '4K') throw new Error('Image upscale resolution must be 2K or 4K');
+  return buildEnvelope(RPC_UPSCALE_IMAGE, [mediaId, resolution === '4K' ? 2 : 1, context(null)]);
+}
+
+export function readUpscaledImage(payload: unknown): string {
+  const encoded = Array.isArray(payload) ? payload[1] : undefined;
+  if (typeof encoded !== 'string' || !encoded.length || encoded.length > 80_000_000) {
+    throw new Error('Google Flow upscale returned no valid image data');
+  }
+  return encoded;
 }
 
 function reference(mediaId: string): unknown[] {
@@ -371,6 +392,18 @@ export function videoRequest(input: {
     [clientUuid(), 2],
   ];
   return buildEnvelope(RPC_GEN_VIDEO, inner);
+}
+
+/** Captured from Flow's text-to-video composer on flow.google.com. */
+export function textVideoRequest(input: {
+  prompt: string; projectId: string; aspect?: string; model: string;
+}): string {
+  return buildEnvelope(RPC_GEN_TEXT_VIDEO, [
+    [[[null, null, [[[input.prompt]]]], resolveBatchVideoModel(input.model),
+      resolveVideoAspect(input.aspect), null,
+      [null, null, null, null, clientUuid(), clientUuid()]]],
+    context(input.projectId), [clientUuid(), 1],
+  ]);
 }
 
 /**
@@ -460,6 +493,16 @@ export function readOperation(payload: unknown): BatchOperation {
     status: typeof record[3] === 'string' ? record[3] : undefined,
     complaint: readOperationComplaint(record),
   };
+}
+
+/** Text-to-video replies wrap the workflow record in the fourth slot. */
+export function readTextVideoOperation(payload: unknown): BatchOperation {
+  const workflowRecords = Array.isArray(payload) && Array.isArray(payload[3]) ? payload[3] : undefined;
+  const workflow = Array.isArray(workflowRecords?.[0]) ? workflowRecords[0][0] : undefined;
+  if (Array.isArray(workflow) && typeof workflow[0] === 'string') {
+    return { operationId: workflow[0], projectId: typeof workflow[1] === 'string' ? workflow[1] : undefined };
+  }
+  return readOperation(payload);
 }
 
 /**

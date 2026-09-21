@@ -168,3 +168,16 @@ export async function upscaleGoogleFlowVideo(input: {
   await syncRuntimeSettings();
   return withCancellation(input.signal, (taskId) => window.googleFlowRuntime!.upscaleVideo({ ...input, taskId }));
 }
+
+export async function upscaleGoogleFlowImage(input: {
+  taskId?: string; projectId: string; mediaId: string; ownerScopeId: string;
+  flowProjectId?: string; resolution: '2K' | '4K'; signal?: AbortSignal;
+}): Promise<GenerationOutput> {
+  if (!window.googleFlowRuntime?.upscaleImage) throw new Error('Hãy mở lại ứng dụng để dùng upscale ảnh');
+  await syncRuntimeSettings();
+  const { signal, ...payload } = input;
+  return withCancellation(signal, (taskId) => window.googleFlowRuntime!.upscaleImage({
+    ...payload, taskId,
+    ultraOwnerScopeIds: useVideoStudioSettingsStore.getState().mediaRouting.ultraOwnerScopeIds || [],
+  }), undefined, input.taskId, { kind: 'image', provider: 'Google Flow', model: `Upscale ${input.resolution}`, details: { resolution: input.resolution } });
+}

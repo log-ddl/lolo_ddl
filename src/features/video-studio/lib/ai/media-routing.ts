@@ -10,6 +10,7 @@
  */
 
 import { getFeatureConfig } from '@/features/video-studio/lib/ai/feature-router';
+import { GROK_VIDEO_MODELS } from '@/features/video-studio/lib/api-key-manager';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { buildAccountRouting, listKnownOwnerScopeIds, type AccountRouting } from '@/features/video-studio/autopilot/account-routing';
 import { buildModelChain } from '@/features/video-studio/autopilot/model-fallback';
@@ -38,11 +39,29 @@ export function googleFlowBoundModel(
   return config?.platform === 'googleflow' ? config.model || undefined : undefined;
 }
 
+export function configuredImageModel(feature: 'character_generation' | 'scene_generation'): string | undefined {
+  const config = getFeatureConfig(feature);
+  return config && (config.platform === 'googleflow' || config.platform === 'qwen-local') ? config.model : undefined;
+}
+
+export function configuredVideoModel(): string | undefined {
+  const config = getFeatureConfig('video_generation');
+  return config && (config.platform === 'googleflow' || config.platform === 'grok') ? config.model : undefined;
+}
+
+export function videoPlatformForModel(model: string): 'googleflow' | 'grok' {
+  return GROK_VIDEO_MODELS.includes(model) ? 'grok' : 'googleflow';
+}
+
 export async function resolveSettingsMediaRouting(
   kind: 'image' | 'video',
   headModel: string,
   pinnedOwnerScopeId?: string,
 ): Promise<SettingsMediaRouting> {
+  if (headModel === 'Qwen/Qwen-Image-2.1') {
+    const routing = buildAccountRouting({ connectedOwnerScopeIds: [], flowAccounts: [], accountVideoModels: {}, accountImageModels: {}, routingMode: 'quality' });
+    return { chain: [headModel], routing, accountsFor: () => undefined, modelChains: {} };
+  }
   const mediaRouting = useVideoStudioSettingsStore.getState().mediaRouting;
   const runtime = window.googleFlowRuntime;
   const routing = buildAccountRouting({

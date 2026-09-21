@@ -45,6 +45,19 @@ contextBridge.exposeInMainWorld('imageStorage', {
     ipcRenderer.invoke('get-absolute-path', localPath),
 })
 
+contextBridge.exposeInMainWorld('qwenImage', {
+  status: () => ipcRenderer.invoke('qwen-image:status'),
+  install: () => ipcRenderer.invoke('qwen-image:install'),
+  remove: () => ipcRenderer.invoke('qwen-image:remove'),
+  generate: (input: { taskId: string; prompt: string; aspectRatio: string; references?: string[] }) => ipcRenderer.invoke('qwen-image:generate', input),
+  cancel: (taskId: string) => ipcRenderer.invoke('qwen-image:cancel', taskId),
+  onEvent: (listener: (event: unknown) => void) => {
+    const wrapped = (_event: unknown, value: unknown) => listener(value)
+    ipcRenderer.on('qwen-image:event', wrapped)
+    return () => ipcRenderer.off('qwen-image:event', wrapped)
+  },
+})
+
 // Watermark removal via Python (poly background fit + OpenCV inpaint)
 contextBridge.exposeInMainWorld('watermarkRemoval', {
   remove: (localPath: string, box?: string) =>
@@ -369,6 +382,7 @@ contextBridge.exposeInMainWorld('googleFlowRuntime', {
   generateImage: (payload: unknown) => ipcRenderer.invoke('google-flow:generate-image', payload),
   generateVideo: (payload: unknown) => ipcRenderer.invoke('google-flow:generate-video', payload),
   upscaleVideo: (payload: unknown) => ipcRenderer.invoke('google-flow:upscale-video', payload),
+  upscaleImage: (payload: unknown) => ipcRenderer.invoke('google-flow:upscale-image', payload),
   cancelTask: (taskId: string) => ipcRenderer.invoke('google-flow:cancel-task', taskId),
   listInAppAccounts: () => ipcRenderer.invoke('google-flow:list-inapp-accounts'),
   addInAppAccount: () => ipcRenderer.invoke('google-flow:add-inapp-account'),

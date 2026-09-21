@@ -3,6 +3,7 @@ import {
   GOOGLE_FLOW_IMAGE_MODELS,
   GOOGLE_FLOW_VIDEO_MODELS,
   GROK_VIDEO_MODELS,
+  QWEN_LOCAL_IMAGE_MODEL,
 } from "@/features/video-studio/lib/api-key-manager";
 import type { IProvider } from "@/features/video-studio/stores/api-config-store";
 
@@ -28,9 +29,10 @@ export function getProviderMediaModels(provider: IProvider, kind: MediaModelKind
   if (provider.platform === 'grok') {
     return kind === 'video' ? GROK_VIDEO_MODELS : [];
   }
+  if (provider.platform === 'qwen-local') return kind === 'image' ? [QWEN_LOCAL_IMAGE_MODEL] : [];
   return [];
 }
 
 export function getProviderDisplayName(provider: { platform: string; name: string }) {
-  return provider.platform === 'googleflow' ? 'Google Flow' : provider.platform === 'grok' ? 'Grok' : provider.name;
+  return provider.platform === 'googleflow' ? 'Google Flow' : provider.platform === 'grok' ? 'Grok' : provider.platform === 'qwen-local' ? 'Qwen Image 2.1 (local)' : provider.name;
 }

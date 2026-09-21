@@ -83,7 +83,7 @@ const FEATURE_DEFAULT_MODEL: Partial<Record<AIFeature, Record<string, string>>> 
 };
 
 function isBrowserRuntimePlatform(platform: string): boolean {
-  return platform === 'googleflow' || platform === 'grok';
+  return platform === 'googleflow' || platform === 'grok' || platform === 'qwen-local';
 }
 
 function getFeatureProviderKeys(provider: IProvider): string[] {

@@ -49,6 +49,14 @@ export type YouTubeProfileState = {
 
 declare global {
   interface Window {
+    qwenImage?: {
+      status: () => Promise<{ installed: boolean; installing: boolean; platform: string; architecture: string; path: string }>;
+      install: () => Promise<{ installed: boolean; installing: boolean; platform: string; architecture: string; path: string }>;
+      remove: () => Promise<{ installed: boolean; installing: boolean; platform: string; architecture: string; path: string }>;
+      generate: (input: { taskId: string; prompt: string; aspectRatio: string; references?: string[] }) => Promise<{ taskId: string; localUrl: string; provider: 'qwen-local' }>;
+      cancel: (taskId: string) => Promise<boolean>;
+      onEvent: (listener: (event: { kind: 'install' | 'generate'; stage: string; percent?: number; message?: string; taskId?: string }) => void) => () => void;
+    };
     ipcRenderer?: {
       on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;
       off: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;
@@ -346,6 +354,7 @@ declare global {
       generateImage: (payload: GoogleFlowGenerateImagePayload) => Promise<GoogleFlowGenerationResult>;
       generateVideo: (payload: GoogleFlowGenerateVideoPayload) => Promise<GoogleFlowGenerationResult>;
       upscaleVideo: (payload: { taskId?: string; projectId: string; sceneId: string; mediaId: string; aspectRatio: string; preferredCredentialId?: string }) => Promise<GoogleFlowGenerationResult>;
+      upscaleImage: (payload: { taskId?: string; projectId: string; mediaId: string; ownerScopeId: string; flowProjectId?: string; resolution: '2K' | '4K'; ultraOwnerScopeIds?: string[] }) => Promise<GoogleFlowGenerationResult>;
       cancelTask: (taskId: string) => Promise<{ cancelled: boolean }>;
       onStatus: (listener: (payload: GoogleFlowStatus) => void) => () => void;
       onTask: (listener: (payload: GoogleFlowTaskEvent) => void) => () => void;

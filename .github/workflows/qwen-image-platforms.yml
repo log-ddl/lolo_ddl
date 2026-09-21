@@ -1,0 +1,45 @@
+name: Qwen image desktop packaging
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/qwen-image-platforms.yml'
+      - 'electron/features/video-studio/qwen-image/**'
+      - 'electron-builder.yml'
+      - 'electron/main.ts'
+      - 'electron/preload.ts'
+      - 'src/features/video-studio/**'
+  workflow_dispatch:
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+            arch: x64
+          - os: macos-14
+            target: mac
+            arch: arm64
+          - os: ubuntu-latest
+            target: linux
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      - run: npx electron-builder --dir --${{ matrix.target }} --${{ matrix.arch }} --publish never --config.win.signAndEditExecutable=false
+      - name: Check packaged worker
+        shell: pwsh
+        run: |
+          $worker = Get-ChildItem -Path release/build -Filter worker.py -Recurse -File | Where-Object { $_.FullName -match 'qwen-image-worker' } | Select-Object -First 1
+          if (-not $worker) { throw 'Qwen Image worker.py missing from desktop package' }

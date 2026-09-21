@@ -8,8 +8,9 @@
  * the job.
  */
 
-import { googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
+import { configuredImageModel, googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
+import { generateImageWithSelectedProvider, imageModelChain as configuredImageChain } from '@/features/video-studio/lib/ai/qwen-local-provider';
 import { resolveFlowProjectBinding } from '@/features/video-studio/autopilot/flow-binding';
 import { useMediaStore } from '@/features/video-studio/stores/media-store';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
@@ -43,25 +44,28 @@ export async function runMediaStage(
   untilPhase: MediaPhase = 'videos',
 ): Promise<PendingShot[]> {
   const runtime = window.googleFlowRuntime;
-  if (!runtime) throw new Error('Google Flow runtime không có sẵn');
-  const resolved = await resolveFlowProjectBinding(runtime, job.projectId);
+  const localImage = (job.input.imageModel || configuredImageModel('character_generation')) === 'Qwen/Qwen-Image-2.1';
+  if (!runtime && (!localImage || untilPhase === 'videos')) throw new Error('Google Flow runtime không có sẵn');
+  const resolved = runtime && (!localImage || untilPhase === 'videos')
+    ? await resolveFlowProjectBinding(runtime, job.projectId)
+    : { flowProjectId: job.projectId || 'default-project', longddProjectId: job.projectId || 'default-project' };
   const flowProjectId = resolved.flowProjectId;
   const longddProjectId = resolved.longddProjectId;
   const aspectRatio = job.input.aspectRatio || DEFAULT_ASPECT_RATIO;
   // Same head the reference images use, so one setting drives every image. A
   // binding on another provider is ignored: this stage only talks to Flow.
-  const imageModel = job.input.imageModel || googleFlowBoundModel('character_generation') || DEFAULT_IMAGE_MODEL;
+  const imageModel = job.input.imageModel || configuredImageModel('character_generation') || DEFAULT_IMAGE_MODEL;
   const videoModel = job.input.videoModel || googleFlowBoundModel('video_generation') || 'Veo_3.1-Fast';
   // Model chain + account allowlist are frozen into the job when it is created, so
   // editing Settings mid-run cannot change what a running job is allowed to use.
   const routing = buildAccountRouting({
-    connectedOwnerScopeIds: await listKnownOwnerScopeIds(runtime),
+    connectedOwnerScopeIds: runtime ? await listKnownOwnerScopeIds(runtime) : [],
     flowAccounts: job.input.flowAccounts,
     accountVideoModels: job.input.accountVideoModels,
     accountImageModels: job.input.accountImageModels,
     routingMode: job.input.routingMode,
   });
-  const imageModelChain = buildModelChain(imageModel, job.input.imageModelFallbacks);
+  const imageModelChain = configuredImageChain(imageModel, job.input.imageModelFallbacks || []);
   const requestedVideoChain = buildModelChain(videoModel, job.input.videoModelFallbacks);
   // A video model no enabled account owns answers 404, which no retry and no
   // account failover can fix — drop it before it eats an attempt.
@@ -271,7 +275,7 @@ export async function runMediaStage(
             // is part of the id so a fallback attempt does not overwrite the record of
             // the model that ran before it.
             item.imageTaskId = `ap-img-${job.id}-${item.shot.index - 1}-m${modelIndex}-try-${attempt}`;
-            return googleFlowProvider.generateImage({
+            return generateImageWithSelectedProvider({
               projectId: longddProjectId,
               sceneId: `autopilot-${job.id}-${item.shot.index - 1}`,
               prompt: `${sceneLine}${identityLine}${researchLine}${item.shot.imagePrompt || ''} ${visualStyleLine}`.trim(),

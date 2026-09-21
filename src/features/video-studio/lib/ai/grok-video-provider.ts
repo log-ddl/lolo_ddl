@@ -23,8 +23,9 @@ async function withCancellation<T extends GenerationOutput>(
   call: (taskId: string) => Promise<T>,
   onSubmitted?: () => void,
   metadata?: Omit<TaskMetadata, 'id' | 'queuedAt' | 'status'>,
+  requestedTaskId?: string,
 ): Promise<T> {
-  const taskId = crypto.randomUUID();
+  const taskId = requestedTaskId || crypto.randomUUID();
   if (metadata) taskMetadata.begin({ ...metadata, id: taskId, queuedAt: Date.now(), status: 'queued' });
   const onAbort = () => { void window.grokVideoRuntime?.cancelTask(taskId); };
   let submitted = false;
@@ -91,6 +92,7 @@ export const grokVideoProvider: MediaGenerationProvider = {
           mode: endImage ? 'start-end' : startImage ? 'start' : 'text',
         },
       },
+      input.taskId,
     );
   },
   async cancel(taskId: string) { await window.grokVideoRuntime?.cancelTask(taskId); },

@@ -11,11 +11,13 @@ import {
 import {
   RPC_GEN_IMAGE,
   RPC_GEN_VIDEO,
+  RPC_GEN_TEXT_VIDEO,
   RPC_GEN_REFERENCE_VIDEO,
   RPC_MEDIA,
   RPC_OPERATION,
   RPC_PROJECT_MEDIA,
   RPC_UPLOAD_IMAGE,
+  RPC_UPSCALE_IMAGE,
 } from './flow-batch';
 import { randomBetween, sleep } from '../browser-session/runtime-utils';
 import { decodeVerifiedMp4, extractFlowOperations, operationStatus } from './result-parser';
@@ -33,7 +35,7 @@ import { safeMessage, type Lane, type PendingRequest, type SocketState } from '.
 
 /** The only batchexecute RPCs this app issues. Anything else is refused up front. */
 const KNOWN_FLOW_RPC_IDS = new Set<string>([
-  RPC_GEN_IMAGE, RPC_GEN_VIDEO, RPC_GEN_REFERENCE_VIDEO, RPC_OPERATION, RPC_PROJECT_MEDIA, RPC_MEDIA, RPC_UPLOAD_IMAGE,
+  RPC_GEN_IMAGE, RPC_GEN_VIDEO, RPC_GEN_TEXT_VIDEO, RPC_GEN_REFERENCE_VIDEO, RPC_OPERATION, RPC_PROJECT_MEDIA, RPC_MEDIA, RPC_UPLOAD_IMAGE, RPC_UPSCALE_IMAGE,
 ]);
 
 export interface FlowSocketContext {

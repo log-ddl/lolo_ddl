@@ -231,7 +231,7 @@ export async function generateStoryboardImage(
   }
 
   // Validate API key
-  if (!apiKey) {
+  if (!apiKey && config.provider !== 'googleflow' && config.provider !== 'qwen-local') {
     throw new Error('Configure an API key in Settings first');
   }
 
@@ -251,6 +251,7 @@ export async function generateStoryboardImage(
 
   // Use submitGridImageRequest for smart routing (auto-detects chat/completions vs images/generations)
   const apiResult = await submitGridImageRequest({
+    platform: config.provider,
     model,
     prompt,
     apiKey,

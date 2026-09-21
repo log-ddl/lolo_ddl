@@ -114,7 +114,7 @@ export function useImageGeneration(deps: ImageGenerationDeps): ImageGeneration {
 
     const keyManager = featureConfig.keyManager;
     const apiKey = keyManager.getCurrentKey() || featureConfig.apiKey || '';
-    if (!apiKey && featureConfig.platform !== 'googleflow') {
+    if (!apiKey && featureConfig.platform !== 'googleflow' && featureConfig.platform !== 'qwen-local') {
       toast.error(t("director.configureImageMapping"));
       return;
     }
@@ -472,7 +472,9 @@ export function useImageGeneration(deps: ImageGenerationDeps): ImageGeneration {
             },
           },
           async () => {
-            const timeoutMs = randomBetween(flowSettings.imageTimeoutMinMs, flowSettings.imageTimeoutMaxMs);
+            const timeoutMs = imageFeatureConfig?.platform === 'qwen-local'
+              ? 30 * 60_000
+              : randomBetween(flowSettings.imageTimeoutMinMs, flowSettings.imageTimeoutMaxMs);
             const timeout = createTimeoutSignal(batchController.signal, timeoutMs);
             try {
               await handleGenerateSingleImage(scene.id, {

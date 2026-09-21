@@ -5,6 +5,7 @@
  */
 
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
+import { generateImageWithSelectedProvider, imageModelChain as configuredImageChain } from '@/features/video-studio/lib/ai/qwen-local-provider';
 import { resolveFlowProjectBinding } from '@/features/video-studio/autopilot/flow-binding';
 import { useMediaStore } from '@/features/video-studio/stores/media-store';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
@@ -12,7 +13,7 @@ import { saveImageToLocal, saveVideoToLocal } from '@/features/video-studio/lib/
 import { stripFlowErrorCode } from '@/features/video-studio/lib/ai/google-flow-errors';
 import { DEFAULT_ASPECT_RATIO, DEFAULT_IMAGE_MODEL, safeFileName } from '../prompts';
 import { buildModelChain, runWithModelFallback } from '../model-fallback';
-import { googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
+import { configuredImageModel, googleFlowBoundModel } from '@/features/video-studio/lib/ai/media-routing';
 import { buildAccountRouting, listKnownOwnerScopeIds } from '../account-routing';
 import type { AutopilotJob } from '../types';
 import { MAX_IMAGE_REFERENCE_SLOTS, runGenerationWithRetries, type CharacterReference, type EngineContext } from '../engine-shared';
@@ -40,7 +41,7 @@ export async function runSingleShotRegeneration(
     const flowProjectId = resolved.flowProjectId;
     const longddProjectId = resolved.longddProjectId;
     const aspectRatio = job.input.aspectRatio || DEFAULT_ASPECT_RATIO;
-    const imageModel = job.input.imageModel || googleFlowBoundModel('character_generation') || DEFAULT_IMAGE_MODEL;
+    const imageModel = job.input.imageModel || configuredImageModel('character_generation') || DEFAULT_IMAGE_MODEL;
     const videoModel = job.input.videoModel || googleFlowBoundModel('video_generation') || 'Veo_3.1-Fast';
     const routing = buildAccountRouting({
       connectedOwnerScopeIds: await listKnownOwnerScopeIds(runtime),
@@ -49,7 +50,7 @@ export async function runSingleShotRegeneration(
       accountImageModels: job.input.accountImageModels,
       routingMode: job.input.routingMode,
     });
-    const imageModelChain = buildModelChain(imageModel, job.input.imageModelFallbacks);
+    const imageModelChain = configuredImageChain(imageModel, job.input.imageModelFallbacks || []);
     // Models no enabled account owns would only answer 404 — routed around, same
     // as in the media stage, so a regenerate behaves like the run it repairs.
     const videoModelChain = routing.filterVideoChain(buildModelChain(videoModel, job.input.videoModelFallbacks));
@@ -112,7 +113,7 @@ export async function runSingleShotRegeneration(
           retryAttempts, signal,
           (attempt) => {
             mediaOutput.imageTaskId = `ap-img-${job.id}-${shot.index - 1}-regen-m${modelIndex}-${attempt}`;
-            return googleFlowProvider.generateImage({
+            return generateImageWithSelectedProvider({
               projectId: longddProjectId,
               sceneId: `autopilot-${job.id}-${shot.index - 1}`,
               prompt: `${sceneLine}${identityLine}${researchLine}${shot.imagePrompt || ''} ${visualStyleLine}`.trim(),

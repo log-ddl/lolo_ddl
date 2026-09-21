@@ -42,7 +42,6 @@ async function main() {
     const runtime = setup(auth);
     runtime.runOnLane = () => { throw new Error('should not select an account'); };
     const video = { projectId: 'project', sceneId: 'scene', prompt: 'animate', model: 'Gemini_Omni_Flash', aspectRatio: '16:9' };
-    await assert.rejects(runtime.generateVideo(video), /requires a start image/);
     await assert.rejects(runtime.generateVideo({ ...video, endImage: ref }), /requires a start image/);
 
     const results = await Promise.all([runtime.resolveMedia(ref, 'project', slot, signal), runtime.resolveMedia(ref, 'project', slot, signal)]);
@@ -87,6 +86,14 @@ async function main() {
     assert.equal(cachedVideo.restCalls, 1);
     assert.equal(cachedVideo.batchCalls, 1, 'submit fallback is bounded on the same account');
     assert.equal(cachedReads, 2);
+    cachedVideo.batchSubmitVideo = async (_slot, _project, input) => {
+      assert.equal(input.model, 'abra_t2v_4s');
+      assert.equal(input.sourceMediaId, undefined);
+      assert.equal(input.referenceMediaIds, undefined);
+      throw new Error('test text submission');
+    };
+    await assert.rejects(cachedVideo.generateVideo({ ...video, duration: 4 }), /test text submission/);
+    assert.equal(cachedReads, 2, 'text-to-video uploads no media');
     // The model used for lane/quota selection must match the key sent to batch.
     let selectedKey;
     cachedVideo.runOnLane = async (_kind, _task, _preferred, executor, modelKeyFor, _allowed, eligible) => {

@@ -55,6 +55,16 @@ export type FlowVideoInput = {
   modelChainByOwnerScope?: FlowModelChainMap;
 };
 
+export type FlowImageUpscaleInput = {
+  taskId?: string;
+  projectId: string;
+  mediaId: string;
+  ownerScopeId: string;
+  flowProjectId?: string;
+  resolution: '2K' | '4K';
+  ultraOwnerScopeIds?: string[];
+};
+
 export type ProjectBinding = {
   longddProjectId: string; flowProjectId: string; ownerScopeId: string; accountId?: string;
   lastCredentialId: string; createdAt: number; lastVerifiedAt: number; title?: string; active?: boolean;

@@ -10,12 +10,13 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, ImageIcon, TypeIcon, VideoIcon } from "lucide-react";
+import { Download, ImageIcon, Maximize2, TypeIcon, VideoIcon } from "lucide-react";
 import { CANVAS_NODE_KINDS, NODE_SPECS, kindsAccepting, type CanvasNodeKind, type PortType } from "@/features/video-studio/canvas/types";
 import { useI18n } from "@/shared/i18n";
 import { cn } from "@/shared/lib/utils";
 
 const KIND_ICONS: Record<CanvasNodeKind, typeof ImageIcon> = {
+  imageUpscale: Maximize2,
   ai: TypeIcon,
   output: Download,
   reference: ImageIcon, list: TypeIcon, router: TypeIcon, selectResult: ImageIcon, imageEdit: ImageIcon,
@@ -29,6 +30,7 @@ const KIND_ICONS: Record<CanvasNodeKind, typeof ImageIcon> = {
 };
 
 const KIND_COLORS: Record<CanvasNodeKind, string> = {
+  imageUpscale: "text-blue-500",
   ai: "text-violet-500",
   output: "text-emerald-500",
   reference: "text-amber-500", list: "text-violet-500", router: "text-violet-500", selectResult: "text-blue-500", imageEdit: "text-blue-500",

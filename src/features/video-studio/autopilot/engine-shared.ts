@@ -20,6 +20,7 @@ import {
   buildLaneWorkers,
   resolveLaneCount,
   runLaneQueue,
+  runOrdered,
   syncRuntimeLaneSettings,
   withRetry,
 } from '@/features/video-studio/lib/ai/lane-manager';
@@ -294,6 +295,10 @@ export async function runGoogleFlowQueueOrdered<T, R>(
   runItem: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
   if (items.length === 0) return [];
+  if (kind === 'image' && (job.input.imageModel || getFeatureConfig('character_generation')?.model) === 'Qwen/Qwen-Image-2.1') {
+    ctx.log(job.id, stage, 'Queue ảnh Qwen local: 1 tác vụ GPU mỗi lần');
+    return runOrdered(items, 1, runItem, signal);
+  }
   await syncRuntimeLaneSettings();
   const laneCount = await resolveLaneCount(kind, 'googleflow', job.input.flowAccounts);
   ctx.log(job.id, stage, `Queue ${kind === 'image' ? 'ảnh' : 'video'} dùng chung với Đạo diễn: ${laneCount} lane`);

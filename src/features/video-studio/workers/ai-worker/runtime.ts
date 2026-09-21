@@ -103,7 +103,7 @@ export function requestDesktopRuntime(kind: 'image' | 'video', payload: Record<s
       if (!pendingRuntimeRequests.has(requestId)) return;
       pendingRuntimeRequests.delete(requestId);
       reject(new Error('Desktop browser runtime request timed out'));
-    }, kind === 'video' ? 480_000 : 240_000);
+    }, kind === 'video' ? 480_000 : payload.provider === 'qwen-local' ? 30 * 60_000 : 240_000);
   });
 }
 

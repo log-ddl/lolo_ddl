@@ -3,7 +3,7 @@
  */
 const FLOW_PAGE_PATTERNS = ['https://flow.google.com/*'];
 const FLOW_PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const FLOW_BATCH_RPCS = new Set(['ogiZ0b', 'eb1hJf', 'MZZa6b', 'YhhmEf', 'jwpduf', 'Zzl0ze', 'as29s', 'maseQ']);
+const FLOW_BATCH_RPCS = new Set(['ogiZ0b', 'eb1hJf', 'MZZa6b', 'YhhmEf', 'jwpduf', 'Zzl0ze', 'as29s', 'maseQ', 'SPrCad']);
 let flowPageTail = Promise.resolve();
 
 // Serialize page preparation so simultaneous lanes reuse the same project tab.

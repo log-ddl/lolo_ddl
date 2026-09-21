@@ -108,7 +108,7 @@ export function AutopilotPanel() {
     // another provider must not seed the chain with a model Flow cannot run.
     const imageBinding = getFeatureConfig("character_generation");
     const videoBinding = getFeatureConfig("video_generation");
-    const imageHead = (imageBinding?.platform === "googleflow" && imageBinding.model) || DEFAULT_IMAGE_MODEL;
+    const imageHead = ((imageBinding?.platform === "googleflow" || imageBinding?.platform === "qwen-local") && imageBinding.model) || DEFAULT_IMAGE_MODEL;
     const videoHead = (videoBinding?.platform === "googleflow" && videoBinding.model) || "Veo_3.1-Fast";
     return {
       imageModel: imageHead,
@@ -449,7 +449,7 @@ export function AutopilotPanel() {
             {showVoiceSettings && <VoiceEnginePicker settings={voice} t={t} />}
             {showVoiceSettings && <VoiceEngineSettings settings={voice} t={t} />}
 
-            {advancedExpanded && <MediaRoutingPicker value={mediaRouting} onChange={setMediaRouting} />}
+            {advancedExpanded && <MediaRoutingPicker value={mediaRouting} onChange={setMediaRouting} imageModels={mediaRouting.imageModel === 'Qwen/Qwen-Image-2.1' ? ['Qwen/Qwen-Image-2.1'] : undefined} />}
 
             {advancedExpanded && (
               <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">

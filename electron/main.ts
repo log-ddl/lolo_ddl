@@ -31,6 +31,7 @@ import { cancelAllTtsJobs } from './features/tts-voice/omnivoice-runtime'
 import { closeResearchDatabase, registerResearchDatabaseIpc } from './features/research-monitor/database'
 import { autoUpdateYtDlp, cancelAllMediaToolkitJobs, registerMediaToolkitIpc } from './features/media-toolkit/runtime'
 import { registerWatermarkIpc } from './features/video-studio/watermark-runtime'
+import { cancelAllQwenJobs, registerQwenImageIpc } from './features/video-studio/qwen-image/runtime'
 import { registerContentWorkspaceIpc } from './features/content-chat/workspace-runtime'
 import { closeContentMcpGateway, registerContentMcpGateway } from './features/content-chat/mcp/gateway'
 
@@ -74,6 +75,7 @@ registerCliRuntimeIpc()
 registerFFmpegIpc()
 registerWhisperIpc()
 registerTtsIpc()
+registerQwenImageIpc()
 registerRenderIpc()
 registerAutopilotIpc()
 registerFileExportIpc()
@@ -102,6 +104,7 @@ app.on('before-quit', (event) => {
   cancelAllFFmpeg()
   cancelAllTranscribes()
   cancelAllTtsJobs()
+  cancelAllQwenJobs()
   cancelAllRenders()
   cancelAllMediaToolkitJobs()
   closeResearchDatabase()

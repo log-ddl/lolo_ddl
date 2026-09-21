@@ -1,6 +1,7 @@
 "use client";
 
 import { connectedMentionNodes } from '@/features/video-studio/canvas/mentions';
+import { findUpscaleSource } from '@/features/video-studio/canvas/image-upscale';
 
 import { groupPorts, expandConnection } from "@/features/video-studio/canvas/group-ports";
 import { arrangeNodes } from "@/features/video-studio/canvas/layout";
@@ -37,7 +38,7 @@ import { LayoutGrid, Square, Sparkles, Group, Ungroup, Undo2, Redo2, ChevronLeft
 import { toast } from "sonner";
 import { useCanvasStore } from "@/features/video-studio/canvas/canvas-store";
 import { canConnect, resolveInputs, nodeCandidates, nodeValues } from "@/features/video-studio/canvas/graph";
-import { cancelNode, cancelSpace, runNodes, EMPTY_PROMPT, runNode, runSpace } from "@/features/video-studio/canvas/runner";
+import { cancelNode, cancelSpace, runNodes, EMPTY_PROMPT, runNode, runSpace, upscaleNodeImage } from "@/features/video-studio/canvas/runner";
 import { NODE_SPECS, nodeSpec, isGenerator, outputTypeOf, type CanvasNodeKind, type CanvasNodeState, type CanvasEdgeState, type PortType } from "@/features/video-studio/canvas/types";
 import { saveBlobToBrowserStorage } from "@/features/video-studio/lib/browser-image-storage";
 import { saveImageToLocal } from "@/features/video-studio/lib/image-storage";
@@ -271,6 +272,9 @@ function SpaceEditor({ spaceId }: { spaceId: string }) {
           selected: selected.has(node.id),
           data: {
             state: node,
+            upscaleSources: node.kind === 'imageUpscale' ? space.edges.filter((edge) => edge.target === node.id)
+              .flatMap((edge) => nodeValues(space.nodes, space.edges, edge.source))
+              .flatMap((url) => { const source = findUpscaleSource(space.nodes, url); return source ? [source] : []; }) : undefined,
             mentionOptions: connectedMentionNodes(space.nodes, space.edges, node.id).map((source) => ({ id: source.id, label: source.name || `${t(NODE_SPECS[source.kind].labelKey)} #${source.index}` })),
             groupPorts: node.kind === "group" ? groupPorts(space, node.id).map((port) => { const member = space.nodes.find((n) => n.id === port.nodeId)!; return { ...port, label: member.name || `${t(NODE_SPECS[member.kind].labelKey)} #${member.index}` }; }) : undefined,
             onExtractFrame: async (blob) => {
@@ -298,6 +302,7 @@ function SpaceEditor({ spaceId }: { spaceId: string }) {
             onUpload: (files) => void attach(node.id, files),
             onRemoveRef: (path) => store.removeRef(spaceId, node.id, path),
             onRun: () => void run(node.id),
+            onUpscaleImage: (resolution, download) => upscaleNodeImage(spaceId, node.id, resolution, download),
             onCancel: () => cancelNode(node.id),
             onSelectOutput: (output) => store.selectOutput(spaceId, node.id, output),
             onDuplicate: () => store.duplicateNode(spaceId, node.id),

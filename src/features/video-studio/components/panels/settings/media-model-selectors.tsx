@@ -8,9 +8,10 @@
  * what is on screen.
  */
 
-import { useCallback, useEffect, useMemo } from "react";
-import { Zap } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Download, Trash2, Zap } from "lucide-react";
 import { Label } from "@/shared/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { useAPIConfigStore, type AIFeature, type IProvider } from "@/features/video-studio/stores/api-config-store";
 import { useVideoStudioSettingsStore } from "@/features/video-studio/stores/video-studio-settings-store";
@@ -20,30 +21,61 @@ import { getProviderDisplayName, getProviderMediaModels, type MediaModelKind } f
 type MediaSelection = { provider: IProvider; model: string } | null;
 
 export function MediaModelSelectors() {
-  const { providers, setFeatureBindings, getFeatureBindings } = useAPIConfigStore();
+  const { providers, addProvider, setFeatureBindings, getFeatureBindings } = useAPIConfigStore();
+  const [qwenStatus, setQwenStatus] = useState<{ installed: boolean; installing: boolean; path: string } | null>(null);
+  const [qwenBusy, setQwenBusy] = useState(false);
+  const [qwenProgress, setQwenProgress] = useState('');
+  const [qwenError, setQwenError] = useState('');
   const mediaRouting = useVideoStudioSettingsStore((state) => state.mediaRouting);
   const setMediaRouting = useVideoStudioSettingsStore((state) => state.setMediaRouting);
 
   const mediaProviders = useMemo(
-    () => providers.filter((provider) => ['googleflow', 'grok'].includes(provider.platform)),
-    [providers],
+    () => providers.filter((provider) => ['googleflow', 'grok'].includes(provider.platform) || (provider.platform === 'qwen-local' && qwenStatus?.installed)),
+    [providers, qwenStatus?.installed],
   );
 
+  useEffect(() => {
+    void window.qwenImage?.status().then(setQwenStatus).catch((error) => setQwenError(String(error)));
+    return window.qwenImage?.onEvent((event) => {
+      if (event.kind === 'install') {
+        setQwenProgress(`${event.percent ?? 0}% · ${event.message || event.stage}`);
+        if (event.stage === 'ready') void window.qwenImage?.status().then(setQwenStatus);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (qwenStatus?.installed && !providers.some((provider) => provider.platform === 'qwen-local')) {
+      addProvider({ platform: 'qwen-local', name: 'Qwen Image 2.1 (local)', baseUrl: 'local://qwen-image-2.1', apiKey: '', model: ['Qwen/Qwen-Image-2.1'], capabilities: ['image_generation'] });
+    }
+  }, [qwenStatus?.installed, providers, addProvider]);
+
+  const changeQwenInstall = async (remove: boolean) => {
+    if (!window.qwenImage) return;
+    setQwenBusy(true);
+    setQwenError('');
+    try {
+      setQwenStatus(remove ? await window.qwenImage.remove() : await window.qwenImage.install());
+      if (remove) setQwenProgress('');
+    } catch (error) { setQwenError(error instanceof Error ? error.message : String(error)); }
+    finally { setQwenBusy(false); }
+  };
   const getMediaSelection = useCallback((feature: AIFeature, kind: MediaModelKind): MediaSelection => {
+    const eligibleProviders = mediaProviders.filter((provider) => getProviderMediaModels(provider, kind).length > 0);
     const bindings = getFeatureBindings(feature);
     for (const binding of bindings) {
       const separator = binding.indexOf(':');
       if (separator <= 0) continue;
       const providerIdOrPlatform = binding.slice(0, separator);
       const model = binding.slice(separator + 1);
-      const provider = mediaProviders.find((item) => item.id === providerIdOrPlatform)
-        || mediaProviders.find((item) => item.platform === providerIdOrPlatform);
+      const provider = eligibleProviders.find((item) => item.id === providerIdOrPlatform)
+        || eligibleProviders.find((item) => item.platform === providerIdOrPlatform);
       if (provider && getProviderMediaModels(provider, kind).includes(model)) {
         return { provider, model };
       }
     }
 
-    const fallbackProvider = mediaProviders[0];
+    const fallbackProvider = eligibleProviders[0];
     const fallbackModels = fallbackProvider ? getProviderMediaModels(fallbackProvider, kind) : [];
     const fallbackModel = fallbackModels[0] || '';
     return fallbackProvider ? { provider: fallbackProvider, model: fallbackModel } : null;
@@ -103,6 +135,17 @@ export function MediaModelSelectors() {
         </p>
       </div>
 
+      <div className="space-y-2 rounded-lg border border-border/60 p-4">
+        <div className="font-medium text-sm">Qwen Image 2.1 · chạy trên máy</div>
+        <p className="text-xs text-muted-foreground">Tải riêng Python, PyTorch và trọng số model (~31 GiB) vào dữ liệu ứng dụng; cần khoảng 50 GiB trống khi cài. Cần GPU NVIDIA CUDA hoặc Apple Silicon. Ảnh được xử lý local.</p>
+        <p className="text-xs text-muted-foreground">Model dùng Qwen Research License: mục đích thương mại cần giấy phép riêng từ Qwen.</p>
+        {qwenStatus?.installed ? (
+          <div className="flex items-center gap-2"><span className="text-xs text-green-600">Đã cài · có thể chọn ở mục Tạo ảnh</span><Button variant="outline" size="sm" disabled={qwenBusy} onClick={() => void changeQwenInstall(true)}><Trash2 className="mr-1 h-3 w-3" />Gỡ model</Button></div>
+        ) : <Button variant="outline" size="sm" disabled={qwenBusy || qwenStatus?.installing || !window.qwenImage} onClick={() => void changeQwenInstall(false)}><Download className="mr-1 h-3 w-3" />{qwenBusy || qwenStatus?.installing ? 'Đang tải...' : 'Tải Qwen Image 2.1'}</Button>}
+        {qwenProgress && <p className="text-xs text-muted-foreground">{qwenProgress}</p>}
+        {qwenError && <p className="text-xs text-red-600">{qwenError}</p>}
+      </div>
+
       {mediaProviders.length === 0 ? (
         <p className="text-xs text-amber-600">
           Hãy kết nối Google Flow hoặc Grok trước để chọn mô hình.
@@ -120,7 +163,7 @@ export function MediaModelSelectors() {
                   <SelectValue placeholder="Chọn nhà cung cấp tạo ảnh" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mediaProviders.map((provider) => (
+                  {mediaProviders.filter((provider) => getProviderMediaModels(provider, 'image').length).map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>{getProviderDisplayName(provider)}</SelectItem>
                   ))}
                 </SelectContent>
@@ -145,7 +188,7 @@ export function MediaModelSelectors() {
                   <SelectValue placeholder="Chọn nhà cung cấp tạo video" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mediaProviders.map((provider) => (
+                  {mediaProviders.filter((provider) => getProviderMediaModels(provider, 'video').length).map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>{getProviderDisplayName(provider)}</SelectItem>
                   ))}
                 </SelectContent>

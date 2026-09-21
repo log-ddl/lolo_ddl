@@ -17,13 +17,14 @@ export const GOOGLE_FLOW_IMAGE_MODELS: Record<string, string> = {
 // FlowKit's reference-to-video mapping, so the mode is no longer rejected.
 const OMNI_FLASH_DURATIONS = new Set([4, 6, 8, 10]);
 
-function omniFlashModel(mode: 'frame' | 'startEnd' | 'reference', duration: number | undefined): string {
+function omniFlashModel(mode: 'text' | 'frame' | 'startEnd' | 'reference', duration: number | undefined): string {
   const seconds = duration && OMNI_FLASH_DURATIONS.has(duration) ? duration : 8;
-  return `abra_${mode === 'reference' ? 'r2v' : 'i2v'}_${seconds}s`;
+  return `abra_${mode === 'text' ? 't2v' : mode === 'reference' ? 'r2v' : 'i2v'}_${seconds}s`;
 }
 
 const VIDEO_MODELS = {
   LITE_LOW_PRIORITY: {
+    text: { 4: 'veo_3_1_t2v_s_lite_4s_low_priority', 6: 'veo_3_1_t2v_s_lite_6s_low_priority', 8: 'veo_3_1_t2v_lite_low_priority' },
     frame: {
       4: 'veo_3_1_i2v_s_lite_4s_low_priority',
       6: 'veo_3_1_i2v_s_lite_6s_low_priority',
@@ -37,6 +38,7 @@ const VIDEO_MODELS = {
     reference: { landscape: 'veo_3_1_r2v_fast_landscape_ultra_relaxed', portrait: 'veo_3_1_r2v_fast_landscape_ultra_relaxed' },
   },
   FAST: {
+    text: { 4: 'veo_3_1_t2v_s_fast_4s', 6: 'veo_3_1_t2v_s_fast_6s', 8: 'veo_3_1_t2v_fast' },
     frame: {
       4: 'veo_3_1_i2v_s_fast_4s',
       6: 'veo_3_1_i2v_s_fast_6s',
@@ -50,6 +52,7 @@ const VIDEO_MODELS = {
     reference: { landscape: 'veo_3_1_r2v_fast', portrait: 'veo_3_1_r2v_fast_portrait' },
   },
   LITE: {
+    text: { 4: 'veo_3_1_t2v_s_lite_4s', 6: 'veo_3_1_t2v_s_lite_6s', 8: 'veo_3_1_t2v_lite' },
     frame: {
       4: 'veo_3_1_i2v_s_lite_4s',
       6: 'veo_3_1_i2v_s_lite_6s',
@@ -136,7 +139,8 @@ export function flowVideoRatio(ratio: string): 'VIDEO_ASPECT_RATIO_LANDSCAPE' | 
 }
 
 /** Endpoint serving each generation mode. */
-export function flowVideoEndpoint(mode: 'frame' | 'startEnd' | 'reference'): string {
+export function flowVideoEndpoint(mode: 'text' | 'frame' | 'startEnd' | 'reference'): string {
+  if (mode === 'text') return '/v1/video:batchAsyncGenerateVideoText';
   if (mode === 'reference') return '/v1/video:batchAsyncGenerateVideoReferenceImages';
   if (mode === 'startEnd') return '/v1/video:batchAsyncGenerateVideoStartAndEndImage';
   return '/v1/video:batchAsyncGenerateVideoStartImage';
@@ -144,7 +148,7 @@ export function flowVideoEndpoint(mode: 'frame' | 'startEnd' | 'reference'): str
 
 export function resolveFlowVideoModel(
   tier: string | undefined,
-  mode: 'frame' | 'startEnd' | 'reference',
+  mode: 'text' | 'frame' | 'startEnd' | 'reference',
   ratio: string,
   requestedModel?: string,
   requestedDuration?: number,

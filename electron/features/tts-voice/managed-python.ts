@@ -22,7 +22,7 @@ function uvRoot() { return path.join(managedRoot(), 'uv') }
 function pythonRoot() { return path.join(managedRoot(), 'python') }
 function cacheRoot() { return path.join(managedRoot(), 'cache') }
 
-function run(command: string, args: string[], env?: NodeJS.ProcessEnv) {
+function run(command: string, args: string[], env?: Record<string, string>) {
   return new Promise<{ ok: boolean; output: string }>((resolve) => {
     let output = ''
     let settled = false
@@ -77,8 +77,22 @@ function findFile(root: string, filename: string): string | null {
 }
 
 function findManagedPython() {
-  return findFile(pythonRoot(), process.platform === 'win32' ? 'python.exe' : 'python3.12')
-    || findFile(pythonRoot(), process.platform === 'win32' ? 'python.exe' : 'python3')
+  const root = pythonRoot()
+  if (!fs.existsSync(root)) return null
+  // uv installs one directory per CPython build. Search only its executable
+  // location: a recursive search can pick up Lib/venv/scripts/nt/python.exe,
+  // which is a venv template and fails with "No pyvenv.cfg file".
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith('cpython-3.12')) continue
+    const install = path.join(root, entry.name)
+    const candidates = process.platform === 'win32'
+      ? [path.join(install, 'python.exe')]
+      : [path.join(install, 'bin', 'python3.12'), path.join(install, 'bin', 'python3')]
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate
+    }
+  }
+  return null
 }
 
 async function ensureUv(progress: Progress) {
@@ -109,7 +123,10 @@ async function ensureUv(progress: Progress) {
 
 export async function ensureManagedPython(progress: Progress): Promise<string> {
   const existing = findManagedPython()
-  if (existing) return existing
+  if (existing) {
+    const verified = await run(existing, ['-c', 'import sys; assert sys.version_info[:2] == (3, 12); print(sys.version)'])
+    if (verified.ok) return existing
+  }
   const uv = await ensureUv(progress)
   fs.mkdirSync(pythonRoot(), { recursive: true })
   fs.mkdirSync(cacheRoot(), { recursive: true })
@@ -124,7 +141,7 @@ export async function ensureManagedPython(progress: Progress): Promise<string> {
   const executable = findManagedPython()
   if (!executable) throw new Error('Đã tải Python 3.12 nhưng không tìm thấy interpreter')
   const verified = await run(executable, ['-c', 'import sys; assert sys.version_info[:2] == (3, 12); print(sys.version)'])
-  if (!verified.ok) throw new Error('Python runtime tải về không hợp lệ')
+  if (!verified.ok) throw new Error(`Python runtime tải về không hợp lệ: ${verified.output.trim() || 'không khởi động được'}`)
   progress('runtime.python.install', 9, 'Python 3.12 đã sẵn sàng')
   return executable
 }

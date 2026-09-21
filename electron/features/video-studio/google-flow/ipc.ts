@@ -7,7 +7,7 @@ const PREFIX = 'google-flow';
 
 const CHANNELS = [
   'google-flow:get-status', 'google-flow:list-credentials', 'google-flow:get-capacity',
-  'google-flow:open-flow', 'google-flow:update-settings', 'google-flow:generate-image', 'google-flow:generate-video', 'google-flow:upscale-video', 'google-flow:cancel-task',
+  'google-flow:open-flow', 'google-flow:update-settings', 'google-flow:generate-image', 'google-flow:generate-video', 'google-flow:upscale-video', 'google-flow:upscale-image', 'google-flow:cancel-task',
   'google-flow:list-project-bindings', 'google-flow:create-project-binding', 'google-flow:activate-project-binding',
   'google-flow:sync-references', 'google-flow:clear-quota-locks',
   'google-flow:list-inapp-accounts', 'google-flow:add-inapp-account', 'google-flow:remove-inapp-account', 'google-flow:show-inapp-account',
@@ -42,6 +42,7 @@ export function registerGoogleFlowIpc(runtime: GoogleFlowRuntime, accountManager
   ipcMain.handle('google-flow:update-settings', (_event, payload) => runtime.updateSettings(payload));
   ipcMain.handle('google-flow:generate-video', (_event, payload: FlowVideoInput) => runtime.generateVideo(payload));
   ipcMain.handle('google-flow:upscale-video', (_event, payload) => runtime.upscaleVideo(payload));
+  ipcMain.handle('google-flow:upscale-image', (_event, payload) => runtime.upscaleImage(payload));
   ipcMain.handle('google-flow:cancel-task', (_event, taskId: string) => ({ cancelled: runtime.cancelTask(taskId) }));
   return bridgeRuntimeEvents(PREFIX, runtime, CHANNELS);
 }
