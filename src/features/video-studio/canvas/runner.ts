@@ -183,6 +183,7 @@ async function generateVideo(input: {
     accountOwnerScopeId: input.node.accountOwnerScopeId,
     preferredCredentialId: platform === 'grok' ? input.node.grokCredentialId : undefined,
     length: videoDuration(model, input.node.videoDuration),
+    resolution: input.node.videoResolution || '720p',
     taskId: input.taskId,
     projectId: input.spaceId,
     sceneId: input.node.id,

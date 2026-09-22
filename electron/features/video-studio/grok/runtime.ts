@@ -23,6 +23,7 @@ export type GrokVideoInput = {
   model: string;
   aspectRatio: string;
   duration?: number;
+  resolution?: '480p' | '720p' | '1080p';
   startImage?: GrokMediaRefInput;
   endImage?: GrokMediaRefInput;
 };
@@ -306,6 +307,7 @@ export class GrokVideoRuntime extends EventEmitter {
           model: input.model,
           aspectRatio: input.aspectRatio,
           duration: input.duration,
+          resolution: input.resolution || '720p',
           startImage: input.startImage,
           endImage: input.endImage,
         },

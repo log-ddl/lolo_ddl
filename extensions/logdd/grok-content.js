@@ -3,7 +3,7 @@
   window.__logddGrokContentBridgeInstalled = true;
   const COMMAND_CHANNEL = 'LOGDD_GROK_COMMAND_V1';
   const EVENT_CHANNEL = 'LOGDD_GROK_EVENT_V1';
-  const GROK_BRIDGE_VERSION = 12;
+  const GROK_BRIDGE_VERSION = 16;
 
   chrome.runtime.onMessage.addListener((message, _sender, reply) => {
     if (!['LOGDD_GROK_GENERATE_VIDEO', 'LOGDD_GROK_CANCEL_VIDEO', 'LOGDD_GROK_REFRESH_QUOTA'].includes(message?.type)) return false;

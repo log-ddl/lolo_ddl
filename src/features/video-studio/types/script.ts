@@ -175,7 +175,7 @@ export type ShotStatus = 'idle' | 'generating' | 'completed' | 'failed';
 export type ScriptWorkflowType = 'narrative' | 'explainer';
 export type VideoGenerationMode = 'image-to-video' | 'ref-to-video';
 /** 10s only exists on Gemini Omni Flash; Veo 3.1 tops out at 8s. */
-export type VideoLength = 4 | 6 | 8 | 10;
+export type VideoLength = 4 | 6 | 8 | 10 | 15;
 
 export function normalizeVideoLength(value: unknown): VideoLength {
   const numeric = typeof value === 'string'

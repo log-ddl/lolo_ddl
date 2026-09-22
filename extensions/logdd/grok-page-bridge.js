@@ -373,6 +373,8 @@
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (signal?.aborted) throw new DOMException('Cancelled by user', 'AbortError');
+      const blocker = getSubmissionBlocker();
+      if (blocker) throw blocker;
       const element = getElement();
       if (element) return element;
       await waitFor(150, signal);
@@ -478,31 +480,48 @@
     if (homeBlocker) throw homeBlocker;
   }
 
+  async function openComposerMenu(trigger, signal, label) {
+    if (trigger.getAttribute('aria-expanded') !== 'true') {
+      // Radix dropdown triggers open on pointerdown/keydown, not HTMLElement.click().
+      // ArrowDown opens without toggling an already-open menu shut.
+      trigger.focus();
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true, cancelable: true }));
+    }
+    await waitForElement(() => trigger.getAttribute('aria-expanded') === 'true' ? trigger : null,
+      signal, 5_000, `Grok could not open ${label} menu`);
+  }
+
   async function selectRadioOption(groupLabel, optionText, signal, required = false) {
-    let option = null;
+    const labels = {
+      'Generation mode': ['Generation mode', 'Chế độ tạo'],
+      'Video resolution': ['Video resolution', 'Độ phân giải video'],
+      'Video duration': ['Video duration', 'Thời lượng video'],
+    }[groupLabel] || [groupLabel];
+    const visible = (item) => item.getClientRects().length > 0 && !item.disabled && item.getAttribute('aria-disabled') !== 'true';
+    const matches = (item) => item.getAttribute('aria-label') === optionText || item.textContent?.trim() === optionText;
+    const findTrigger = () => [...document.querySelectorAll('button[aria-haspopup="menu"]')]
+      .find((item) => visible(item) && labels.includes(item.getAttribute('aria-label')));
     try {
-      option = await waitForElement(
-      () => {
-        const group = document.querySelector(`[role="radiogroup"][aria-label="${groupLabel}"]`);
-        const candidates = group
-          ? [...group.querySelectorAll('[role="radio"]')]
-          : [...document.querySelectorAll('[role="radio"], button')];
-        return candidates.find((item) => (
-          !item.disabled
-          && item.getClientRects().length > 0
-          && (item.getAttribute('aria-label') === optionText || item.textContent?.trim() === optionText)
-        )) || null;
-      },
-      signal,
-      5_000,
-      `Grok UI is missing ${groupLabel}: ${optionText}`,
-      );
+      const control = await waitForElement(() => findTrigger() || [...document.querySelectorAll('[role="radio"]')].find((item) => visible(item) && matches(item)),
+        signal, 5_000, `Grok UI is missing ${groupLabel}: ${optionText}`);
+      if (control.getAttribute('aria-haspopup') === 'menu') {
+        if (control.textContent?.trim() === optionText) return true;
+        await openComposerMenu(control, signal, groupLabel);
+        const option = await waitForElement(() => [...document.querySelectorAll('[role="menuitemradio"], [role="menuitem"], [role="option"]')]
+          .find((item) => visible(item) && matches(item)), signal, 5_000, `Grok UI is missing ${groupLabel}: ${optionText}`);
+        option.click();
+        await waitForElement(() => {
+          const trigger = findTrigger();
+          return trigger?.textContent?.trim() === optionText ? trigger : null;
+        }, signal, 5_000, `Grok did not apply ${groupLabel}: ${optionText}`);
+      } else if (control.getAttribute('aria-checked') !== 'true') {
+        control.click();
+      }
+      return true;
     } catch (error) {
-      if (required) throw error;
+      if (required || signal?.aborted) throw error;
       return false;
     }
-    if (option.getAttribute('aria-checked') !== 'true') option.click();
-    return true;
   }
 
   async function selectAspectRatio(aspectRatio, signal) {
@@ -512,7 +531,7 @@
       !button.disabled
       && button.getClientRects().length > 0
       && (
-        button.getAttribute('aria-label') === 'Aspect Ratio'
+        ['Aspect Ratio', 'Tỷ lệ khung hình'].includes(button.getAttribute('aria-label'))
         || ratioPattern.test(button.textContent?.trim() || '')
       )
     )) || null;
@@ -522,7 +541,7 @@
     try {
       const trigger = await waitForElement(findTrigger, signal, 5_000, 'aspect-ratio selector not found');
       if (trigger.textContent?.includes(normalized)) return true;
-      trigger.click();
+      await openComposerMenu(trigger, signal, 'aspect ratio');
       // Match the ratio tolerantly: Grok's menu items render the value in a few
       // different shapes across UI versions ("16:9", "16 : 9", "16:9 Landscape",
       // an aria-label, etc.), so look at both text and aria-label with spaces
@@ -531,7 +550,7 @@
       const compact = (value) => (value || '').replace(/\s+/g, '');
       const wanted = compact(normalized);
       const option = await waitForElement(
-        () => [...document.querySelectorAll('[role="menuitem"], [role="option"], [role="radio"], button, [data-value]')].find((item) => {
+        () => [...document.querySelectorAll('[role="menuitemradio"], [role="menuitem"], [role="option"], [role="radio"], [data-value]')].find((item) => {
           if (item.getClientRects().length === 0) return false;
           const haystack = `${compact(item.textContent)} ${compact(item.getAttribute('aria-label'))} ${compact(item.getAttribute('data-value'))}`;
           return haystack.includes(wanted);
@@ -699,6 +718,14 @@
   }
 
   function getSubmissionBlocker() {
+    const challenge = [...document.querySelectorAll('#turnstile-widget, .turnstile-widget, [id*="turnstile"], iframe[src*="challenges.cloudflare.com"]')]
+      .find((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+          && (element.tagName === 'IFRAME' || /Making sure you.re human|Verify you are human|Xác minh bạn là con người/i.test(element.textContent || ''));
+      });
+    if (challenge) return new Error('Grok đang yêu cầu xác minh Cloudflare. Hãy mở tab Grok, hoàn tất xác minh bạn là con người rồi chạy lại.');
     const visibleDialogs = [...document.querySelectorAll('[role="dialog"]')]
       .filter((dialog) => dialog.getClientRects().length > 0);
     const upgradeDialog = visibleDialogs.find((dialog) => (
@@ -765,18 +792,18 @@
     await previousSubmission;
     try {
       await ensureImagineHome(signal);
-      if (latestVideoAvailable === false || latestVideo720pAvailable === false) {
-        throw new Error('Grok quota exhausted: this account has no 720p video generations remaining');
+      const resolution = payload.resolution || '720p';
+      const seconds = Number(payload.duration) || 10;
+      if (!['480p', '720p', '1080p'].includes(resolution) || ![6, 10, 15].includes(seconds)) {
+        throw new Error('Unsupported Grok video resolution or duration');
+      }
+      if (latestVideoAvailable === false || (resolution === '720p' && latestVideo720pAvailable === false)) {
+        throw new Error(`Grok quota exhausted for requested ${resolution} video`);
       }
       await selectRadioOption('Generation mode', 'Video', signal, true);
-      // Video Studio is intentionally 720p-only. Never silently lower output
-      // quality to 480p when the current account has exhausted its 720p quota.
-      await selectRadioOption('Video resolution', '720p', signal, true);
-      // Grok offers only 6s and 10s. Map the requested length so anything from
-      // 8s up rounds to 10s (previously it needed a full 10 to pick 10s, so an
-      // 8s request wrongly fell back to 6s).
-      const duration = Number(payload.duration) >= 8 ? '10s' : '6s';
-      await selectRadioOption('Video duration', duration, signal);
+      await selectRadioOption('Video resolution', resolution, signal, true);
+      const duration = `${seconds}s`;
+      await selectRadioOption('Video duration', duration, signal, true);
 
       // First frame + optional last frame (frame-linking). Grok accepts both
       // images in its composer; order is start then end.
@@ -808,7 +835,7 @@
         const button = candidates.find((item) => (
           item.getClientRects().length > 0
           && (
-            ['Submit', 'Make video', 'Generate'].includes(item.getAttribute('aria-label') || '')
+            ['Submit', 'Make video', 'Generate', 'Gửi', 'Tạo video', 'Tạo'].includes(item.getAttribute('aria-label') || '')
             || item.type === 'submit'
           )
         ));
@@ -827,7 +854,8 @@
       // Uploading a frame can re-render the Grok composer. Re-assert the only
       // mode Video Studio supports immediately before resolving Submit.
       await selectRadioOption('Generation mode', 'Video', signal, true);
-      await selectRadioOption('Video resolution', '720p', signal, true);
+      await selectRadioOption('Video resolution', resolution, signal, true);
+      await selectRadioOption('Video duration', duration, signal, true);
       // Ratio selection can re-render the composer. Resolve the final submit
       // button again so the click always targets the current UI instance.
       const submit = await waitForElement(

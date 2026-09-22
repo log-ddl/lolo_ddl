@@ -114,6 +114,7 @@ export interface CanvasNodeState {
   imageEdit?: import('./image-processing').ImageEditSettings;
   videoMode?: 'first' | 'ref';
   videoDuration?: number;
+  videoResolution?: '480p' | '720p' | '1080p';
   valueType?: PortType;
   items?: string[];
   selectedItem?: number;

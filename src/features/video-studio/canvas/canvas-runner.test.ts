@@ -133,7 +133,7 @@ async function main() {
   assert.equal(videoDuration('Veo_3.1-Lite', 6), 6, 'keep requested duration; runtime enforces Ultra eligibility');
   assert.equal(videoDuration('Gemini Omni Flash', 6), 6);
   assert.equal(videoDuration('Gemini Omni Flash'), 8);
-  assert.deepEqual(videoDurations('Grok Imagine Video'), [6, 10]);
+  assert.deepEqual(videoDurations('Grok Imagine Video'), [6, 10, 15]);
   const exportSpace = api.createSpace('Output test');
   const exportImage = api.addNode(exportSpace, 'imageGenerator', { x: 0, y: 0 });
   const exportVideo = api.addNode(exportSpace, 'localVideo', { x: 0, y: 200 });

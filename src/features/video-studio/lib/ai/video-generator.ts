@@ -22,6 +22,7 @@ export type VideoGenerationParams = {
   model: string;
   aspectRatio?: string;
   length?: VideoLength;
+  resolution?: '480p' | '720p' | '1080p';
   startImageUrl?: string;
   endImageUrl?: string;
   referenceImageUrls?: string[];
@@ -58,6 +59,7 @@ export async function generateProviderVideo(params: VideoGenerationParams): Prom
       prompt: params.prompt,
       model: params.model,
       aspectRatio: params.aspectRatio || '16:9',
+      resolution: params.resolution || '720p',
       duration: Number(params.length as VideoLength | undefined) || undefined,
       taskId: params.taskId,
       preferredCredentialId: params.preferredCredentialId,

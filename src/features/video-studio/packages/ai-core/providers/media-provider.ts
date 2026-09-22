@@ -45,6 +45,7 @@ export type VideoGenerationInput = {
   model: string;
   aspectRatio: string;
   duration?: number;
+  resolution?: '480p' | '720p' | '1080p';
   startImage?: ProviderMediaRef;
   endImage?: ProviderMediaRef;
   references?: ProviderMediaRef[];

@@ -8,7 +8,8 @@ export function validateGraph(nodes: CanvasNodeState[], edges: CanvasEdgeState[]
     if (!node || typeof node.id !== 'string' || ids.has(node.id) || !Object.prototype.hasOwnProperty.call(NODE_SPECS, node.kind)) throw new Error('Invalid or duplicate node');
     ids.add(node.id);
     if (!Number.isFinite(node.position?.x) || !Number.isFinite(node.position?.y) || typeof node.prompt !== 'string' || typeof node.model !== 'string' || typeof node.aspectRatio !== 'string' || !Array.isArray(node.refs) || node.refs.some((ref) => typeof ref !== 'string')) throw new Error('Invalid node fields');
-    if (node.videoDuration !== undefined && ![4, 6, 8, 10].includes(node.videoDuration)) throw new Error('Invalid video duration');
+    if (node.videoDuration !== undefined && ![4, 6, 8, 10, 15].includes(node.videoDuration)) throw new Error('Invalid video duration');
+    if (node.videoResolution !== undefined && !['480p', '720p', '1080p'].includes(node.videoResolution)) throw new Error('Invalid video resolution');
     if (node.videoMode !== undefined && !['first', 'ref'].includes(node.videoMode)) throw new Error('Invalid video mode');
     if (node.upscaleResolution !== undefined && !['2K', '4K'].includes(node.upscaleResolution)) throw new Error('Invalid upscale resolution');
     if (node.promptIsFinal !== undefined && typeof node.promptIsFinal !== 'boolean') throw new Error('Invalid prompt mode');

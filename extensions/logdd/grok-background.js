@@ -1,7 +1,7 @@
 (function installLogddGrokBackground() {
   const WS_URL = 'ws://127.0.0.1:9223';
   const GROK_PROTOCOL_VERSION = 6;
-  const GROK_BRIDGE_VERSION = 12;
+  const GROK_BRIDGE_VERSION = 16;
   const INSTANCE_KEY = 'logddGrokExtensionInstanceId';
   let socket = null;
   let reconnectTimer = null;
@@ -77,10 +77,8 @@
     if (!quotaStatus || !quotaStatus.checkedAt) return { quotaSeen: false };
     return {
       quotaSeen: true,
-      // The app is 720p-only, so an account is usable only while both the
-      // general video quota and the dedicated 720p quota are available.
-      videoAvailable: quotaStatus.videoAvailable === true
-        && quotaStatus.video720pAvailable === true,
+      // Check general quota here; the page bridge checks the requested resolution.
+      videoAvailable: quotaStatus.videoAvailable === true,
       weeklyUsagePercent: typeof quotaStatus.weeklyUsagePercent === 'number'
         ? quotaStatus.weeklyUsagePercent
         : undefined,

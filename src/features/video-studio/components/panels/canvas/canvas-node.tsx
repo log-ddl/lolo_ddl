@@ -475,6 +475,12 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
                 <option key={ratio} value={ratio}>{ratio}</option>
               ))}
             </select>
+            {isGrokVideo && <select aria-label="Độ phân giải video" title="Độ phân giải video"
+              value={state.videoResolution || '720p'}
+              onChange={(event) => onChange({ videoResolution: event.target.value as '480p' | '720p' | '1080p' })}
+              className="nodrag nopan shrink-0 rounded-full bg-muted/50 px-1 py-1 text-2xs outline-none">
+              {['480p', '720p', '1080p'].map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>}
             {state.kind === 'videoGenerator' && <select aria-label={t('canvas.duration')} title={t('canvas.duration')}
               value={videoDuration(selectedVideoModel, state.videoDuration)}
               onChange={(event) => onChange({ videoDuration: Number(event.target.value) })}

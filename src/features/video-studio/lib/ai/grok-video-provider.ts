@@ -88,6 +88,7 @@ export const grokVideoProvider: MediaGenerationProvider = {
         prompt: input.prompt,
         details: {
           duration: input.duration,
+          resolution: input.resolution || '720p',
           aspectRatio: input.aspectRatio,
           mode: endImage ? 'start-end' : startImage ? 'start' : 'text',
         },

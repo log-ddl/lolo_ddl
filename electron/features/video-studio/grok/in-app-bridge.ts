@@ -211,7 +211,7 @@ export class GrokInAppBridge {
         type: 'grok_page_ready',
         pageUrl: href,
         quotaSeen: true,
-        videoAvailable: this.videoAvailable === true && this.video720pAvailable === true,
+        videoAvailable: this.videoAvailable === true,
         weeklyUsagePercent: this.weeklyUsagePercent,
         quotaCheckedAt: this.quotaCheckedAt,
       }))
@@ -276,8 +276,8 @@ export class GrokInAppBridge {
         type: 'grok_quota_status',
         quotaSeen: true,
         // Grok runtime uses this as the lane eligibility flag. Video Studio
-        // never falls back to 480p, so only a 720p-capable account is ready.
-        videoAvailable: this.videoAvailable && this.video720pAvailable,
+        // checks resolution-specific quota in the page bridge.
+        videoAvailable: this.videoAvailable,
         weeklyUsagePercent: this.weeklyUsagePercent,
         quotaCheckedAt: this.quotaCheckedAt,
       }))
