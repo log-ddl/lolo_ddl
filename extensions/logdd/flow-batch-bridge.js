@@ -36,7 +36,7 @@ async function flowPageReady(tabId, captcha = false) {
       target: { tabId }, world: 'MAIN', args: [captcha],
       func: needsCaptcha => location.origin === 'https://flow.google.com'
         && Boolean(globalThis.WIZ_global_data?.SNlM0e)
-        && (!needsCaptcha || Boolean(globalThis.grecaptcha?.enterprise?.execute)),
+        && (!needsCaptcha || Boolean(globalThis.grecaptcha?.enterprise?.execute && globalThis.grecaptcha?.enterprise?.render)),
     }).catch(() => []);
     if (result[0]?.result) return;
     await sleep(250);
@@ -90,7 +90,21 @@ async function handleFlowBatchRpc(msg) {
             await previous.catch(() => {});
             try {
               await new Promise(resolve => grecaptcha.enterprise.ready(resolve));
-              const token = await grecaptcha.enterprise.execute('6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV', { action });
+              // Flow's current frontend mints through a widget, not execute(siteKey).
+              const key = Object.values(globalThis.___grecaptcha_cfg?.clients || {})
+                .find(client => typeof client?.sitekey === 'string')?.sitekey
+                || '6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV';
+              let widget = globalThis.__logddCaptchaWidget;
+              if (!widget || widget.key !== key || !widget.host.isConnected) {
+                const host = document.createElement('div');
+                host.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;';
+                document.documentElement.appendChild(host);
+                try {
+                  widget = { key, host, id: grecaptcha.enterprise.render(host, { sitekey: key, size: 'invisible' }) };
+                  globalThis.__logddCaptchaWidget = widget;
+                } catch (error) { host.remove(); throw error; }
+              }
+              const token = await grecaptcha.enterprise.execute(widget.id, { action });
               if (!token) throw new Error('CAPTCHA_FAILED');
               freq = freq.split('__CAPTCHA__').join(token);
             } finally { release(); }

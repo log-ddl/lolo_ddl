@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "logdd",
-  "version": "1.1.28",
+  "version": "1.1.29",
   "description": "Cầu nối cục bộ Google Flow và Grok Video cho ứng dụng logdd.",
   "icons": {
     "16": "logo.png",

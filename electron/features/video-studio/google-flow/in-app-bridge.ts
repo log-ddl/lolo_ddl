@@ -370,8 +370,7 @@ export class GoogleFlowInAppBridge {
     }
     void this.extractApiKeyFromTab().catch(() => {})
     const expression = `(async () => {
-      const key = ${JSON.stringify(FLOW_SITE_KEY)};
-      const ready = () => Boolean(window.grecaptcha && window.grecaptcha.enterprise && window.grecaptcha.enterprise.execute);
+      const ready = () => Boolean(window.grecaptcha?.enterprise?.execute && window.grecaptcha?.enterprise?.render);
       const start = Date.now();
       while (!ready()) {
         if (Date.now() - start > 30000) throw new Error('grecaptcha not available');
@@ -383,7 +382,19 @@ export class GoogleFlowInAppBridge {
       await previous.catch(() => {});
       try {
         await new Promise((resolve) => window.grecaptcha.enterprise.ready(resolve));
-        return await window.grecaptcha.enterprise.execute(key, { action: ${JSON.stringify(action)} });
+        const key = Object.values(globalThis.___grecaptcha_cfg?.clients || {})
+          .find(client => typeof client?.sitekey === 'string')?.sitekey || ${JSON.stringify(FLOW_SITE_KEY)};
+        let widget = globalThis.__logddCaptchaWidget;
+        if (!widget || widget.key !== key || !widget.host.isConnected) {
+          const host = document.createElement('div');
+          host.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;';
+          document.documentElement.appendChild(host);
+          try {
+            widget = { key, host, id: window.grecaptcha.enterprise.render(host, { sitekey: key, size: 'invisible' }) };
+            globalThis.__logddCaptchaWidget = widget;
+          } catch (error) { host.remove(); throw error; }
+        }
+        return await window.grecaptcha.enterprise.execute(widget.id, { action: ${JSON.stringify(action)} });
       } finally { release(); }
     })()`
     const result = await this.handle.cdp.send<EvaluateResult<string>>('Runtime.evaluate', {

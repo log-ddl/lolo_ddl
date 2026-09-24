@@ -4,7 +4,7 @@
  */
 (function () {
   const s = document.createElement('script');
-  s.src = chrome.runtime.getURL('injected.js');
+  s.src = chrome.runtime.getURL('injected.js') + '?v=' + chrome.runtime.getManifest().version;
   s.onload = () => s.remove();
   (document.head || document.documentElement).appendChild(s);
 })();

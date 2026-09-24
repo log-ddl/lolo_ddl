@@ -31,15 +31,29 @@ async function main() {
   let minted = 0;
   let activeMints = 0;
   let maxMints = 0;
+  let renders = 0;
+  let renderFailure = false;
+  const widgetOptions = [];
   const page = vm.createContext({
     URLSearchParams, AbortSignal, setTimeout,
     location: { origin: 'https://flow.google.com', pathname: `/project/${projectId}` },
-    document: { documentElement: { lang: 'vi-VN', innerHTML: '' } },
+    document: {
+      documentElement: { lang: 'vi-VN', innerHTML: '', appendChild: host => { host.isConnected = true; } },
+      createElement: () => ({ style: {}, isConnected: false, remove() { this.isConnected = false; } }),
+    },
+    ___grecaptcha_cfg: { clients: { current: { sitekey: 'current-page-site-key' } } },
     navigator: { language: 'en-US' },
     WIZ_global_data: { SNlM0e: 'page-csrf', FdrFJe: 'page-session', cfb2h: 'page-build' },
     grecaptcha: { enterprise: {
       ready: fn => fn(),
-      execute: async () => {
+      render: (_host, options) => {
+        if (renderFailure) throw new Error('render failed');
+        widgetOptions.push(options);
+        return renders++;
+      },
+      execute: async (widgetId, options) => {
+        assert.equal(typeof widgetId, 'number', 'execute must receive a widget id, never the site key');
+        assert.ok(['IMAGE_GENERATION', 'VIDEO_GENERATION'].includes(options.action));
         activeMints++; maxMints = Math.max(maxMints, activeMints);
         await new Promise(resolve => setTimeout(resolve, 5));
         activeMints--; return `captcha-${++minted}`;
@@ -73,6 +87,9 @@ async function main() {
   assert.equal(sent.length, 2);
   assert.ok(sent.every(reply => reply.data === 'batch-response' && reply.status === 200));
   assert.equal(maxMints, 1, 'parallel lanes serialize captcha mint only');
+  assert.equal(renders, 1, 'concurrent submits reuse widget id zero');
+  assert.equal(widgetOptions[0].sitekey, 'current-page-site-key');
+  assert.equal(widgetOptions[0].size, 'invisible');
   assert.equal(navigations, 0);
   for (const request of requests) {
     const url = new URL(request.url, 'https://flow.google.com');
@@ -105,6 +122,41 @@ async function main() {
   const native = await bridge.runBatchRpc({ ...params, match: 'op' });
   assert.ok(native.text.includes(mediaId), 'later listing occurrence survives page-side reduction');
   assert.equal(new URL(requests.at(-1).url, 'https://flow.google.com').searchParams.get('source-path'), `/project/${projectId}`);
+
+  // Run the real native mint expression, not the runBatchRpc stub above.
+  page.window = page;
+  bridge.hasRecaptcha = async () => true;
+  bridge.extractApiKeyFromTab = async () => {};
+  delete bridge.solveCaptcha;
+  const nativeTokens = await Promise.all([
+    bridge.solveCaptcha('VIDEO_GENERATION', projectId),
+    bridge.solveCaptcha('IMAGE_GENERATION', projectId),
+  ]);
+  assert.notEqual(nativeTokens[0], nativeTokens[1]);
+  assert.equal(renders, 1, 'native and extension paths share the page widget');
+  assert.equal(maxMints, 1);
+
+  page.__logddCaptchaWidget.host.remove();
+  renderFailure = true;
+  await assert.rejects(bridge.solveCaptcha('VIDEO_GENERATION', projectId), /render failed/);
+  renderFailure = false;
+  delete page.___grecaptcha_cfg.clients.current;
+  assert.ok(await bridge.solveCaptcha('VIDEO_GENERATION', projectId));
+  assert.equal(renders, 2, 'failed rendering releases the lock and the next mint recovers');
+  assert.equal(widgetOptions.at(-1).sitekey, '6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV');
+
+  // Exercise the legacy extension message path against the same page state.
+  const events = new Map();
+  const captchaReplies = [];
+  page.window = page;
+  page.addEventListener = (name, fn) => events.set(name, fn);
+  page.dispatchEvent = event => captchaReplies.push(event.detail);
+  page.CustomEvent = function (name, options) { this.type = name; this.detail = options.detail; };
+  vm.runInContext(fs.readFileSync(path.join(root, 'extensions/logdd/injected.js'), 'utf8'), page);
+  await events.get('GET_CAPTCHA')({ detail: { requestId: 'legacy', pageAction: 'VIDEO_GENERATION' } });
+  assert.equal(captchaReplies.at(-1).requestId, 'legacy');
+  assert.ok(captchaReplies.at(-1).token);
+  assert.equal(renders, 2, 'legacy path also reuses the same widget');
 
   const socket = new EventEmitter(); socket.readyState = 1; socket.send = msg => sent.push(JSON.parse(msg)); socket.close = () => {};
   const ctx = {
