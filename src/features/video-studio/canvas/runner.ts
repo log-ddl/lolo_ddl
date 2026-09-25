@@ -23,8 +23,8 @@ import { findUpscaleSource, imageUpscaleOwner } from './image-upscale';
 import { configuredImageModel, configuredVideoModel, resolveSettingsMediaRouting, videoPlatformForModel } from '@/features/video-studio/lib/ai/media-routing';
 import { generateProviderVideo } from '@/features/video-studio/lib/ai/video-generator';
 import { getSpace, useCanvasStore } from './canvas-store';
-import { effectivePrompt, nodeById, resolveInputs, resolvedRuns, upstreamOrder } from './graph';
-import { isGenerator, type CanvasNodeState, type NodeOutput } from './types';
+import { effectivePrompt, nodeById, nodeValues, resolveInputs, resolvedRuns, upstreamOrder } from './graph';
+import { isGenerator, outputTypeOf, type CanvasNodeState, type NodeOutput } from './types';
 import { generationPhase } from './progress';
 
 const FALLBACK_IMAGE_MODEL = 'GEM_PIX_2';
@@ -467,7 +467,13 @@ async function runNodePlan(spaceId: string, nodeId: string, signal?: AbortSignal
     throw new CanvasRunError(error, nodeId);
   }
 
-  const plan = [...upstreamOrder(space.nodes, space.edges, nodeId), nodeId];
+  // An AI run describes the existing images, even when their generation settings
+  // have changed. Stop at those outputs so their ancestors cannot regenerate them.
+  const reuseImage = target?.kind === 'ai'
+    ? (node: CanvasNodeState) => isGenerator(node.kind) && outputTypeOf(node) === 'image'
+      && nodeValues(space.nodes, space.edges, node.id).length > 0
+    : undefined;
+  const plan = [...upstreamOrder(space.nodes, space.edges, nodeId, reuseImage), nodeId];
   for (const id of plan) {
     checkCancelled(signal);
     const current = getSpace(spaceId);

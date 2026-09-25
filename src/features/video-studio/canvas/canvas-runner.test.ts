@@ -202,6 +202,36 @@ async function main() {
   };
   await runNode(aiSpace, ai);
   const { effectivePrompt } = require('./graph');
+  const reuseSpace = api.createSpace('AI reuses displayed image');
+  const ancestor = api.addNode(reuseSpace, 'imageGenerator', { x: 0, y: 0 });
+  const displayed = api.addNode(reuseSpace, 'imageGenerator', { x: 300, y: 0 });
+  const analyze = api.addNode(reuseSpace, 'ai', { x: 600, y: 0 });
+  api.updateNode(reuseSpace, ancestor, { prompt: 'Do not regenerate this ancestor' });
+  api.updateNode(reuseSpace, displayed, { prompt: 'Changed settings', stale: true, output: { kind: 'image', url: 'data:image/png;base64,Aw==', model: '', createdAt: 1 } });
+  api.updateNode(reuseSpace, analyze, { prompt: 'Describe this image' });
+  api.connect(reuseSpace, { source: ancestor, target: displayed, targetHandle: 'refs' });
+  api.connect(reuseSpace, { source: displayed, target: analyze, targetHandle: 'refs' });
+  let generations = 0, analyses = 0;
+  (globalThis as any).__canvasGenerate = async (input: any) => {
+    generations++;
+    return { taskId: input.taskId, localUrl: 'data:image/png;base64,Aw==' };
+  };
+  (window as any).cliRuntime.runTextTask = async (input: any) => {
+    analyses++;
+    assert.deepEqual(input.images, ['data:image/png;base64,Aw==']);
+    return { success: true, outputText: 'Existing image analyzed.' };
+  };
+  await runNode(reuseSpace, analyze);
+  await runNode(reuseSpace, analyze);
+  assert.equal(generations, 0, 'AI reuses stale image and does not visit its missing ancestor');
+  assert.equal(analyses, 2, 'each click runs only the requested AI');
+  api.updateNode(reuseSpace, displayed, { output: { kind: 'image', url: 'idb-image://missing', model: '', createdAt: 1 } });
+  await assert.rejects(runNode(reuseSpace, analyze), /Không thể đọc hoặc tải ảnh đầu vào/);
+  assert.equal(generations, 0, 'unreadable output must not trigger image generation');
+  assert.equal(analyses, 2, 'unreadable image must not reach CLI');
+  api.updateNode(reuseSpace, displayed, { output: undefined, batchOutputs: undefined });
+  await runNode(reuseSpace, analyze);
+  assert.equal(generations, 2, 'missing image still generates its required dependency chain');
   const edited = useCanvasStore.getState().spaces.find((space) => space.id === aiSpace)!.nodes.find((node) => node.id === ai)!;
   assert.equal(effectivePrompt({ ...edited, promptIsFinal: false, prompt: 'Extra' }, ['First', 'Second']), 'First\nSecond\nExtra');
   assert.equal(effectivePrompt({ ...edited, kind: 'imageGenerator' }, ['Ignored']), 'Only this edited prompt');

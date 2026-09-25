@@ -30,6 +30,16 @@
         "https://labs.google/fx/tools/flow*",
         "https://labs.google/fx/*/tools/flow*"
       ],
+      "js": ["hijack_bypass.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://flow.google.com/*",
+        "https://labs.google/fx/tools/flow*",
+        "https://labs.google/fx/*/tools/flow*"
+      ],
       "js": ["content.js"],
       "run_at": "document_start"
     },
@@ -47,7 +57,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["injected.js"],
+      "resources": ["injected.js", "hijack_bypass.js"],
       "matches": ["https://labs.google/*", "https://flow.google.com/*"]
     }
   ],

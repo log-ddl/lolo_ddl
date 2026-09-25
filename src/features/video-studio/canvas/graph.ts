@@ -66,6 +66,7 @@ export function upstreamOrder(
   nodes: CanvasNodeState[],
   edges: CanvasEdgeState[],
   nodeId: string,
+  reuse?: (node: CanvasNodeState) => boolean,
 ): string[] {
   const order: string[] = [];
   const state = new Map<string, 'visiting' | 'done'>();
@@ -73,6 +74,11 @@ export function upstreamOrder(
   const visit = (id: string) => {
     if (state.get(id) === 'done' || state.get(id) === 'visiting') return;
     state.set(id, 'visiting');
+    const node = nodeById(nodes, id);
+    if (id !== nodeId && node && reuse?.(node)) {
+      state.set(id, 'done');
+      return;
+    }
     for (const edge of incomingEdges(edges, id)) visit(edge.source);
     state.set(id, 'done');
     if (id !== nodeId) order.push(id);

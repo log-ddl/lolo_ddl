@@ -48,6 +48,7 @@ function waitForGrecaptcha(timeout = 10000) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const check = () => {
+      if (window.__fk_hijack?.pristine) return resolve();
       if (window.grecaptcha?.enterprise?.execute && window.grecaptcha?.enterprise?.render) return resolve();
       if (Date.now() - start > timeout) return reject(new Error('grecaptcha not available'));
       setTimeout(check, 200);
@@ -75,8 +76,47 @@ async function mintWidgetCaptcha(action) {
         globalThis.__logddCaptchaWidget = widget;
       } catch (error) { host.remove(); throw error; }
     }
-    const token = await window.grecaptcha.enterprise.execute(widget.id, { action });
-    if (!token) throw new Error('CAPTCHA_FAILED');
-    return token;
+
+    const targetAction = action;
+
+    // Layer 1: Pristine execute captured by hijack_bypass before Flow x2a trap ran
+    const pristine = window.__fk_hijack?.pristine;
+    if (typeof pristine === 'function') {
+      try {
+        const token = await Promise.race([
+          pristine(widget.id, { action: targetAction }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('pristine_hang')), 6000)),
+        ]);
+        if (token) return String(token);
+      } catch (e) {
+        try {
+          const token2 = await Promise.race([
+            pristine(key, { action: targetAction }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('pristine_hang')), 6000)),
+          ]);
+          if (token2) return String(token2);
+        } catch (e2) {}
+      }
+    }
+
+    // Layer 2: Object.assign neuter fallback (intercepts Flow x2a's action: "extension_hijack_detected")
+    const _realAssign = Object.assign;
+    Object.assign = function (target, ...sources) {
+      const result = _realAssign.call(this, target, ...sources);
+      if (result && typeof result === 'object' && result.action === 'extension_hijack_detected') {
+        result.action = targetAction;
+      }
+      return result;
+    };
+    try {
+      const token = await Promise.race([
+        window.grecaptcha.enterprise.execute(widget.id, { action: targetAction }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('execute_hang')), 8000)),
+      ]);
+      if (!token) throw new Error('CAPTCHA_FAILED');
+      return String(token);
+    } finally {
+      Object.assign = _realAssign;
+    }
   } finally { release(); }
 }

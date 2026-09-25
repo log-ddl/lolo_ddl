@@ -25,7 +25,9 @@ export async function runAiNode(space: CanvasSpace, node: CanvasNodeState, signa
   const attachments: string[] = [];
   for (const url of refs) {
     signal?.throwIfAborted();
-    const blob = await mediaBlob(url);
+    const blob = await mediaBlob(url).catch((error) => {
+      throw new Error(`Không thể đọc hoặc tải ảnh đầu vào cho AI. Hãy tải ảnh về và đính kèm lại. ${error instanceof Error ? error.message : String(error)}`);
+    });
     if (blob.size > 10_000_000) throw new Error('AI_IMAGE_LIMIT');
     attachments.push(await new Promise<string>((resolve, reject) => {
       const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(blob);

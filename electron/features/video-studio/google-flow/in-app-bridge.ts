@@ -10,6 +10,7 @@ import {
   GOOGLE_FLOW_TRPC_ORIGIN,
 } from './protocol'
 import { CAPTCHA_SLOT as BATCH_CAPTCHA_SLOT, FLOW_BATCH_PATH } from './flow-batch'
+import { FLOW_HIJACK_BYPASS_SCRIPT } from './hijack-bypass'
 
 /** The project listing alone runs past 17 MB, so the cap has to be generous. */
 const BATCH_MAX_RESPONSE_CHARS = 32_000_000
@@ -185,6 +186,9 @@ export class GoogleFlowInAppBridge {
     this.unsubscribers.push(cdp.on('Page.frameNavigated', (params) => this.onFrameNavigated(params)))
     void cdp.send('Network.enable').catch(() => { /* best-effort */ })
     void cdp.send('Page.enable').catch(() => { /* best-effort */ })
+    void cdp.send('Runtime.enable').catch(() => { /* best-effort */ })
+    void cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: FLOW_HIJACK_BYPASS_SCRIPT }).catch(() => { /* best-effort */ })
+    void cdp.send('Runtime.evaluate', { expression: FLOW_HIJACK_BYPASS_SCRIPT }).catch(() => { /* best-effort */ })
   }
 
   dispose(): void {
@@ -394,7 +398,47 @@ export class GoogleFlowInAppBridge {
             globalThis.__logddCaptchaWidget = widget;
           } catch (error) { host.remove(); throw error; }
         }
-        return await window.grecaptcha.enterprise.execute(widget.id, { action: ${JSON.stringify(action)} });
+        const targetAction = ${JSON.stringify(action)};
+
+        // Layer 1: Pristine execute captured before Flow x2a trap ran
+        const pristine = window.__fk_hijack?.pristine;
+        if (typeof pristine === 'function') {
+          try {
+            const token = await Promise.race([
+              pristine(widget.id, { action: targetAction }),
+              new Promise((_, rej) => setTimeout(() => rej(new Error('pristine_hang')), 6000)),
+            ]);
+            if (token) return String(token);
+          } catch (e) {
+            try {
+              const token2 = await Promise.race([
+                pristine(key, { action: targetAction }),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('pristine_hang')), 6000)),
+              ]);
+              if (token2) return String(token2);
+            } catch (e2) {}
+          }
+        }
+
+        // Layer 2: Object.assign neuter fallback (intercepts Flow x2a's action: "extension_hijack_detected")
+        const _realAssign = Object.assign;
+        Object.assign = function (target, ...sources) {
+          const result = _realAssign.call(this, target, ...sources);
+          if (result && typeof result === 'object' && result.action === 'extension_hijack_detected') {
+            result.action = targetAction;
+          }
+          return result;
+        };
+        try {
+          const token = await Promise.race([
+            window.grecaptcha.enterprise.execute(widget.id, { action: targetAction }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('execute_hang')), 8000)),
+          ]);
+          if (!token) throw new Error('CAPTCHA_FAILED: empty token');
+          return String(token);
+        } finally {
+          Object.assign = _realAssign;
+        }
       } finally { release(); }
     })()`
     const result = await this.handle.cdp.send<EvaluateResult<string>>('Runtime.evaluate', {
