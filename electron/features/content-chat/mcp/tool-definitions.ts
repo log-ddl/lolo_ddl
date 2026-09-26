@@ -1,4 +1,6 @@
-export const CONTENT_MCP_TOOLS = [
+import { MEDIA_MCP_TOOLS } from '../../../../src/features/content-chat/mcp/media-tool-definitions'
+
+const EXISTING_CONTENT_MCP_TOOLS = [
   {
     name: 'search_youtube',
     description: 'Search YouTube using the Research feature already configured in logdd. Use this when the user asks to find videos, topics, Shorts, long videos, or live videos. The YouTube API key is managed by logdd and must never be requested from the user by this tool.',
@@ -105,3 +107,8 @@ export const CONTENT_MCP_TOOLS = [
     },
   },
 ] as const
+
+export const CONTENT_MCP_TOOLS = [
+  ...EXISTING_CONTENT_MCP_TOOLS.filter((tool) => tool.name !== 'create_tts_audio' && tool.name !== 'list_voice_profiles'),
+  ...MEDIA_MCP_TOOLS,
+]

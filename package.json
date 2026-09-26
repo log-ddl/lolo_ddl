@@ -15,6 +15,7 @@
     "fsevents": true
   },
   "scripts": {
+    "test:media-mcp": "node scripts/test-media-mcp.cjs && node scripts/test-media-mcp-transport.cjs",
     "postinstall": "node ./scripts/fix-electron.cjs",
     "dev": "vite",
     "dev:electron": "electron-vite dev",

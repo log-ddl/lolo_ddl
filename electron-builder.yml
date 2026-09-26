@@ -25,6 +25,8 @@ asarUnpack:
   - "**/*.node"
   - "node_modules/ffmpeg-static/**"
 extraResources:
+  - from: scripts/media-mcp-stdio.mjs
+    to: mcp/media-mcp-stdio.mjs
   - from: build/icon.ico
     to: build/icon.ico
   - from: extensions/logdd

@@ -33,7 +33,6 @@ import {
   primeCliCommands,
 } from "./lib/cli-cache";
 import { useContentChatStore, type ContentCliAdapter, type ContentMessage } from "./store";
-import { registerContentMcpToolHost } from "./mcp/renderer-tool-host";
 import { BuzzView } from "./buzz/components/buzz-view";
 import { hasPlanAccess } from "@/shared/lib/license-client";
 import { useLicenseStore } from "@/shared/stores/license-store";
@@ -216,7 +215,6 @@ export default function ContentChatFeature() {
     void refreshRuntime();
   }, [refreshRuntime]);
 
-  useEffect(() => registerContentMcpToolHost(), []);
 
   useEffect(() => {
     let cancelled = false;

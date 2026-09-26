@@ -5,6 +5,7 @@ import {
 } from '@/features/research-monitor/lib/youtube-api'
 import { useResearchStore } from '@/features/research-monitor/stores/research-store'
 import { useContentChatStore } from '../store'
+import { MEDIA_MCP_TOOLS } from './media-tool-definitions'
 
 type ToolArguments = Record<string, unknown>
 
@@ -138,6 +139,10 @@ async function getTranscript(args: ToolArguments) {
 }
 
 async function executeTool(name: string, args: ToolArguments): Promise<unknown> {
+  if (MEDIA_MCP_TOOLS.some((tool) => tool.name === name)) {
+    const { executeMediaTool } = await import('./media-tools')
+    return executeMediaTool(name, args)
+  }
   if (name === 'search_youtube') return searchYouTube(args)
   if (name === 'get_youtube_comments') return getComments(args)
   if (name === 'get_youtube_transcript') return getTranscript(args)
@@ -146,8 +151,7 @@ async function executeTool(name: string, args: ToolArguments): Promise<unknown> 
 
 export function registerContentMcpToolHost(): () => void {
   if (!window.contentMcp) return () => undefined
-  window.contentMcp.ready()
-  return window.contentMcp.onToolCall((request) => {
+  const unsubscribe = window.contentMcp.onToolCall((request) => {
     void executeTool(request.name, request.arguments ?? {})
       .then((result) => window.contentMcp?.respond({ requestId: request.requestId, success: true, result }))
       .catch((error) => window.contentMcp?.respond({
@@ -156,4 +160,6 @@ export function registerContentMcpToolHost(): () => void {
         error: error instanceof Error ? error.message : String(error),
       }))
   })
+  window.contentMcp.ready()
+  return unsubscribe
 }

@@ -1,6 +1,8 @@
-import { BrowserWindow, ipcMain, type WebContents } from 'electron'
+import { app, ipcMain, type WebContents } from 'electron'
 import crypto from 'node:crypto'
 import http from 'node:http'
+import fs from 'node:fs'
+import path from 'node:path'
 import { CONTENT_MCP_TOOLS } from './tool-definitions'
 import { getSystemResourceMetrics } from '../../../resource-monitor'
 
@@ -21,13 +23,12 @@ const pending = new Map<string, PendingToolCall>()
 
 function findRenderer(): WebContents | null {
   if (renderer && !renderer.isDestroyed()) return renderer
-  const window = BrowserWindow.getAllWindows().find((item) => !item.isDestroyed())
-  return window?.webContents ?? null
+  return null
 }
 
 function callRenderer(name: string, args: unknown): Promise<unknown> {
   const target = findRenderer()
-  if (!target) return Promise.reject(new Error('Content Chat is not open'))
+  if (!target) return Promise.reject(new Error('Open and sign in to logdd; the MCP tool host is not ready'))
   const requestId = crypto.randomUUID()
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -49,12 +50,14 @@ function jsonRpcError(id: JsonRpcId, code: number, message: string) {
 
 async function handleRpc(message: any): Promise<unknown | null> {
   const id: JsonRpcId = message?.id ?? null
+  if (!message || message.jsonrpc !== '2.0' || typeof message.method !== 'string') return jsonRpcError(id, -32600, 'Invalid JSON-RPC request')
+  if (message.id === undefined) return null
   switch (message?.method) {
     case 'initialize':
       return jsonRpcResult(id, {
         protocolVersion: '2025-03-26',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'logdd-content-tools', version: '0.1.0' },
+        serverInfo: { name: 'logdd-content-tools', version: '0.2.0' },
       })
     case 'notifications/initialized':
     case 'notifications/cancelled':
@@ -75,8 +78,11 @@ async function handleRpc(message: any): Promise<unknown | null> {
         } else {
           result = await callRenderer(name, message?.params?.arguments)
         }
+        const preview = name === 'get_media_asset' ? result as { asset?: unknown; imageContent?: unknown } : undefined
         return jsonRpcResult(id, {
-          content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }],
+          content: preview?.imageContent
+            ? [{ type: 'text', text: JSON.stringify(preview.asset) }, preview.imageContent]
+            : [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }],
           isError: false,
         })
       } catch (error) {
@@ -106,6 +112,7 @@ function writeJson(response: http.ServerResponse, status: number, body: unknown)
 export function registerContentMcpGateway(): void {
   ipcMain.on('content-mcp-ready', (event) => {
     renderer = event.sender
+    void getContentMcpConnection().catch((error) => console.error('Unable to start media MCP:', error.message))
   })
   ipcMain.on('content-mcp-tool-result', (event, payload: { requestId?: string; success?: boolean; result?: unknown; error?: string }) => {
     const requestId = String(payload?.requestId ?? '')
@@ -122,29 +129,44 @@ export function getContentMcpConnection(): Promise<{ url: string; token: string 
   if (connectionPromise) return connectionPromise
   connectionPromise = new Promise((resolve, reject) => {
     server = http.createServer(async (request, response) => {
-      if (request.url !== '/mcp' || request.method !== 'POST') {
+      if (request.url !== '/mcp') {
         response.writeHead(404).end()
+        return
+      }
+      if (request.headers.origin && !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.origin)) {
+        response.writeHead(403).end()
         return
       }
       if (request.headers.authorization !== `Bearer ${token}`) {
         response.writeHead(401).end()
         return
       }
+      if (request.method !== 'POST') {
+        response.writeHead(405, { Allow: 'POST' }).end()
+        return
+      }
       const chunks: Buffer[] = []
       let byteLength = 0
+      let oversized = false
       request.on('data', (chunk: Buffer) => {
+        if (oversized) return
         byteLength += chunk.length
         if (byteLength > 1024 * 1024) {
-          request.destroy(new Error('MCP request exceeds 1 MB'))
+          oversized = true
+          chunks.length = 0
+          writeJson(response, 413, jsonRpcError(null, -32600, 'MCP request exceeds 1 MB; use file paths or asset IDs for references'))
           return
         }
         chunks.push(chunk)
       })
       request.on('end', async () => {
+        if (oversized) return
         try {
           const message = JSON.parse(Buffer.concat(chunks).toString('utf8'))
           if (Array.isArray(message)) {
+            if (!message.length) { writeJson(response, 400, jsonRpcError(null, -32600, 'Empty batch')); return }
             const results = (await Promise.all(message.map(handleRpc))).filter(Boolean)
+            if (!results.length) { response.writeHead(202).end(); return }
             writeJson(response, 200, results)
             return
           }
@@ -158,15 +180,23 @@ export function getContentMcpConnection(): Promise<{ url: string; token: string 
           writeJson(response, 400, jsonRpcError(null, -32700, error instanceof Error ? error.message : String(error)))
         }
       })
+      request.on('error', () => {
+        if (!response.headersSent) response.writeHead(400).end()
+      })
     })
-    server.once('error', reject)
+    server.once('error', (error) => { connectionPromise = null; reject(error) })
     server.listen(0, '127.0.0.1', () => {
       const address = server?.address()
       if (!address || typeof address === 'string') {
         reject(new Error('Unable to start Content MCP gateway'))
         return
       }
-      resolve({ url: `http://127.0.0.1:${address.port}/mcp`, token })
+      const connection = { url: `http://127.0.0.1:${address.port}/mcp`, token }
+      try {
+        fs.mkdirSync(app.getPath('userData'), { recursive: true })
+        fs.writeFileSync(path.join(app.getPath('userData'), 'mcp-connection.json'), JSON.stringify(connection), { mode: 0o600 })
+        resolve(connection)
+      } catch (error) { server?.close(); connectionPromise = null; reject(error) }
     })
   })
   return connectionPromise
@@ -181,4 +211,6 @@ export function closeContentMcpGateway(): void {
   server?.close()
   server = null
   connectionPromise = null
+  renderer = null
+  try { fs.unlinkSync(path.join(app.getPath('userData'), 'mcp-connection.json')) } catch { /* Already removed. */ }
 }
