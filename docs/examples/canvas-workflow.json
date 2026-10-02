@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "name": "Workflow tạo ảnh mẫu",
+  "nodes": [
+    {
+      "id": "prompt-1",
+      "kind": "text",
+      "position": { "x": 0, "y": 100 },
+      "prompt": "Một chú mèo ngồi bên cửa sổ, ánh sáng buổi sáng, phong cách hoạt hình 2D"
+    },
+    {
+      "id": "image-1",
+      "kind": "imageGenerator",
+      "position": { "x": 360, "y": 100 },
+      "model": "NARWHAL",
+      "aspectRatio": "16:9"
+    }
+  ],
+  "edges": [
+    { "source": "prompt-1", "target": "image-1", "targetHandle": "prompt" }
+  ]
+}

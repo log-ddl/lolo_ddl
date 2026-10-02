@@ -9,8 +9,7 @@ type InAppAccountManagerLike = {
 }
 
 // Shared IPC registration for the in-app account flows (list/add/remove/show).
-// Used by both the Google Flow and Grok providers — identical except for the
-// channel prefix.
+// Used by provider runtimes (e.g. Google Flow).
 export function registerInAppAccountIpc(prefix: string, accountManager?: InAppAccountManagerLike): void {
   ipcMain.handle(`${prefix}:list-inapp-accounts`, () => accountManager?.listAccounts() ?? [])
   ipcMain.handle(`${prefix}:add-inapp-account`, () => {

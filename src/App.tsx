@@ -1,3 +1,4 @@
+import { registerContentMcpToolHost } from "@/features/content-chat/mcp/renderer-tool-host";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { AppShell } from "@/app/AppShell";
@@ -11,6 +12,7 @@ import { useI18n } from "@/shared/i18n";
 import { migrateUIPreferencesFromLegacy } from "@/shared/stores/ui-preferences-store";
 
 function App() {
+  useEffect(() => registerContentMcpToolHost(), []);
   const { theme } = useThemeStore();
   const { language } = useI18n();
   const [preferencesReady, setPreferencesReady] = useState(false);

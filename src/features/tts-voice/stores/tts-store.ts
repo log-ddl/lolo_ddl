@@ -39,6 +39,14 @@ interface TtsState {
   vbeeFavoriteVoiceCodes: string[];
   vbeeAudioType: 'mp3' | 'wav';
   vbeeBitrate: number;
+  localStyle: string;
+  streamPreview: boolean;
+  setLocalStyle: (value: string) => void;
+  setStreamPreview: (value: boolean) => void;
+  localLanguage: string;
+  qwenSpeaker: string;
+  setLocalLanguage: (value: string) => void;
+  setQwenSpeaker: (value: string) => void;
   vieneuVoice: string;
   vieneuStyle: 'tu_nhien' | 'tin_tuc' | 'doc_truyen';
   advancedEnabled: boolean;
@@ -97,6 +105,13 @@ export const useTtsStore = create<TtsState>()(
       advancedEnabled: false,
       advancedSettings: { ...DEFAULT_TTS_ADVANCED_SETTINGS },
       voiceProfiles: [], history: [], hasSeenModelPrompt: false,
+      localStyle: '', streamPreview: false,
+      setLocalStyle: (localStyle) => set({ localStyle }),
+      setStreamPreview: (streamPreview) => set({ streamPreview }),
+      localLanguage: 'auto',
+      qwenSpeaker: 'Ryan',
+      setLocalLanguage: (localLanguage) => set({ localLanguage }),
+      setQwenSpeaker: (qwenSpeaker) => set({ qwenSpeaker }),
       setSelectedEngineId: (selectedEngineId) => set({ selectedEngineId }),
       setSelectedModelId: (selectedModelId) => set({ selectedModelId }),
       setText: (text) => set({ text }),
@@ -147,7 +162,7 @@ export const useTtsStore = create<TtsState>()(
         voiceProfiles: state.voiceProfiles.filter((item) => item.id !== id),
         selectedProfileId: state.selectedProfileId === id ? undefined : state.selectedProfileId,
       })),
-      addHistory: (item) => set((state) => ({ history: [item, ...state.history].slice(0, 100) })),
+      addHistory: (item) => set((state) => ({ history: [item, ...state.history.filter(existing => existing.id !== item.id)].slice(0, 100) })),
       renameHistory: (id, name) => set((state) => ({
         history: state.history.map((item) => item.id === id ? { ...item, name } : item),
       })),

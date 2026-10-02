@@ -1,5 +1,7 @@
+import { LocalModelSettingsPanel } from './local-model-settings-panel';
+import { ModelSelector } from './model-selector';
 import { useState } from 'react';
-import { ChevronDown, Cpu, Download, Gauge, Languages, Mic2, RotateCcw, SlidersHorizontal, Sparkles, Trash2, UserRoundPlus, WandSparkles } from 'lucide-react';
+import { ChevronDown, Gauge, Languages, Mic2, RotateCcw, SlidersHorizontal, Sparkles, Trash2, UserRoundPlus, WandSparkles } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
 import { Input } from '@/shared/components/ui/input';
@@ -10,7 +12,6 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { useI18n } from '@/shared/i18n';
 import type { TtsMode, TtsSplitMode } from '../types';
 import type { TtsController } from '../hooks/use-tts-controller';
-import { ModelStatusBadge } from './model-status-badge';
 import { LanguagePickerDialog } from './dialogs/language-picker-dialog';
 import { CapCutSettingsPanel } from './capcut-settings-panel';
 import { GeminiSettingsPanel } from './gemini-settings-panel';
@@ -98,15 +99,16 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
   const {
-    selectedModel, selectedStatus, currentModelLabel, mode, setMode,
+    mode, setMode,
     instruction, setInstruction, compatibleProfiles, selectedProfile,
-    selectedProfileId, setSelectedProfileId, removeVoiceProfile, setProfileOpen, installModel,
+    selectedProfileId, setSelectedProfileId, removeVoiceProfile, setProfileOpen,
     language, setLanguage, speed, setSpeed, numStep, setNumStep,
     splitMode, setSplitMode,
     savedLanguages, addSavedLanguage, removeSavedLanguage,
     advancedEnabled, setAdvancedEnabled, advancedSettings, setAdvancedSetting, resetAdvancedSettings,
   } = controller;
 
+  if (['cosyvoice', 'qwen3'].includes(controller.selectedModel.runtimeCapability)) return <LocalModelSettingsPanel controller={controller} />;
   if (controller.isCapCut) return <CapCutSettingsPanel controller={controller} />;
   if (controller.isGemini) return <GeminiSettingsPanel controller={controller} />;
   if (controller.isVbee) return <VbeeSettingsPanel controller={controller} />;
@@ -115,25 +117,7 @@ export function VoiceSettingsPanel({ controller }: VoiceSettingsPanelProps) {
   return (
     <aside className="min-h-0 overflow-y-auto bg-panel/40 p-5">
       <div className="space-y-5">
-        <section className="rounded-xl border border-border/60 bg-card/65 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold">{selectedModel.name}</h2>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{currentModelLabel}</p>
-            </div>
-            <ModelStatusBadge status={selectedStatus} />
-          </div>
-          {selectedStatus?.status !== 'ready' && (
-            <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => installModel(selectedModel)}>
-              <Download /> {selectedStatus?.status === 'incompatible' && selectedStatus.installedPath
-                ? t('tts.manager.repairRuntime')
-                : t('tts.manager.download')}
-            </Button>
-          )}
-        </section>
+        <ModelSelector controller={controller} />
 
         <section>
           <Label>{t('tts.settings.voiceMode')}</Label>

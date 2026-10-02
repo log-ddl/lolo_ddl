@@ -1,3 +1,4 @@
+import { MOTION_MODES, MOTION_ENTRANCES } from './motion-math';
 import { canConnect } from './graph';
 import { NODE_SPECS, portSpec, type CanvasSpace, type CanvasNodeState, type CanvasEdgeState } from './types';
 
@@ -8,6 +9,11 @@ export function validateGraph(nodes: CanvasNodeState[], edges: CanvasEdgeState[]
     if (!node || typeof node.id !== 'string' || ids.has(node.id) || !Object.prototype.hasOwnProperty.call(NODE_SPECS, node.kind)) throw new Error('Invalid or duplicate node');
     ids.add(node.id);
     if (!Number.isFinite(node.position?.x) || !Number.isFinite(node.position?.y) || typeof node.prompt !== 'string' || typeof node.model !== 'string' || typeof node.aspectRatio !== 'string' || !Array.isArray(node.refs) || node.refs.some((ref) => typeof ref !== 'string')) throw new Error('Invalid node fields');
+    if (node.motionEntrance !== undefined && !MOTION_ENTRANCES.includes(node.motionEntrance)) throw new Error('Invalid motion entrance');
+    if (node.motionMode !== undefined && !MOTION_MODES.includes(node.motionMode)) throw new Error('Invalid motion mode');
+    if (node.motionIntensity !== undefined && (!Number.isFinite(node.motionIntensity) || node.motionIntensity < 0 || node.motionIntensity > 3)) throw new Error('Invalid motion intensity');
+    if (node.motionSpeed !== undefined && (!Number.isFinite(node.motionSpeed) || node.motionSpeed < 0.25 || node.motionSpeed > 3)) throw new Error('Invalid motion speed');
+    if (node.motionDuration !== undefined && (!Number.isFinite(node.motionDuration) || node.motionDuration < 0.1 || node.motionDuration > 60)) throw new Error('Invalid motion duration (0.1–60 seconds)');
     if (node.videoDuration !== undefined && ![4, 6, 8, 10, 15].includes(node.videoDuration)) throw new Error('Invalid video duration');
     if (node.videoResolution !== undefined && !['480p', '720p', '1080p'].includes(node.videoResolution)) throw new Error('Invalid video resolution');
     if (node.videoMode !== undefined && !['first', 'ref'].includes(node.videoMode)) throw new Error('Invalid video mode');
@@ -15,8 +21,6 @@ export function validateGraph(nodes: CanvasNodeState[], edges: CanvasEdgeState[]
     if (node.promptIsFinal !== undefined && typeof node.promptIsFinal !== 'boolean') throw new Error('Invalid prompt mode');
     if (node.accountOwnerScopeId !== undefined && typeof node.accountOwnerScopeId !== 'string') throw new Error('Invalid account');
     if (node.accountLabel !== undefined && typeof node.accountLabel !== 'string') throw new Error('Invalid account label');
-    if (node.grokCredentialId !== undefined && typeof node.grokCredentialId !== 'string') throw new Error('Invalid Grok account');
-    if (node.grokAccountLabel !== undefined && typeof node.grokAccountLabel !== 'string') throw new Error('Invalid Grok account label');
     if (node.name !== undefined && typeof node.name !== 'string') throw new Error('Invalid name');
     if (node.textOutput !== undefined && typeof node.textOutput !== 'string') throw new Error('Invalid AI output');
     if (node.aiAdapter !== undefined && !['claude', 'opencode', 'codex'].includes(node.aiAdapter)) throw new Error('Invalid AI adapter');

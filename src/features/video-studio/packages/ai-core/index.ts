@@ -8,3 +8,6 @@ export * from './types';
 
 // Providers
 export * from './providers';
+
+// Protocol
+export * from './protocol';

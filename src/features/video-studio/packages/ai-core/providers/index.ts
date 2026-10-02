@@ -7,7 +7,6 @@
 export * from './types';
 export * from './media-provider';
 export * from './google-flow/types';
-export * from './grok/types';
 
 // Provider implementations
 // Providers are dynamically configured via api-config-store.

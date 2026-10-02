@@ -14,10 +14,9 @@ def emit(kind: str, **payload: object) -> None:
 
 
 def create_engine(use_accelerated_backend: bool = False):
-    from vieneu import Vieneu
+    from vieneu_onnx_paths import create_vieneu_engine
 
-    # Pin the desktop integration to the lightweight, deterministic CPU path.
-    return Vieneu() if use_accelerated_backend else Vieneu(backend="onnx")
+    return create_vieneu_engine(use_accelerated_backend)
 
 
 def main() -> None:

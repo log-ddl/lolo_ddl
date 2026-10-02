@@ -155,7 +155,7 @@ function SpaceEditor({ spaceId }: { spaceId: string }) {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       const message = error instanceof Error ? error.message : String(error);
-      toast.error(message === "VIDEO_REF_INPUT_INVALID" ? t("canvas.videoRefInvalid") : message === "VIDEO_REF_UNAVAILABLE" ? t("canvas.videoRefUnavailable") : message === "VIDEO_START_REQUIRED" ? t("canvas.videoStartRequired") : message === "INPUT_REQUIRED" ? t("canvas.error.inputRequired") : message === "LIST_LENGTH_MISMATCH" ? t("canvas.error.listMismatch") : message === "LOCAL_IMAGE_REQUIRED" ? t("canvas.error.localImageRequired") : message === EMPTY_PROMPT ? t("canvas.error.emptyPrompt") : t("canvas.error.runFailed", { message }));
+      toast.error(message === "VIDEO_REF_INPUT_INVALID" ? t("canvas.videoRefInvalid") : message === "VIDEO_REF_UNAVAILABLE" ? t("canvas.videoRefUnavailable") : message === "VIDEO_START_REQUIRED" ? t("canvas.videoStartRequired") : message === "UPSTREAM_FAILED" ? t("canvas.error.upstreamFailed") : message === "INPUT_REQUIRED" ? t("canvas.error.inputRequired") : message === "LIST_LENGTH_MISMATCH" ? t("canvas.error.listMismatch") : message === "LOCAL_IMAGE_REQUIRED" ? t("canvas.error.localImageRequired") : message === EMPTY_PROMPT ? t("canvas.error.emptyPrompt") : t("canvas.error.runFailed", { message }));
     }
   }, [spaceId, t]);
 
@@ -396,7 +396,7 @@ function SpaceEditor({ spaceId }: { spaceId: string }) {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       const message = error instanceof Error ? error.message : String(error);
-      toast.error(message === "VIDEO_REF_INPUT_INVALID" ? t("canvas.videoRefInvalid") : message === "VIDEO_REF_UNAVAILABLE" ? t("canvas.videoRefUnavailable") : message === "VIDEO_START_REQUIRED" ? t("canvas.videoStartRequired") : message === "INPUT_REQUIRED" ? t("canvas.error.inputRequired") : message === "LIST_LENGTH_MISMATCH" ? t("canvas.error.listMismatch") : message === "LOCAL_IMAGE_REQUIRED" ? t("canvas.error.localImageRequired") : message === EMPTY_PROMPT ? t("canvas.error.emptyPrompt") : t("canvas.error.runFailed", { message }));
+      toast.error(message === "VIDEO_REF_INPUT_INVALID" ? t("canvas.videoRefInvalid") : message === "VIDEO_REF_UNAVAILABLE" ? t("canvas.videoRefUnavailable") : message === "VIDEO_START_REQUIRED" ? t("canvas.videoStartRequired") : message === "UPSTREAM_FAILED" ? t("canvas.error.upstreamFailed") : message === "INPUT_REQUIRED" ? t("canvas.error.inputRequired") : message === "LIST_LENGTH_MISMATCH" ? t("canvas.error.listMismatch") : message === "LOCAL_IMAGE_REQUIRED" ? t("canvas.error.localImageRequired") : message === EMPTY_PROMPT ? t("canvas.error.emptyPrompt") : t("canvas.error.runFailed", { message }));
     } finally {
       setRunningAll(false);
     }

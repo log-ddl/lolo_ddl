@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Cloud, Cpu, Download, Globe2, HardDrive, KeyRound, Loader2, Plus, Save, Square, Trash2, Wifi } from 'lucide-react';
 import { Badge } from '@/shared/components/ui/badge';
@@ -85,7 +86,7 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
           <DialogDescription>{t('tts.manager.chooseEngine')}</DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {engineGroups.map((engine) => {
             const selected = selectedEngine.id === engine.id;
             const online = engine.models[0].runtimeKind === 'online';
@@ -94,6 +95,7 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
               <button
                 key={engine.id}
                 type="button"
+                disabled={busy}
                 onClick={() => setSelectedEngineId(engine.id)}
                 className={`rounded-xl border p-4 text-left transition-colors ${selected
                   ? 'border-primary bg-primary/8 ring-1 ring-primary/20'
@@ -111,6 +113,15 @@ export function ModelManagerDialog({ controller }: { controller: TtsController }
             );
           })}
         </div>
+
+        {controller.availableModels.length > 1 && (
+          <Select value={selectedModel.id} onValueChange={controller.setSelectedModelId} disabled={busy}>
+            <SelectTrigger aria-label={t('tts.settings.model')}><SelectValue /></SelectTrigger>
+            <SelectContent showScrollButtons={false}>
+              {controller.availableModels.map((model) => <SelectItem key={model.id} value={model.id}>{model.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
 
         {!isOnline ? (
           <div className="rounded-xl border border-border/60 bg-card/70 p-5">

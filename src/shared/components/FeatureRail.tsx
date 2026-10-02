@@ -58,7 +58,7 @@ function RailItem({ item }: { item: FeatureRailItem }) {
   );
 }
 
-export function FeatureRail({ items = [], bottomItems = [], backAction, showCliSettings = false }: FeatureRailProps) {
+export function FeatureRail({ items = [], bottomItems = [], backAction, showCliSettings = true }: FeatureRailProps) {
   const { t } = useI18n();
   const goHome = useAppShellStore((state) => state.goHome);
   const openSettings = useAppShellStore((state) => state.openSettings);
@@ -104,10 +104,10 @@ export function FeatureRail({ items = [], bottomItems = [], backAction, showCliS
               <TooltipTrigger asChild>
                 <button type="button" onClick={openSettings} className={railActionClass}>
                   <Settings className="size-4" />
-                  <span className="text-2xs font-medium leading-tight">CLI</span>
+                  <span className="text-2xs font-medium leading-tight">{uiLanguage === "vi" ? "Cài đặt AI" : "AI settings"}</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">{t("tabBar.cliSettings")}</TooltipContent>
+              <TooltipContent side="right" className="text-xs">{uiLanguage === "vi" ? "Kết nối AI bên ngoài và cài đặt CLI" : "External AI connections and CLI settings"}</TooltipContent>
             </Tooltip>
           )}
           {bottomItems.map((item) => <RailItem key={item.id} item={item} />)}

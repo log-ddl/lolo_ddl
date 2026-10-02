@@ -147,9 +147,8 @@ export function useVideoGeneration(deps: VideoGenerationDeps): VideoGeneration {
       return;
     }
     const isGoogleFlowVideo = platform === 'googleflow';
-    const isGrokVideo = platform === 'grok';
-    if (!isGoogleFlowVideo && !isGrokVideo) {
-      toast.error('Tính năng tạo video hỗ trợ Google Flow hoặc Grok.');
+    if (!isGoogleFlowVideo) {
+      toast.error('Tính năng tạo video hỗ trợ Google Flow.');
       return;
     }
 
@@ -160,7 +159,7 @@ export function useVideoGeneration(deps: VideoGenerationDeps): VideoGeneration {
     // Get rotating key from manager
     const keyManager = featureConfig.keyManager;
     const apiKey = keyManager.getCurrentKey() || featureConfig.apiKey || '';
-    if (!apiKey && !isGoogleFlowVideo && !isGrokVideo) {
+    if (!apiKey && !isGoogleFlowVideo) {
       toast.error(t("director.configurePlatformKey", { platform }));
       return;
     }
@@ -627,7 +626,6 @@ export function useVideoGeneration(deps: VideoGenerationDeps): VideoGeneration {
               {
                 attempts: flowSettings.retryAttempts + 1,
                 signal: batchController.signal,
-                retryable: (error) => !/tất cả tài khoản grok/i.test(error instanceof Error ? error.message : String(error)),
                 onRetry: () => {
                   updateSplitSceneVideo(scene.id, {
                     videoStatus: 'queued',
@@ -662,16 +660,7 @@ export function useVideoGeneration(deps: VideoGenerationDeps): VideoGeneration {
                   return;
                 }
 
-                // Every Grok account is out of 720p video quota (the runtime throws
-                // "Tất cả tài khoản Grok đã hết lượt tạo video."). Retrying or moving
-                // to the next shot is pointless — stop the whole batch now. Matches
-                // only the Grok all-accounts message, so Flow and other providers are unaffected.
                 const error = latest?.videoError || 'Video generation timed out or failed after retry.';
-                if (/tất cả tài khoản grok/i.test(error)) {
-                  toast.error('Tất cả tài khoản Grok đã hết lượt tạo video — đã dừng tạo hàng loạt.');
-                  batchController.abort();
-                  throw new DOMException('Cancelled by user', 'AbortError');
-                }
                 throw new Error(error);
               },
             );

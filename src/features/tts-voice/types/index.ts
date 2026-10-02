@@ -1,7 +1,7 @@
 export type TtsMode = 'clone' | 'design' | 'auto' | 'preset';
 export type TtsSplitMode = 'default' | 'line' | 'sentence';
 export type TtsCapability = 'voice-clone' | 'voice-design' | 'auto-voice' | 'preset-voice';
-export type TtsProviderId = 'omnivoice-local' | 'vieneu-local' | 'capcut-online' | 'gemini-online' | 'vbee-online';
+export type TtsProviderId = 'cosyvoice-local' | 'qwen3-local' | 'omnivoice-local' | 'vieneu-local' | 'capcut-online' | 'gemini-online' | 'vbee-online';
 export type TtsModelStatusValue = 'not-installed' | 'downloading' | 'ready' | 'incompatible' | 'error';
 
 export interface TtsSavedLanguage {
@@ -33,7 +33,7 @@ export interface TtsSpeaker {
 export interface TtsModelDefinition {
   id: string;
   providerId: TtsProviderId;
-  runtimeCapability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu';
+  runtimeCapability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' | 'cosyvoice' | 'qwen3';
   runtimeKind: 'local' | 'online';
   repository: string;
   name: string;
@@ -57,7 +57,7 @@ export interface TtsModelStatus {
   runtimeReady: boolean;
   pythonAvailable: boolean;
   cudaAvailable?: boolean;
-  accelerator?: 'cuda' | 'mps' | 'cpu';
+  accelerator?: 'cuda' | 'mps' | 'mlx' | 'cpu';
   message?: string;
   messageKey?: string;
 }
@@ -68,6 +68,7 @@ export interface TtsProgressEvent {
   stage: string;
   percent?: number;
   message: string;
+  audioChunkPath?: string;
 }
 
 export interface TtsGenerateRequest {
@@ -88,6 +89,9 @@ export interface TtsGenerateRequest {
   vbeeVoiceCode?: string;
   vbeeAudioType?: 'mp3' | 'wav';
   vbeeBitrate?: number;
+  localStyle?: string;
+  streamPreview?: boolean;
+  qwenSpeaker?: string
   vieneuVoice?: string;
   vieneuStyle?: 'tu_nhien' | 'tin_tuc' | 'doc_truyen';
   instruction?: string;

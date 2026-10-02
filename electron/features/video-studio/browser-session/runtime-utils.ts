@@ -1,4 +1,4 @@
-// Shared small helpers used by the Google Flow and Grok runtimes.
+// Shared small helpers used by the Google Flow runtime.
 
 export const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal?.aborted) return reject(new Error('Cancelled by user'))

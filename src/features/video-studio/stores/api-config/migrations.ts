@@ -2,7 +2,6 @@ import type { ProviderId } from '@/features/video-studio/packages/ai-core';
 import {
   type IProvider,
   GOOGLE_FLOW_MODELS,
-  GROK_VIDEO_MODELS,
   DEFAULT_PROVIDERS,
   generateId,
 } from '@/features/video-studio/lib/api-key-manager';
@@ -22,10 +21,8 @@ import { DEFAULT_FEATURE_BINDINGS, type AIFeature, type APIConfigState, type Fea
  * image-host defaults are no-ops here — the final normalization block rebuilds
  * those from `resolveImageHostProviders`.
  */
-// v22 has no dedicated step: the bump exists so the final normalization block
-// re-runs and refreshes the Google Flow model list on stores saved before
-// Gemini_Omni_Flash was added.
-export const API_CONFIG_STORE_VERSION = 22;
+// v23 drops the removed Grok provider and any feature bindings referencing it.
+export const API_CONFIG_STORE_VERSION = 23;
 
 type MigrationResult = Partial<APIConfigState> & { imageHostConfig?: LegacyImageHostConfig };
 
@@ -315,14 +312,7 @@ export function migrateApiConfig(persistedState: unknown, version: number) {
     version = 19;
   }
 
-  // v19 -> v20: add the Grok video provider backed by the unified logdd extension.
   if (version <= 19) {
-    const providers = Array.isArray(result.providers) ? result.providers : [];
-    if (!providers.some((provider: IProvider) => provider.platform === 'grok')) {
-      const template = DEFAULT_PROVIDERS.find((provider) => provider.platform === 'grok');
-      if (template) providers.push({ id: generateId(), ...template, apiKey: '' });
-    }
-    result.providers = providers;
     version = 20;
   }
 
@@ -350,6 +340,29 @@ export function migrateApiConfig(persistedState: unknown, version: number) {
     version = 21;
   }
 
+  // v22 → v23: drop the removed Grok provider and any feature bindings referencing it.
+  if (version <= 22) {
+    const providers = Array.isArray(result.providers) ? result.providers : [];
+    const removedIds = new Set(
+      providers.filter((provider: IProvider) => provider.platform === 'grok').map((provider: IProvider) => provider.id),
+    );
+    if (removedIds.size > 0) {
+      result.providers = providers.filter((provider: IProvider) => provider.platform !== 'grok');
+      const bindings = result.featureBindings || {};
+      for (const [feature, value] of Object.entries(bindings)) {
+        const items = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
+        const cleaned = items.filter((binding) => {
+          const separator = binding.indexOf(':');
+          const providerId = separator > 0 ? binding.slice(0, separator) : binding;
+          return !removedIds.has(providerId);
+        });
+        (bindings as FeatureBindings)[feature as AIFeature] = cleaned.length ? cleaned : null;
+      }
+      result.featureBindings = bindings as FeatureBindings;
+    }
+    version = 23;
+  }
+
   // ========== Final normalization (always runs) ==========
 
   // Ensure all feature binding keys exist and normalize string → string[]
@@ -369,7 +382,7 @@ export function migrateApiConfig(persistedState: unknown, version: number) {
   result.featureBindings = finalBindings;
 
   if (Array.isArray(result.providers)) {
-    const supportedPlatforms = new Set(['googleflow', 'grok', 'openai', 'openrouter', 'custom']);
+    const supportedPlatforms = new Set(['googleflow', 'openai', 'openrouter', 'custom']);
     const normalizedProviders: IProvider[] = result.providers
       .filter((provider: IProvider) => supportedPlatforms.has(provider.platform))
       .map((provider: IProvider): IProvider => {
@@ -383,20 +396,10 @@ export function migrateApiConfig(persistedState: unknown, version: number) {
             capabilities: ['image_generation', 'video_generation'],
           };
         }
-        if (provider.platform === 'grok') {
-          return {
-            ...provider,
-            name: 'Grok',
-            apiKey: '',
-            baseUrl: 'local://grok',
-            model: GROK_VIDEO_MODELS,
-            capabilities: ['video_generation'],
-          };
-        }
         return provider;
       })
       .sort((left: IProvider, right: IProvider) => {
-        const coreOrder: Record<string, number> = { googleflow: 0, grok: 1 };
+        const coreOrder: Record<string, number> = { googleflow: 0 };
         return (coreOrder[left.platform] ?? 2) - (coreOrder[right.platform] ?? 2);
       });
     result.providers = normalizedProviders;

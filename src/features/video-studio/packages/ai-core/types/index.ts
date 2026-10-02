@@ -138,7 +138,7 @@ export interface GenerationConfig {
   
   // Provider selection
   imageProvider: 'mock' | 'googleflow';
-  videoProvider: 'mock' | 'googleflow' | 'grok';
+  videoProvider: 'mock' | 'googleflow';
   chatProvider: 'openai' | 'openrouter' | 'mock';
 }
 
@@ -147,7 +147,7 @@ export interface GenerationConfig {
 /**
  * API provider identifier
  */
-export type ProviderId = 'googleflow' | 'grok' | 'openai' | 'openrouter' | 'custom';
+export type ProviderId = 'googleflow' | 'openai' | 'openrouter' | 'custom';
 
 /**
  * Service type

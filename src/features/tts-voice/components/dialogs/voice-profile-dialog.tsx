@@ -36,7 +36,8 @@ export function VoiceProfileDialog({ controller }: { controller: TtsController }
             </div>
           </div>
           <div>
-            <Label>{controller.isVieneu ? t('tts.profile.transcriptOptional') : t('tts.profile.transcript')}</Label>
+            <Label>{(controller.isVieneu || ['cosyvoice', 'qwen3'].includes(selectedModel.runtimeCapability)) ? t('tts.profile.transcriptOptional') : t('tts.profile.transcript')}</Label>
+            {['cosyvoice', 'qwen3'].includes(selectedModel.runtimeCapability) && <p className="mt-1 text-xs text-muted-foreground">{t('tts.local.transcriptHint')}</p>}
             <Textarea
               className="mt-2 min-h-28"
               value={referenceText}

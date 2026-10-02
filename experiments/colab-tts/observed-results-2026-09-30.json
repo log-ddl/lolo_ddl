@@ -1,0 +1,43 @@
+{
+  "source": "Observed completed outputs in Colab notebook",
+  "notebook": "https://colab.research.google.com/drive/17S9RLIJbI0SrBfnfCb5O8C4TTuoEtUtD",
+  "model": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+  "gpu": "Tesla T4",
+  "setup_seconds": 96.622347228,
+  "download_seconds": 225.845968365,
+  "fp32_eager": {
+    "generation_seconds": [
+      20.809694683,
+      20.058209765,
+      16.415183336
+    ],
+    "audio_seconds": [
+      6.24,
+      6.48,
+      5.44
+    ],
+    "load_seconds": 4.881531848
+  },
+  "fp16_sdpa": {
+    "generation_seconds": [
+      19.01613698,
+      16.201180786,
+      14.391089243
+    ],
+    "audio_seconds": [
+      6.16,
+      5.92,
+      5.2
+    ],
+    "load_seconds": 7.696319349
+  },
+  "prior_local_mlx": {
+    "generation_seconds": 6.2,
+    "audio_seconds": 5.04
+  },
+  "notes": [
+    "Same text and voice instruction; stochastic audio differs.",
+    "WAVs generated on Colab. Local ZIP download not verified because browser automation connection failed.",
+    "Production app unchanged during cloud experiment."
+  ]
+}

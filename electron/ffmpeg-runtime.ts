@@ -1,5 +1,7 @@
 import { spawn, ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import path from 'node:path'
 import ffmpegStaticPath from 'ffmpeg-static'
 import { spawnManagedProcess, terminateManagedProcess } from './process-supervisor'
@@ -7,6 +9,8 @@ import { spawnManagedProcess, terminateManagedProcess } from './process-supervis
 export interface FFmpegRunOptions {
   jobId: string
   args: string[]
+  /** Internal streaming input, consumed with backpressure. */
+  input?: AsyncIterable<Uint8Array>
   totalDurationSec?: number
   onProgress?: (progress: { percent: number; timeSec: number; raw: string }) => void
   onLog?: (line: string) => void
@@ -50,9 +54,11 @@ export function runFFmpeg(opts: FFmpegRunOptions): Promise<FFmpegRunResult> {
     const ffmpegPath = getFFmpegPath()
     let stderrBuf = ''
     let canceled = false
+    let inputError: string | undefined
+    let inputDone: Promise<void> = Promise.resolve()
 
     const child = spawnManagedProcess(`ffmpeg-${opts.jobId}`, `FFmpeg Job (${opts.jobId})`, ffmpegPath, opts.args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [opts.input ? 'pipe' : 'ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
 
@@ -92,16 +98,24 @@ export function runFFmpeg(opts: FFmpegRunOptions): Promise<FFmpegRunResult> {
       })
     })
 
-    child.on('close', (code) => {
+    child.on('close', async (code) => {
+      await inputDone
       activeJobs.delete(opts.jobId)
       resolve({
-        success: code === 0 && !canceled,
+        success: code === 0 && !canceled && !inputError,
         exitCode: code,
         stderr: stderrBuf,
         canceled,
-        error: canceled ? 'canceled' : code !== 0 ? `ffmpeg exited with code ${code}` : undefined,
+        error: canceled ? 'canceled' : inputError ? inputError : code !== 0 ? `ffmpeg exited with code ${code}` : undefined,
       })
     })
+
+    if (opts.input && child.stdin) {
+      inputDone = pipeline(Readable.from(opts.input, { objectMode: false }), child.stdin).catch((error: Error) => {
+        inputError = error.message
+        child.kill('SIGKILL')
+      })
+    }
 
     // expose cancel via closure into activeJobs map; mark canceled flag here
     const originalKill = child.kill.bind(child)

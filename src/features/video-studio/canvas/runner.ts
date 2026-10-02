@@ -1,3 +1,5 @@
+import { isMotionKind } from './motion-math';
+import { runMotionNode } from './motion-runner';
 import { processImage } from './image-processing';
 import { saveOutputMedia } from './output-files';
 import { runAiNode } from './ai-node-runner';
@@ -46,14 +48,14 @@ export function cancelSpace(spaceId: string) {
   for (const run of executions.values()) if (run.spaceId === spaceId) run.controller.abort();
 }
 function checkCancelled(signal?: AbortSignal) { if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError'); }
-async function executeNode(spaceId: string, nodeId: string, signal?: AbortSignal): Promise<void> {
+async function executeNode(spaceId: string, nodeId: string, signal?: AbortSignal, excludedSources?: Set<string>): Promise<void> {
   checkCancelled(signal);
   const existing = executions.get(nodeId);
   if (existing) return existing.promise;
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener('abort', abort, { once: true });
-  const promise = executeSingleNode(spaceId, nodeId, controller.signal).finally(() => {
+  const promise = executeSingleNode(spaceId, nodeId, controller.signal, excludedSources).finally(() => {
     signal?.removeEventListener('abort', abort); executions.delete(nodeId);
   });
   executions.set(nodeId, { spaceId, controller, promise });
@@ -181,7 +183,6 @@ async function generateVideo(input: {
   const result = await generateProviderVideo({
     platform,
     accountOwnerScopeId: input.node.accountOwnerScopeId,
-    preferredCredentialId: platform === 'grok' ? input.node.grokCredentialId : undefined,
     length: videoDuration(model, input.node.videoDuration),
     resolution: input.node.videoResolution || '720p',
     taskId: input.taskId,
@@ -262,12 +263,17 @@ async function executeUpscaleGraphNode(spaceId: string, node: CanvasNodeState, s
 }
 
 /** One node, assuming its upstream is already resolved. */
-async function executeSingleNode(spaceId: string, nodeId: string, signal?: AbortSignal): Promise<void> {
+async function executeSingleNode(spaceId: string, nodeId: string, signal?: AbortSignal, excludedSources?: Set<string>): Promise<void> {
   const space = getSpace(spaceId);
   const node = space && nodeById(space.nodes, nodeId);
   if (!space || !node || !isGenerator(node.kind)) return;
 
   const { updateNode } = useCanvasStore.getState();
+  if (isMotionKind(node.kind)) {
+    inFlight.add(nodeId);
+    try { await runMotionNode(spaceId, node, signal); } finally { inFlight.delete(nodeId); }
+    return;
+  }
   if (node.kind === 'imageUpscale') return executeUpscaleGraphNode(spaceId, node, signal);
   if (node.kind === 'ai') {
     inFlight.add(nodeId);
@@ -289,9 +295,10 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
     updateNode(spaceId, nodeId, { status: 'running', error: undefined, savedFiles: [], batchProgress: undefined });
     try {
       if (!node.outputDirectory) throw new Error('OUTPUT_FOLDER_REQUIRED');
-      const resolved = resolveInputs(space.nodes, space.edges, nodeId);
+      const available = excludedSources?.size ? { ...space, edges: space.edges.filter((edge) => edge.target !== nodeId || !excludedSources.has(edge.source)) } : space;
+      const resolved = resolveInputs(available.nodes, available.edges, nodeId);
       if (resolved.missing.length) throw new Error('INPUT_REQUIRED');
-      await saveOutputMedia(space, nodeId, node.outputDirectory, signal, (files, total) => updateNode(spaceId, nodeId, { status: 'running', savedFiles: files, batchProgress: { done: files.length, total } }));
+      await saveOutputMedia(available, nodeId, node.outputDirectory, signal, (files, total) => updateNode(spaceId, nodeId, { status: 'running', savedFiles: files, batchProgress: { done: files.length, total } }));
       updateNode(spaceId, nodeId, { status: 'done', stale: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -307,12 +314,6 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
   }
   const batches = resolvedRuns(inputs);
   const videoRefs = (media: Record<string, string[]>) => [...new Set([...node.refs, ...(media.start || []), ...(media.refs || [])])];
-  const videoModel = node.kind === 'videoGenerator' ? node.model || configuredVideoModel() || FALLBACK_VIDEO_MODEL : '';
-  const isGrokVideo = node.kind === 'videoGenerator' && videoPlatformForModel(videoModel) === 'grok';
-  if (isGrokVideo && node.videoMode === 'ref') {
-    updateNode(spaceId, nodeId, { status: 'failed', error: 'Grok không hỗ trợ chế độ ảnh tham chiếu. Chọn chế độ khung đầu/cuối.' });
-    throw new CanvasRunError('Grok không hỗ trợ chế độ ảnh tham chiếu. Chọn chế độ khung đầu/cuối.', nodeId);
-  }
   if (node.kind === 'videoGenerator' && node.videoMode === 'ref' && batches.some((batch) => videoRefs(batch.mediaByPort).length > 3 || batch.mediaByPort.end?.length)) {
     updateNode(spaceId, nodeId, { status: 'failed', error: 'VIDEO_REF_INPUT_INVALID' });
     throw new CanvasRunError('VIDEO_REF_INPUT_INVALID', nodeId);
@@ -358,25 +359,16 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
 
   inFlight.add(nodeId);
   let taskId = crypto.randomUUID();
-  const runtime = isGrokVideo ? undefined : window.googleFlowRuntime;
-  const grokRuntime = isGrokVideo ? window.grokVideoRuntime : undefined;
+  const runtime = window.googleFlowRuntime;
   let disposed = false;
   let credentialId: string | undefined;
   let credentials: import('@/features/video-studio/packages/ai-core/providers/google-flow/types').GoogleFlowCredential[] = [];
-  let grokCredentials: import('@/features/video-studio/packages/ai-core/providers/grok/types').GrokCredential[] = [];
   let accountEmail: string | undefined;
   const syncAccount = () => {
     const email = credentials.find((credential) => credential.credentialId === credentialId)?.email;
     if (disposed || email === accountEmail) return;
     accountEmail = email;
     updateNode(spaceId, nodeId, { status: 'running', accountEmail: email });
-  };
-  const syncGrokAccount = () => {
-    const account = grokCredentials.find((item) => item.credentialId === credentialId);
-    const name = credentialId ? (credentialId === node.grokCredentialId && node.grokAccountLabel) || `Grok ${account?.extensionInstanceId.slice(0, 8) || credentialId.slice(-8)}` : undefined;
-    if (disposed || name === accountEmail) return;
-    accountEmail = name;
-    updateNode(spaceId, nodeId, { status: 'running', accountEmail: name });
   };
   const batchOutputs: NodeOutput[] = [];
   updateNode(spaceId, nodeId, { status: 'running', batchOutputs: [], error: undefined, startedAt: Date.now(), phaseStartedAt: Date.now(), phase: 'queued', accountEmail: undefined });
@@ -387,17 +379,7 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
     if (phase) updateNode(spaceId, nodeId, { status: 'running', ...phase });
     if (task.credentialId) { credentialId = task.credentialId; syncAccount(); }
   });
-  const offGrokTask = grokRuntime?.onTask((task) => {
-    if (task.taskId !== taskId) return;
-    if (task.credentialId) { credentialId = task.credentialId; syncGrokAccount(); }
-    const phase = task.status === 'completed' ? 'downloading' : task.status;
-    if (phase === 'failed' || phase === 'cancelled') return;
-    const current = getSpace(spaceId)?.nodes.find((item) => item.id === nodeId);
-    if (current?.phase !== phase) updateNode(spaceId, nodeId, { status: 'running', phase: phase as CanvasNodeState['phase'], phaseStartedAt: Date.now() });
-  });
-  const offGrokStatus = grokRuntime?.onStatus((status) => { grokCredentials = status.credentials; syncGrokAccount(); });
   void runtime?.getStatus().then((status) => { if (!disposed) { credentials = status.credentials; syncAccount(); } }).catch(() => {});
-  void grokRuntime?.getStatus().then((status) => { if (!disposed) { grokCredentials = status.credentials; syncGrokAccount(); } }).catch(() => {});
   try {
     for (const [index, batch] of batches.entries()) {
     checkCancelled(signal);
@@ -433,8 +415,6 @@ async function executeSingleNode(spaceId: string, nodeId: string, signal?: Abort
   } finally {
     disposed = true;
     offTask?.();
-    offGrokTask?.();
-    offGrokStatus?.();
     offStatus?.();
     inFlight.delete(nodeId);
   }
@@ -458,38 +438,73 @@ export async function runNode(spaceId: string, nodeId: string, signal?: AbortSig
   finally { runs.delete(run); signal?.removeEventListener('abort', abort); }
 }
 async function runNodePlan(spaceId: string, nodeId: string, signal?: AbortSignal): Promise<void> {
+  await runGraph(spaceId, [nodeId], signal);
+}
+
+/** Dependency promises are shared for this run, including failures. Independent
+ * branches settle before reporting errors. Provider queues own lane limits and
+ * submission delays; do not add a second delay or wait for sibling completion. */
+async function runGraph(spaceId: string, targets: string[], signal?: AbortSignal): Promise<void> {
   const space = getSpace(spaceId);
   if (!space) return;
-  const target = nodeById(space.nodes, nodeId);
-  if (target?.kind === 'output' && (!target.outputDirectory || !window.exportStorage?.writeFiles)) {
-    const error = !target.outputDirectory ? 'OUTPUT_FOLDER_REQUIRED' : 'OUTPUT_DESKTOP_REQUIRED';
-    useCanvasStore.getState().updateNode(spaceId, nodeId, { status: 'failed', error });
-    throw new CanvasRunError(error, nodeId);
-  }
-
-  // An AI run describes the existing images, even when their generation settings
-  // have changed. Stop at those outputs so their ancestors cannot regenerate them.
-  const reuseImage = target?.kind === 'ai'
-    ? (node: CanvasNodeState) => isGenerator(node.kind) && outputTypeOf(node) === 'image'
-      && nodeValues(space.nodes, space.edges, node.id).length > 0
-    : undefined;
-  const plan = [...upstreamOrder(space.nodes, space.edges, nodeId, reuseImage), nodeId];
-  for (const id of plan) {
-    checkCancelled(signal);
-    const current = getSpace(spaceId);
-    const node = current && nodeById(current.nodes, id);
-    if (!node || (!isGenerator(node.kind) && node.kind !== 'localImage' && node.kind !== 'localVideo')) continue;
-    if ((node.kind === 'localImage' || node.kind === 'localVideo')) {
-      if (!node.output?.url) {
-        useCanvasStore.getState().updateNode(spaceId, id, { status: 'failed', error: 'LOCAL_IMAGE_REQUIRED' });
-        throw new CanvasRunError('LOCAL_IMAGE_REQUIRED', id);
-      }
+  checkCancelled(signal);
+  const included = new Set<string>();
+  const preflightErrors = new Map<string, CanvasRunError>();
+  for (const id of targets) {
+    const target = nodeById(space.nodes, id);
+    if (!target) continue;
+    if (target.kind === 'output' && (!target.outputDirectory || !window.exportStorage?.writeFiles)) {
+      const message = !target.outputDirectory ? 'OUTPUT_FOLDER_REQUIRED' : 'OUTPUT_DESKTOP_REQUIRED';
+      useCanvasStore.getState().updateNode(spaceId, id, { status: 'failed', error: message });
+      preflightErrors.set(id, new CanvasRunError(message, id));
       continue;
     }
-    const reusable = id !== nodeId && (node.output || node.textOutput) && !node.stale;
-    if (reusable) continue;
-    await executeNode(spaceId, id, signal);
+    // AI inspection reuses displayed images even if generation settings changed.
+    const reuse = target.kind === 'ai' ? (node: CanvasNodeState) =>
+      isGenerator(node.kind) && outputTypeOf(node) === 'image' && nodeValues(space.nodes, space.edges, node.id).length > 0 : undefined;
+    for (const ancestor of upstreamOrder(space.nodes, space.edges, id, reuse)) included.add(ancestor);
+    included.add(id);
   }
+  type Outcome = { ok: true } | { ok: false; error: unknown };
+  const pending = new Map<string, Promise<Outcome>>();
+  const failures: unknown[] = [...preflightErrors.values()];
+  const visit = (id: string): Promise<Outcome> => {
+    const existing = pending.get(id);
+    if (existing) return existing;
+    const dependencies = [...new Set(space.edges.filter((edge) => edge.target === id && included.has(edge.source)).map((edge) => edge.source))];
+    const promise = (async (): Promise<Outcome> => {
+      try {
+        const results = dependencies.length ? await Promise.all(dependencies.map(visit)) : [];
+        checkCancelled(signal);
+        const current = getSpace(spaceId);
+        const node = current && nodeById(current.nodes, id);
+        if (!node) throw new CanvasRunError('INPUT_REQUIRED', id);
+        const blocked = new Set(dependencies.filter((_, index) => !results[index].ok));
+        if (blocked.size && node.kind !== 'output') {
+          useCanvasStore.getState().updateNode(spaceId, id, { status: 'failed', stale: true, phase: undefined, error: 'UPSTREAM_FAILED' });
+          return { ok: false, error: new CanvasRunError('UPSTREAM_FAILED', id) };
+        }
+        if (node.kind === 'localImage' || node.kind === 'localVideo') {
+          if (!node.output?.url) {
+            useCanvasStore.getState().updateNode(spaceId, id, { status: 'failed', error: 'LOCAL_IMAGE_REQUIRED' });
+            throw new CanvasRunError('LOCAL_IMAGE_REQUIRED', id);
+          }
+        } else if (isGenerator(node.kind)) {
+          const reusable = !targets.includes(id) && (node.output || node.textOutput) && !node.stale && node.status !== 'failed';
+          if (!reusable) await executeNode(spaceId, id, signal, blocked);
+        }
+        return { ok: true };
+      } catch (error) {
+        failures.push(error);
+        return { ok: false, error };
+      }
+    })();
+    pending.set(id, promise);
+    return promise;
+  };
+  await Promise.all(targets.filter((id) => included.has(id)).map(visit));
+  checkCancelled(signal);
+  if (failures.length) throw failures[0];
 }
 
 /** Every node with no downstream wire, i.e. the ends of the graph. */
@@ -509,7 +524,7 @@ export async function runNodes(spaceId: string, nodeIds: string[]): Promise<void
     const space = getSpace(spaceId);
     if (!space) return;
     const ends = nodeIds.filter((id) => !nodeIds.some((other) => other !== id && upstreamOrder(space.nodes, space.edges, other).includes(id)));
-    for (const id of ends) { checkCancelled(run.controller.signal); await runNode(spaceId, id, run.controller.signal); }
+    await runGraph(spaceId, ends, run.controller.signal);
   } finally { runs.delete(run); }
 }
 export async function runSpace(spaceId: string): Promise<void> { await runNodes(spaceId, terminalNodeIds(spaceId)); }

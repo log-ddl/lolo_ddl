@@ -1,120 +1,581 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>logdd Bridge</title>
-  <link rel="stylesheet" href="ui.css">
+  <title>Flow Kit</title>
   <style>
-    .bridge-shell { min-height: 100vh; background: var(--background); color: var(--text); padding-bottom: 88px; overflow: auto; }
-    .bridge-header { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 5; }
-    .bridge-title { font-size: 16px; font-weight: 750; }
-    .bridge-subtitle { color: var(--muted); font-size: 11px; margin-top: 2px; }
-    .bridge-version { margin-left: auto; color: var(--muted); font-size: 10px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; }
-    .bridge-content { padding: 14px; display: grid; gap: 12px; }
-    .provider-card { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 14px; display: grid; gap: 10px; }
-    .provider-head { display: flex; align-items: center; gap: 10px; }
-    .provider-icon { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(226, 62, 134, .12); color: #e23e86; font-weight: 800; }
-    .provider-name { font-weight: 700; font-size: 14px; }
-    .provider-detail { color: var(--muted); font-size: 11px; margin-top: 2px; }
-    .provider-state { margin-left: auto; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 700; background: rgba(148, 163, 184, .16); color: var(--muted); }
-    .provider-state.ready { background: rgba(34, 197, 94, .14); color: #22a45a; }
-    .provider-state.waiting { background: rgba(245, 158, 11, .14); color: #c47b08; }
-    .provider-state.blocked { background: rgba(220, 79, 100, .14); color: #dc4f64; }
-    .checks { display: grid; gap: 6px; border-top: 1px solid var(--border); padding-top: 10px; }
-    .check { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
-    .check span:first-child { color: var(--muted); }
-    .check-value.ok { color: #22a45a; }
-    .check-value.bad { color: #dc4f64; }
-    .provider-error { color: #dc4f64; background: rgba(220, 79, 100, .08); border-radius: 8px; padding: 8px; font-size: 10px; line-height: 1.45; }
-    .provider-actions { display: flex; gap: 8px; }
-    .provider-actions .button { flex: 1; min-height: 34px; }
-    .bridge-note { border: 1px solid var(--border); background: var(--panel); border-radius: 12px; padding: 11px; color: var(--muted); font-size: 10px; line-height: 1.5; }
-    .activity { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); overflow: hidden; }
-    .activity-head { padding: 12px 14px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); }
-    .activity-title { font-weight: 700; font-size: 13px; }
-    .activity-count { color: var(--muted); font-size: 11px; }
-    .activity-list { max-height: 520px; overflow: auto; }
-    .activity-empty { padding: 32px 16px; text-align: center; color: var(--muted); font-size: 11px; }
-    .activity-entry { border-bottom: 1px solid var(--border); }
-    .activity-row { width: 100%; padding: 10px 14px; border: 0; background: transparent; color: inherit; display: grid; grid-template-columns: 46px minmax(0, 1fr) auto 12px; gap: 8px; align-items: center; font: inherit; text-align: left; cursor: pointer; }
-    .activity-row:hover { background: rgba(255,255,255,.025); }
-    .activity-provider { font-weight: 700; text-transform: uppercase; }
-    .activity-thumbnail { width: 42px; height: 32px; border: 1px solid var(--border); border-radius: 7px; background: #18181b; object-fit: cover; }
-    .activity-main { min-width: 0; }
-    .activity-kind { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .activity-meta { color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .activity-status { border-radius: 999px; padding: 4px 7px; background: rgba(148, 163, 184, .14); }
-    .activity-status.done { color: #22a45a; background: rgba(34, 197, 94, .12); }
-    .activity-status.failed { color: #dc4f64; background: rgba(220, 79, 100, .10); }
-    .activity-expand { color: var(--muted); font-size: 18px; transition: transform .16s ease; }
-    .activity-entry.open .activity-expand { transform: rotate(90deg); }
-    .activity-details { display: none; padding: 0 14px 14px 68px; }
-    .activity-entry.open .activity-details { display: block; }
-    .activity-preview { display: block; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; background: #18181b; }
-    .activity-preview img { display: block; width: 100%; max-height: 220px; object-fit: contain; }
-    .activity-detail-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(148,163,184,.1); font-size: 10px; }
-    .activity-detail-label { color: var(--muted); }
-    .activity-detail-value { overflow-wrap: anywhere; white-space: pre-wrap; user-select: text; }
-    .activity-detail-value.done { color: #22a45a; }
-    .activity-detail-value.failed { color: #dc4f64; }
-    .activity-output { margin-top: 10px; padding: 9px; border: 1px solid rgba(226,62,134,.22); border-radius: 9px; background: rgba(226,62,134,.06); }
-    .activity-output a { color: #e23e86; font-size: 11px; font-weight: 700; text-decoration: none; }
-    .activity-output-url { margin-top: 6px; color: var(--muted); font-size: 9px; overflow-wrap: anywhere; user-select: text; }
-    .bridge-footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 14px; border-top: 1px solid var(--border); background: var(--panel); display: flex; gap: 8px; }
-    .bridge-footer .button { flex: 1; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0d1a;
+      --surface:  #13132a;
+      --card:     #1a1a35;
+      --border:   #252545;
+      --accent:   #3b82f6;
+      --accent-dim: #1d4ed8;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --yellow:   #f59e0b;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --font:     'DM Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      width: 100%;
+      min-width: 280px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .header-title {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--text);
+    }
+
+    .header-title span {
+      color: var(--accent);
+    }
+
+    /* Connection dot */
+    #conn-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 0 0 var(--red);
+      transition: background 0.3s, box-shadow 0.3s;
+      flex-shrink: 0;
+    }
+
+    #conn-dot.on {
+      background: var(--green);
+      box-shadow: 0 0 6px 1px rgba(34, 197, 94, 0.5);
+      animation: pulse-dot 2.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { box-shadow: 0 0 4px 1px rgba(34, 197, 94, 0.4); }
+      50%       { box-shadow: 0 0 10px 3px rgba(34, 197, 94, 0.2); }
+    }
+
+    /* ON/OFF toggle */
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .toggle-label {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .toggle {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 9px;
+      transition: background 0.25s;
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: transform 0.25s, background 0.25s;
+    }
+
+    .toggle input:checked ~ .toggle-track { background: var(--accent-dim); }
+    .toggle input:checked ~ .toggle-thumb {
+      transform: translateX(14px);
+      background: var(--accent);
+    }
+
+    /* ── Metrics grid ───────────────────────────────── */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .metric-card {
+      background: var(--card);
+      padding: 10px 8px 8px;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .metric-value.green { color: var(--green); }
+    .metric-value.red   { color: var(--red); }
+
+    .metric-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    /* ── State bar ──────────────────────────────────── */
+    .state-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    #state-badge {
+      padding: 1px 7px;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      background: var(--border);
+      color: var(--muted);
+    }
+
+    #state-badge.idle    { background: rgba(34,197,94,0.15);  color: var(--green); }
+    #state-badge.running { background: rgba(245,158,11,0.15); color: var(--yellow); }
+    #state-badge.off     { background: var(--border);         color: var(--muted); }
+
+    #token-status {
+      margin-left: auto;
+      font-size: 10px;
+    }
+
+    #token-status.ok   { color: var(--green); }
+    #token-status.bad  { color: var(--red); }
+    #token-status.warn { color: var(--yellow); }
+
+    /* ── Log section ────────────────────────────────── */
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px 6px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    #log-count {
+      background: var(--border);
+      border-radius: 10px;
+      padding: 1px 6px;
+      font-size: 9px;
+      color: var(--muted);
+    }
+
+    .log-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .log-table-wrap {
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .log-table-wrap::-webkit-scrollbar { width: 4px; }
+    .log-table-wrap::-webkit-scrollbar-track { background: transparent; }
+    .log-table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      padding: 5px 10px 5px;
+      text-align: left;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 1;
+    }
+
+    thead th:first-child { width: 60px; }
+    thead th:last-child { width: 36%; }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(37, 37, 69, 0.6);
+      transition: background 0.12s;
+    }
+
+    tbody tr:hover { background: rgba(59, 130, 246, 0.05); }
+
+    tbody td {
+      padding: 5px 10px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .td-id {
+      font-size: 9px;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-color: transparent;
+      transition: text-decoration-color 0.15s;
+    }
+
+    .td-id:hover {
+      text-decoration-color: var(--accent);
+    }
+
+    /* ── Detail modal ──────────────────────────────── */
+    .detail-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+    }
+
+    .detail-overlay.open { display: flex; align-items: center; justify-content: center; }
+
+    .detail-panel {
+      width: 92%;
+      max-height: 80vh;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .detail-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .detail-close:hover { color: var(--text); }
+
+    .detail-body {
+      padding: 12px 14px;
+      overflow-y: auto;
+      font-size: 10px;
+      line-height: 1.6;
+      max-height: 65vh;
+    }
+
+    .detail-row {
+      display: flex;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(37,37,69,0.4);
+    }
+
+    .detail-label {
+      width: 90px;
+      flex-shrink: 0;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+    }
+
+    .detail-value {
+      flex: 1;
+      word-break: break-all;
+      color: var(--text);
+    }
+
+    .detail-value.error { color: var(--red); }
+    .detail-value.ok { color: var(--green); }
+
+    .td-type {
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+
+    .td-time {
+      font-size: 10px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Status badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    .badge-ok   { background: rgba(34,197,94,0.12);  color: var(--green); }
+    .badge-fail { background: rgba(239,68,68,0.12);  color: var(--red); }
+    .badge-proc { background: rgba(245,158,11,0.12); color: var(--yellow); }
+
+    .td-error {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 10px;
+      color: var(--red);
+      cursor: default;
+    }
+
+    .td-error.empty { color: var(--muted); }
+
+    .log-empty {
+      padding: 24px 14px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Action buttons ─────────────────────────────── */
+    .actions {
+      display: flex;
+      gap: 8px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .btn {
+      flex: 1;
+      padding: 7px 10px;
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .btn:hover {
+      background: var(--border);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn:active { opacity: 0.7; }
+
+    .btn-primary {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* ── Signature ──────────────────────────────────── */
+    .signature {
+      padding: 8px 14px;
+      text-align: center;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+
+    .signature a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .signature a:hover {
+      color: var(--text);
+    }
   </style>
 </head>
-<body class="bridge-shell">
-  <header class="bridge-header">
-    <div class="brand-mark" aria-hidden="true">L</div>
-    <div>
-      <div class="bridge-title">logdd Bridge</div>
-      <div class="bridge-subtitle">Google Flow + Grok Video</div>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div id="conn-dot"></div>
+    <div class="header-title"><span>Flow Kit</span> Extension</div>
+    <div class="toggle-wrap">
+      <span class="toggle-label" id="toggle-label">OFF</span>
+      <label class="toggle">
+        <input type="checkbox" id="main-toggle">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
     </div>
-    <div class="bridge-version" id="bridge-version">v—</div>
   </header>
 
-  <main class="bridge-content">
-    <section class="provider-card">
-      <div class="provider-head">
-        <div class="provider-icon">F</div>
-        <div><div class="provider-name">Google Flow</div><div class="provider-detail" id="flow-summary">Đang kiểm tra…</div></div>
-        <div class="provider-state" id="flow-state">Đang kiểm tra</div>
-      </div>
-      <div class="checks">
-        <div class="check"><span>Ứng dụng desktop · cổng 9222</span><span class="check-value" id="flow-agent">—</span></div>
-        <div class="check"><span>Phiên Google Flow</span><span class="check-value" id="flow-token">—</span></div>
-      </div>
-      <div class="provider-actions"><button class="button button-primary" id="btn-flow">Mở Google Flow</button><button class="button button-secondary" id="btn-token">Làm mới phiên</button></div>
-    </section>
+  <!-- Metrics -->
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="metric-value" id="m-total">0</div>
+      <div class="metric-label">Total</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value green" id="m-success">0</div>
+      <div class="metric-label">Success</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value red" id="m-failed">0</div>
+      <div class="metric-label">Failed</div>
+    </div>
+  </div>
 
-    <section class="provider-card">
-      <div class="provider-head">
-        <div class="provider-icon">G</div>
-        <div><div class="provider-name">Grok Video</div><div class="provider-detail" id="grok-summary">Đang kiểm tra…</div></div>
-        <div class="provider-state" id="grok-state">Đang kiểm tra</div>
+  <!-- State bar -->
+  <div class="state-bar">
+    STATE
+    <span id="state-badge" class="off">off</span>
+    <span id="token-status" class="bad">no token</span>
+  </div>
+
+  <!-- Request log -->
+  <div class="log-section">
+    <div class="log-header">
+      Request Log
+      <span id="log-count">0</span>
+    </div>
+
+    <div class="log-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Time</th>
+            <th>Status</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr>
+            <td colspan="5" class="log-empty">No requests yet</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="btn btn-primary" id="btn-flow">Open Flow Tab</button>
+    <button class="btn" id="btn-token">Refresh Token</button>
+  </div>
+
+  <!-- Signature -->
+  <div class="signature">
+    <a href="https://github.com/crisng95/flowkit" target="_blank">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:3px"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>flowkit</a> &middot; built by <a href="https://veogent.com" target="_blank">veogent.com</a>
+  </div>
+
+  <!-- Detail overlay -->
+  <div class="detail-overlay" id="detail-overlay">
+    <div class="detail-panel">
+      <div class="detail-header">
+        <span id="detail-title">Request Detail</span>
+        <button class="detail-close" id="detail-close">&times;</button>
       </div>
-      <div class="checks">
-        <div class="check"><span>Ứng dụng desktop · cổng 9223</span><span class="check-value" id="grok-agent">—</span></div>
-        <div class="check"><span>Tab Grok</span><span class="check-value" id="grok-tab">—</span></div>
-        <div class="check"><span>Bridge trên trang</span><span class="check-value" id="grok-bridge">—</span></div>
-        <div class="check"><span>Hạn mức video</span><span class="check-value" id="grok-video-quota">Chưa có dữ liệu</span></div>
-        <div class="check"><span>Hạn mức video 720p</span><span class="check-value" id="grok-720p-quota">Chưa có dữ liệu</span></div>
-      </div>
-      <div class="provider-error" id="grok-error" hidden></div>
-      <div class="provider-actions"><button class="button button-primary" id="btn-grok">Mở Grok</button><button class="button button-secondary" id="btn-reload-grok">Tải lại tab Grok</button></div>
-    </section>
+      <div class="detail-body" id="detail-body"></div>
+    </div>
+  </div>
 
-    <div class="bridge-note">Nếu vừa cập nhật extension hoặc ứng dụng, hãy bấm <b>Reload</b> tại chrome://extensions, tải lại tab Grok rồi khởi động lại ứng dụng desktop. Flow và Grok dùng hai cổng riêng nên trạng thái được kiểm tra độc lập.</div>
-
-    <section class="activity">
-      <div class="activity-head"><div class="activity-title">Nhật ký chung</div><div class="activity-count" id="activity-count">0 yêu cầu</div></div>
-      <div class="activity-list" id="activity-list"><div class="activity-empty">Chưa có yêu cầu tạo nội dung.</div></div>
-    </section>
-  </main>
-
-  <footer class="bridge-footer"><button class="button button-secondary" id="btn-refresh">Kiểm tra lại cả hai kết nối</button></footer>
   <script src="side_panel.js"></script>
 </body>
 </html>

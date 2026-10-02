@@ -6,9 +6,9 @@
  * One queue engine: runLaneQueue / runOrdered (jwt-pinned lanes + stagger).
  * One retry helper: withRetry.
  *
- * Google Flow and Grok runtimes remain the authoritative submit gates (they
- * own account rotation and rate limiting); this module just syncs settings
- * into them and reads back their capacity, with the configured lane count as
+ * Google Flow runtime remains the authoritative submit gate (it
+ * owns account rotation and rate limiting); this module just syncs settings
+ * into it and reads back its capacity, with the configured lane count as
  * the fallback.
  */
 
@@ -74,7 +74,7 @@ export function buildLaneWorkers(jwtHashes: string[], lanesPerJwt: number): Lane
  * - A worker with a jwtHash first takes a job pinned to the same JWT, then a
  *   flexible job (no JWT), so per-account lane limits are respected.
  * - Submit spacing/stagger is owned SOLELY by the provider runtimes
- *   (GoogleFlowRuntime / GrokRuntime `reserveSubmitWindow`). This queue adds no
+ *   (GoogleFlowRuntime `reserveSubmitWindow`). This queue adds no
  *   start delay of its own, so callers can never double-sleep. Do NOT reintroduce
  *   a renderer-side start-delay parameter here — that regression made AutoPilot
  *   stack a second stagger on top of the runtime gate (delays compounding to
@@ -190,8 +190,8 @@ export function getSubmitDelayMs(kind: LaneMediaKind): number {
 }
 
 /**
- * Push maxStudioLanes into the Google Flow / Grok runtimes (idempotent). The
- * runtimes stay the authoritative submit gates; this keeps every caller in sync
+ * Push maxStudioLanes into the Google Flow runtime (idempotent). The
+ * runtime stays the authoritative submit gate; this keeps every caller in sync
  * without double-sleeping.
  */
 export async function syncRuntimeLaneSettings(): Promise<void> {
@@ -212,25 +212,11 @@ export async function syncRuntimeLaneSettings(): Promise<void> {
       console.warn('[LaneManager] Could not sync Google Flow lane settings:', error);
     }
   }
-  if (window.grokVideoRuntime) {
-    try {
-      await window.grokVideoRuntime.updateSettings({
-        videoLanesPerExtension: settings.videoLanesPerJwt,
-        videoSubmitDelayMinMs: settings.videoSubmitDelayMinMs,
-        videoSubmitDelayMaxMs: settings.videoSubmitDelayMaxMs,
-        extensionStartStaggerMinMs: settings.jwtStartStaggerMinMs,
-        extensionStartStaggerMaxMs: settings.jwtStartStaggerMaxMs,
-      });
-    } catch (error) {
-      console.warn('[LaneManager] Could not sync Grok lane settings:', error);
-    }
-  }
 }
 
 /**
  * Resolve how many lanes a media kind may use for the active platform.
  * - googleflow: runtime capacity (accounts × lanes per account)
- * - grok: runtime capacity (video only; image falls back to settings)
  * - other / runtime unavailable: configured lanes per JWT
  */
 export async function resolveLaneCount(
@@ -256,15 +242,6 @@ export async function resolveLaneCount(
         lanes = Math.min(lanes || configured, Math.max(1, readyAllowed) * configured);
       }
       return Math.max(1, lanes || configured);
-    } catch {
-      return configured;
-    }
-  }
-
-  if (kind === 'video' && platform === 'grok' && window.grokVideoRuntime) {
-    try {
-      const capacity = await window.grokVideoRuntime.getCapacity();
-      return Math.max(1, capacity.videoLanes || configured);
     } catch {
       return configured;
     }

@@ -1,6 +1,6 @@
+import { ModelSelector } from './model-selector';
 import { useState } from 'react';
-import { Cloud, Volume2, WandSparkles } from 'lucide-react';
-import { Badge } from '@/shared/components/ui/badge';
+import { Volume2, WandSparkles } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
@@ -13,7 +13,6 @@ export function GeminiSettingsPanel({ controller }: { controller: TtsController 
   const { t } = useI18n();
   const [showTags, setShowTags] = useState(false);
   const {
-    availableModels, selectedModelId, setSelectedModelId,
     geminiLanguage, setGeminiLanguage, geminiVoiceName, setGeminiVoiceName,
     geminiStyle, setGeminiStyle, geminiTemperature, setGeminiTemperature, geminiVoices, selectedGeminiVoice, busy, previewGeminiVoice,
   } = controller;
@@ -37,25 +36,9 @@ export function GeminiSettingsPanel({ controller }: { controller: TtsController 
   return (
     <aside className="min-h-0 overflow-y-auto bg-panel/40 p-5">
       <div className="space-y-5">
-        <section className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2"><Cloud className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold">Gemini Pro</h2></div>
-              <p className="mt-1 text-xs text-muted-foreground">{t('tts.gemini.onlineLabel')}</p>
-            </div>
-            <Badge className="border-primary/30 bg-primary/10 text-primary">{t('tts.engine.online')}</Badge>
-          </div>
-        </section>
+        <ModelSelector controller={controller} />
 
         <section className="space-y-4 border-t border-border/60 pt-5">
-          <div>
-            <Label>{t('tts.settings.model')}</Label>
-            <Select value={selectedModelId} onValueChange={setSelectedModelId}>
-              <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
-              <SelectContent>{availableModels.map((model) => <SelectItem key={model.id} value={model.id}>{model.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-
           <div>
             <Label>{t('tts.settings.language')}</Label>
             <Select value={geminiLanguage} onValueChange={setGeminiLanguage}>

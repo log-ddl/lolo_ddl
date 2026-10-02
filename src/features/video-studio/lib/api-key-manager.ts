@@ -34,7 +34,6 @@ export const GOOGLE_FLOW_VIDEO_MODELS = [
   'Veo_3.1-Lite_Lower_Priority',
 ];
 export const GOOGLE_FLOW_MODELS = [...GOOGLE_FLOW_IMAGE_MODELS, ...GOOGLE_FLOW_VIDEO_MODELS];
-export const GROK_VIDEO_MODELS = ['Grok Imagine Video'];
 export const QWEN_LOCAL_IMAGE_MODEL = 'Qwen/Qwen-Image-2.1';
 
 /**
@@ -48,7 +47,6 @@ export const QWEN_LOCAL_IMAGE_MODEL = 'Qwen/Qwen-Image-2.1';
 export function getRuntimeProviderModels(platform: string): string[] | null {
   if (platform === 'qwen-local') return [QWEN_LOCAL_IMAGE_MODEL];
   if (platform === 'googleflow') return GOOGLE_FLOW_MODELS;
-  if (platform === 'grok') return GROK_VIDEO_MODELS;
   return null;
 }
 
@@ -113,13 +111,6 @@ export const DEFAULT_PROVIDERS: Omit<IProvider, 'id' | 'apiKey'>[] = [
     model: GOOGLE_FLOW_MODELS,
     capabilities: ['image_generation', 'video_generation'],
   },
-  {
-    platform: 'grok',
-    name: 'Grok',
-    baseUrl: 'local://grok',
-    model: GROK_VIDEO_MODELS,
-    capabilities: ['video_generation'],
-  },
 ];
 
 // ==================== Model Classification ====================
@@ -137,8 +128,6 @@ export function classifyModelByName(modelName: string): ModelCapability[] {
     'cogvideo', 'hunyuan-video', 'minimax-video', 'hailuo', 'pika',
     'gen-3', 'gen3', 'mochi', 'ltx',
   ];
-  // Exact match: grok-video style models
-  if (/grok.*video/.test(name)) return ['video_generation'];
   if (videoPatterns.some(p => name.includes(p))) return ['video_generation'];
 
   // ---- Image generation models ----
@@ -197,7 +186,6 @@ const VIDEO_ENDPOINT_MAP: Record<string, ModelApiFormat> = {
   'openai-official-video-format': 'openai_video',
   'async': 'openai_video',            // wan family
   'doubao-video-async': 'openai_video',    // doubao-seedance family
-  'grok-video': 'openai_video',          // grok-video
   'text-to-video': 'openai_video',          // kling text-to-video
   'image-to-video': 'openai_video',          // kling image-to-video
   'video-extension': 'openai_video',          // kling video extension
@@ -287,14 +275,14 @@ export function parseApiKeys(apiKey: string): string[] {
 }
 
 export function getProviderCredentialCount(platform: string, apiKey: string): number {
-  if (platform === 'googleflow' || platform === 'grok') return 0;
+  if (platform === 'googleflow') return 0;
   return parseApiKeys(apiKey).length;
 }
 
 export function isProviderCredentialConfigured(platform: string, apiKey: string): boolean {
   // Google Flow is backed by the local Electron/extension runtime. Readiness is
   // checked when the task is submitted; it intentionally has no persisted key.
-  if (platform === 'googleflow' || platform === 'grok' || platform === 'qwen-local') return true;
+  if (platform === 'googleflow' || platform === 'qwen-local') return true;
   return parseApiKeys(apiKey).length > 0;
 }
 

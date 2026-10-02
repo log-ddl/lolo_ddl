@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "name": "Một ảnh gốc → bốn cảnh Nano Pro",
+  "nodes": [
+    {
+      "id": "hero",
+      "kind": "imageGenerator",
+      "name": "Ảnh nhân vật gốc",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "prompt": "Một chú mèo cam hoạt hình 2D, toàn thân, đứng thẳng, nền trắng.",
+      "model": "GEM_PIX_2",
+      "aspectRatio": "1:1"
+    },
+    {
+      "id": "scene-1",
+      "kind": "imageGenerator",
+      "name": "Cảnh 1",
+      "position": {
+        "x": 420,
+        "y": 0
+      },
+      "prompt": "Giữ nguyên nhân vật mèo cam và phong cách từ ảnh tham chiếu. Nhân vật đang đọc sách trong thư viện.",
+      "model": "GEM_PIX_2",
+      "aspectRatio": "16:9"
+    },
+    {
+      "id": "scene-2",
+      "kind": "imageGenerator",
+      "name": "Cảnh 2",
+      "position": {
+        "x": 420,
+        "y": 420
+      },
+      "prompt": "Giữ nguyên nhân vật mèo cam và phong cách từ ảnh tham chiếu. Nhân vật đang uống trà bên cửa sổ.",
+      "model": "GEM_PIX_2",
+      "aspectRatio": "16:9"
+    },
+    {
+      "id": "scene-3",
+      "kind": "imageGenerator",
+      "name": "Cảnh 3",
+      "position": {
+        "x": 420,
+        "y": 840
+      },
+      "prompt": "Giữ nguyên nhân vật mèo cam và phong cách từ ảnh tham chiếu. Nhân vật đang đi bộ trong công viên.",
+      "model": "GEM_PIX_2",
+      "aspectRatio": "16:9"
+    },
+    {
+      "id": "scene-4",
+      "kind": "imageGenerator",
+      "name": "Cảnh 4",
+      "position": {
+        "x": 420,
+        "y": 1260
+      },
+      "prompt": "Giữ nguyên nhân vật mèo cam và phong cách từ ảnh tham chiếu. Nhân vật đang ngồi vẽ tranh.",
+      "model": "GEM_PIX_2",
+      "aspectRatio": "16:9"
+    }
+  ],
+  "edges": [
+    {
+      "id": "hero-to-1",
+      "source": "hero",
+      "target": "scene-1",
+      "targetHandle": "refs"
+    },
+    {
+      "id": "hero-to-2",
+      "source": "hero",
+      "target": "scene-2",
+      "targetHandle": "refs"
+    },
+    {
+      "id": "hero-to-3",
+      "source": "hero",
+      "target": "scene-3",
+      "targetHandle": "refs"
+    },
+    {
+      "id": "hero-to-4",
+      "source": "hero",
+      "target": "scene-4",
+      "targetHandle": "refs"
+    }
+  ]
+}

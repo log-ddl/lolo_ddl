@@ -15,11 +15,12 @@ import { TaskInfoButton } from '@/shared/task-metadata';
 
 interface AudioHistoryItemProps {
   item: TtsHistoryItem;
+  onReuseVoice?: (item: TtsHistoryItem) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
 }
 
-export function AudioHistoryItem({ item, onRename, onRemove }: AudioHistoryItemProps) {
+export function AudioHistoryItem({ item, onRename, onRemove, onReuseVoice }: AudioHistoryItemProps) {
   const { t, locale } = useI18n();
   const displayName = item.name?.trim() || item.text.slice(0, 80);
   const [editing, setEditing] = useState(false);
@@ -114,6 +115,9 @@ export function AudioHistoryItem({ item, onRename, onRemove }: AudioHistoryItemP
         </AlertDialog>
       </div>
 
+      {item.modelId === 'qwen3-1.7b-design' && onReuseVoice && (
+        <Button variant="outline" size="sm" className="self-start" onClick={() => onReuseVoice(item)}>{t('tts.local.saveDesign')}</Button>
+      )}
       <AudioWaveformPlayer source={toLocalTtsAudioUrl(item.outputPath)} />
     </article>
   );

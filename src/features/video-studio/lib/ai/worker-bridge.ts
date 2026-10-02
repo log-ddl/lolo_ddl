@@ -19,7 +19,6 @@ import { useProjectStore } from '@/features/video-studio/stores/project-store';
 import { useDirectorStore } from '@/features/video-studio/stores/director-store';
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider';
 import { generateImageWithSelectedProvider } from '@/features/video-studio/lib/ai/qwen-local-provider';
-import { grokVideoProvider } from '@/features/video-studio/lib/ai/grok-video-provider';
 import { resolveSettingsMediaRouting } from '@/features/video-studio/lib/ai/media-routing';
 import { runWithModelFallback } from '@/features/video-studio/autopilot/model-fallback';
 
@@ -345,25 +344,19 @@ export class AIWorkerBridge {
             modelChainByOwnerScope: modelChains,
           }))).result;
         })()
-        : payload.provider === 'grok'
-          ? await grokVideoProvider.generateVideo({
-            projectId, sceneId: payload.requestId, prompt: payload.prompt, model: payload.model,
+        : await (async () => {
+          const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('video', payload.model);
+          return (await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
+            projectId, sceneId: payload.requestId, prompt: payload.prompt, model,
             aspectRatio: payload.aspectRatio, duration: payload.duration,
-            startImage: payload.imageUrl ? { source: payload.imageUrl, provider: 'grok' } : undefined,
-          })
-          : await (async () => {
-            const { chain, accountsFor, modelChains } = await resolveSettingsMediaRouting('video', payload.model);
-            return (await runWithModelFallback(chain, (model) => googleFlowProvider.generateVideo({
-              projectId, sceneId: payload.requestId, prompt: payload.prompt, model,
-              aspectRatio: payload.aspectRatio, duration: payload.duration,
-              startImage: payload.imageUrl ? { source: payload.imageUrl, provider: 'googleflow' } : undefined,
-              references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
-              allowedOwnerScopeIds: accountsFor(model),
-              modelChainByOwnerScope: modelChains,
-            }))).result;
-          })();
+            startImage: payload.imageUrl ? { source: payload.imageUrl, provider: 'googleflow' } : undefined,
+            references: payload.referenceImages?.map((source) => ({ source, provider: 'googleflow' })),
+            allowedOwnerScopeIds: accountsFor(model),
+            modelChainByOwnerScope: modelChains,
+          }))).result;
+        })();
       const url = result.localUrl || result.remoteUrl;
-      if (!url) throw new Error(`${payload.provider === 'grok' ? 'Grok' : 'Google Flow'} returned no media URL`);
+      if (!url) throw new Error('Google Flow returned no media URL');
       this.worker?.postMessage({ type: 'RUNTIME_RESPONSE', payload: { requestId: payload.requestId, url } });
     } catch (error) {
       this.worker?.postMessage({
@@ -425,7 +418,7 @@ export class AIWorkerBridge {
       // 3. Update director store
       const directorStore = useDirectorStore.getState();
       if (mediaFile) {
-        directorStore.onSceneCompleted(sceneId, mediaFile.id);
+        directorStore.updateSplitSceneVideo(sceneId, { videoStatus: 'completed', videoMediaId: mediaFile.id });
         console.log(`[WorkerBridge] Scene ${sceneId} media injected: ${mediaFile.id}`);
       }
       
@@ -447,7 +440,7 @@ export class AIWorkerBridge {
     try {
       // Update director store
       const directorStore = useDirectorStore.getState();
-      directorStore.onSceneFailed(sceneId, error);
+      directorStore.updateSplitSceneVideo(sceneId, { videoStatus: 'failed', videoError: error });
       
     } catch (err) {
       console.error('[WorkerBridge] Failed to handle scene failure:', err);

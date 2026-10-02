@@ -1,6 +1,6 @@
+import { ModelSelector } from './model-selector';
 import { useMemo, useState } from 'react';
-import { Globe2, Search, Volume2, Wifi } from 'lucide-react';
-import { Badge } from '@/shared/components/ui/badge';
+import { Search, Volume2 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -41,15 +41,7 @@ export function CapCutSettingsPanel({ controller }: { controller: TtsController 
   return (
     <aside className="min-h-0 overflow-y-auto bg-panel/40 p-5">
       <div className="space-y-5">
-        <section className="rounded-xl border border-info/25 bg-info/5 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2"><Globe2 className="h-4 w-4 text-info" /><h2 className="text-sm font-semibold">CapCut Online</h2></div>
-              <p className="mt-1 text-xs text-muted-foreground">{t('tts.capcut.onlineLabel')}</p>
-            </div>
-            <Badge className="border-info/30 bg-info/10 text-info"><Wifi className="h-3 w-3" />{t('tts.engine.online')}</Badge>
-          </div>
-        </section>
+        <ModelSelector controller={controller} />
 
         <section className="space-y-4 border-t border-border/60 pt-5">
           <div>

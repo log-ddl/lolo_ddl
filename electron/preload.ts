@@ -220,6 +220,10 @@ contextBridge.exposeInMainWorld('contentWorkspace', {
 })
 
 contextBridge.exposeInMainWorld('contentMcp', {
+  status: () => ipcRenderer.invoke('content-mcp-status'),
+  setEnabled: (enabled: boolean) => ipcRenderer.invoke('content-mcp-enabled', enabled),
+  rotateToken: () => ipcRenderer.invoke('content-mcp-rotate'),
+  test: () => ipcRenderer.invoke('content-mcp-test'),
   ready: () => ipcRenderer.send('content-mcp-ready'),
   respond: (payload: { requestId: string; success: boolean; result?: unknown; error?: string }) =>
     ipcRenderer.send('content-mcp-tool-result', payload),
@@ -236,6 +240,16 @@ contextBridge.exposeInMainWorld('contentMcp', {
     ipcRenderer.on('content-mcp-tool-call', wrapped)
     return () => ipcRenderer.off('content-mcp-tool-call', wrapped)
   },
+})
+
+contextBridge.exposeInMainWorld('canvasMotion', {
+  onStarted: (listener: (jobId: string) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, jobId: string) => listener(jobId)
+    ipcRenderer.on('canvas-motion-started', wrapped)
+    return () => ipcRenderer.removeListener('canvas-motion-started', wrapped)
+  },
+  render: (payload: import('./features/video-studio/canvas-motion').MotionRequest) => ipcRenderer.invoke('canvas-motion-render', payload),
+  cancel: (jobId: string) => ipcRenderer.invoke('canvas-motion-cancel', jobId),
 })
 
 contextBridge.exposeInMainWorld('ffmpegRuntime', {
@@ -401,44 +415,23 @@ contextBridge.exposeInMainWorld('googleFlowRuntime', {
   },
 })
 
-contextBridge.exposeInMainWorld('grokVideoRuntime', {
-  getStatus: () => ipcRenderer.invoke('grok:get-status'),
-  refreshQuota: () => ipcRenderer.invoke('grok:refresh-quota'),
-  getCapacity: () => ipcRenderer.invoke('grok:get-capacity'),
-  updateSettings: (payload: unknown) => ipcRenderer.invoke('grok:update-settings', payload),
-  openGrok: () => ipcRenderer.invoke('grok:open'),
-  generateVideo: (payload: unknown) => ipcRenderer.invoke('grok:generate-video', payload),
-  cancelTask: (taskId: string) => ipcRenderer.invoke('grok:cancel-task', taskId),
-  listInAppAccounts: () => ipcRenderer.invoke('grok:list-inapp-accounts'),
-  addInAppAccount: () => ipcRenderer.invoke('grok:add-inapp-account'),
-  removeInAppAccount: (accountSlotId: string) => ipcRenderer.invoke('grok:remove-inapp-account', accountSlotId),
-  showInAppAccount: (accountSlotId: string) => ipcRenderer.invoke('grok:show-inapp-account', accountSlotId),
-  onStatus: (listener: (payload: unknown) => void) => {
-    const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload)
-    ipcRenderer.on('grok:status-event', wrapped)
-    return () => ipcRenderer.off('grok:status-event', wrapped)
-  },
-  onTask: (listener: (payload: unknown) => void) => {
-    const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload)
-    ipcRenderer.on('grok:task-event', wrapped)
-    return () => ipcRenderer.off('grok:task-event', wrapped)
-  },
-})
-
 contextBridge.exposeInMainWorld('videoStudioBrowser', {
   startRuntimes: () => ipcRenderer.invoke('vs-browser:start-runtimes'),
   setHideAfterLogin: (value: boolean) => ipcRenderer.invoke('vs-browser:set-hide-after-login', value),
 })
 
 contextBridge.exposeInMainWorld('ttsRuntime', {
-  getModelStatuses: (models: Array<{ id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' }>) =>
+  exportColab: (input: import('./features/tts-voice/colab-runtime').ColabExportInput) => ipcRenderer.invoke('tts-colab-export', input),
+  importColab: () => ipcRenderer.invoke('tts-colab-import'),
+  openColab: () => ipcRenderer.invoke('tts-colab-open'),
+  getModelStatuses: (models: Array<{ id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' | 'cosyvoice' | 'qwen3' }>) =>
     ipcRenderer.invoke('tts-model-statuses', models),
-  installModel: (payload: { jobId: string; model: { id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' } }) =>
+  installModel: (payload: { jobId: string; model: { id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' | 'cosyvoice' | 'qwen3' } }) =>
     ipcRenderer.invoke('tts-model-install', payload),
   removeModel: (modelId: string) => ipcRenderer.invoke('tts-model-remove', modelId),
   generate: (payload: {
     jobId: string;
-    model: { id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' };
+    model: { id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' | 'cosyvoice' | 'qwen3' };
     text: string;
     mode: 'clone' | 'design' | 'auto' | 'preset';
     splitMode?: 'default' | 'line' | 'sentence';
@@ -453,6 +446,9 @@ contextBridge.exposeInMainWorld('ttsRuntime', {
     vbeeVoiceCode?: string;
     vbeeAudioType?: 'mp3' | 'wav';
     vbeeBitrate?: number;
+    localStyle?: string;
+    streamPreview?: boolean;
+    qwenSpeaker?: string;
     vieneuVoice?: string;
     vieneuStyle?: 'tu_nhien' | 'tin_tuc' | 'doc_truyen';
     advancedSettings?: import('../src/features/tts-voice/types').TtsAdvancedSettings;
@@ -482,6 +478,7 @@ contextBridge.exposeInMainWorld('ttsRuntime', {
     stage: string;
     percent?: number;
     message: string;
+    audioChunkPath?: string;
   }) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, payload: {
       jobId: string;
@@ -489,6 +486,7 @@ contextBridge.exposeInMainWorld('ttsRuntime', {
       stage: string;
       percent?: number;
       message: string;
+      audioChunkPath?: string;
     }) => listener(payload)
     ipcRenderer.on('tts-runtime-event', wrapped)
     return () => ipcRenderer.off('tts-runtime-event', wrapped)

@@ -50,7 +50,7 @@ function setChromeWindowVisibilityNative(pid: number | undefined, visible: boole
   })
 }
 
-export type ProviderId = 'google-flow' | 'grok'
+export type ProviderId = 'google-flow'
 
 export type InAppAccountRecord = {
   accountSlotId: string
@@ -223,12 +223,11 @@ async function releaseProfileDirectory(profileDir: string): Promise<boolean> {
 }
 
 // Owns the lifecycle of the app-spawned Chrome processes used to log into
-// Google Flow / Grok without a browser extension. One real, externally
+// Google Flow without a browser extension. One real, externally
 // spawned Chrome (or Edge) + dedicated --user-data-dir per account,
 // controlled over the DevTools protocol (see cdp-client.ts). The page-side
-// work the extension used to do (token capture, captcha solving, API calls,
-// Grok DOM automation) is driven directly over CDP by the per-provider
-// bridge classes instead.
+// work the extension used to do (token capture, captcha solving, API calls)
+// is driven directly over CDP by the provider bridge classes instead.
 //
 // Why a real spawned Chrome and not Electron's own BrowserWindow, and why
 // CDP instead of --load-extension:

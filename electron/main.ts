@@ -86,7 +86,7 @@ registerWindowLifecycle()
 
 // ==================== Shutdown ====================
 app.on('before-quit', (event) => {
-  // Chrome/Edge processes spawned for Flow and Grok are independent OS
+  // Chrome/Edge processes spawned for Flow are independent OS
   // processes, so Electron exiting does not automatically terminate them.
   // Hold the first quit request briefly while their complete process trees are
   // closed. The second app.quit() is allowed through by the guard below.

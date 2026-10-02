@@ -1,6 +1,6 @@
+import { ModelSelector } from './model-selector';
 import { useEffect, useMemo, useState } from 'react';
-import { Cloud, Loader2, RefreshCw, Search, Star } from 'lucide-react';
-import { Badge } from '@/shared/components/ui/badge';
+import { Loader2, RefreshCw, Search, Star } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -72,15 +72,7 @@ export function VbeeSettingsPanel({ controller }: { controller: TtsController })
   return (
     <aside className="min-h-0 overflow-y-auto bg-panel/40 p-5">
       <div className="space-y-5">
-        <section className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2"><Cloud className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold">Vbee API</h2></div>
-              <p className="mt-1 text-xs text-muted-foreground">{t('tts.vbee.onlineLabel')}</p>
-            </div>
-            <Badge className="border-primary/30 bg-primary/10 text-primary">{t('tts.engine.online')}</Badge>
-          </div>
-        </section>
+        <ModelSelector controller={controller} />
 
         <section className="space-y-4 border-t border-border/60 pt-5">
           <div>

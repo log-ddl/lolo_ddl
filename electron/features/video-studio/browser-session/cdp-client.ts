@@ -8,7 +8,7 @@ export type CdpTarget = { id: string; type: string; url: string; webSocketDebugg
 // Runtime.evaluate for running page JS, Page domain for reloads) without
 // pulling in playwright or puppeteer as a dependency. Talks to the
 // --remote-debugging-port endpoint over the same `ws` package the
-// google-flow / grok runtimes already depend on.
+// google-flow runtime already depends on.
 export function fetchCdpTargets(port: number): Promise<CdpTarget[]> {
   return new Promise((resolve, reject) => {
     const req = http.get({ host: '127.0.0.1', port, path: '/json/list', timeout: 3000 }, (res) => {

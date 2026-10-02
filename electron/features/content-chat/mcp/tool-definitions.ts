@@ -47,57 +47,6 @@ const EXISTING_CONTENT_MCP_TOOLS = [
     },
   },
   {
-    name: 'create_tts_audio',
-    description: 'Synthesize speech from text using the local OmniVoice TTS engine inside logdd. Returns the generated audio file path and duration.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        text: { type: 'string', description: 'The text script or narration to speak.' },
-        voiceProfileId: { type: 'string', description: 'Optional ID of an existing voice clone profile.' },
-        voiceDesignDescription: { type: 'string', description: 'Optional natural language description of voice character if using Voice Design.' },
-        speed: { type: 'number', minimum: 0.5, maximum: 2.0, description: 'Speech speed multiplier. Defaults to 1.0.' },
-      },
-      required: ['text'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'list_voice_profiles',
-    description: 'List all available voice clone profiles and built-in voices in logdd.',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'create_video_project',
-    description: 'Create a new video project in Video AI Studio with title, aspect ratio, scenes, image prompts, and narration lines.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        title: { type: 'string', description: 'Title of the new video project.' },
-        aspectRatio: { type: 'string', enum: ['16:9', '9:16', '1:1'], description: 'Video aspect ratio. Defaults to 16:9.' },
-        scenes: {
-          type: 'array',
-          description: 'List of video scenes with visual prompts and narration scripts.',
-          items: {
-            type: 'object',
-            properties: {
-              sceneNumber: { type: 'integer', description: 'Scene index.' },
-              imagePrompt: { type: 'string', description: 'Detailed prompt for visual image generation.' },
-              narration: { type: 'string', description: 'Voice narration script for this scene.' },
-              durationSec: { type: 'number', description: 'Estimated scene duration in seconds.' },
-            },
-            required: ['sceneNumber', 'imagePrompt', 'narration'],
-          },
-        },
-      },
-      required: ['title', 'scenes'],
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'get_system_resource_metrics',
     description: 'Check current system CPU usage %, RAM memory, and running background media/AI processes.',
     inputSchema: {
@@ -106,9 +55,31 @@ const EXISTING_CONTENT_MCP_TOOLS = [
       additionalProperties: false,
     },
   },
+  { name: 'get_media_capabilities', description: 'List supported providers and exact model IDs before generating images or videos.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  ...(['generate_image', 'generate_video'] as const).map((name) => ({
+    name,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    description: 'Start a media generation job using an already configured logdd account. May consume provider credits. Returns a taskId; poll get_media_task for progress and output. Ask the user before spending credits. App must remain open.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', minLength: 1, maxLength: 20000 },
+        provider: { type: 'string', enum: ['googleflow'] },
+        model: { type: 'string', description: 'Model identifier supported by the provider. Required; call get_media_capabilities for supported IDs.' },
+        aspectRatio: { type: 'string', enum: ['16:9', '9:16', '1:1'] },
+        duration: { type: 'number', minimum: 1, maximum: 30 },
+        startImage: { type: 'string', description: 'Optional local image path or URL for image-to-video.' },
+      },
+      required: ['prompt', 'model'], additionalProperties: false,
+    },
+  })),
+  ...(['get_media_task', 'cancel_media_task'] as const).map((name) => ({
+    name, description: name === 'get_media_task' ? 'Read progress, errors and output URLs for a media job. Poll every 5 seconds. Jobs last for this app session.' : 'Cancel a media job started through MCP.',
+    inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'], additionalProperties: false },
+  })),
 ] as const
 
 export const CONTENT_MCP_TOOLS = [
-  ...EXISTING_CONTENT_MCP_TOOLS.filter((tool) => tool.name !== 'create_tts_audio' && tool.name !== 'list_voice_profiles'),
+  ...EXISTING_CONTENT_MCP_TOOLS.filter((tool) => !MEDIA_MCP_TOOLS.some((mediaTool) => mediaTool.name === tool.name)),
   ...MEDIA_MCP_TOOLS,
 ]

@@ -1,5 +1,6 @@
+import { Button } from "@/shared/components/ui/button";
 import { useEffect, useState } from "react";
-import { ArrowRight, LockKeyhole } from "lucide-react";
+import { ArrowRight, LockKeyhole, Plug } from "lucide-react";
 import { appFeatures } from "@/features/feature-registry";
 import type { AppFeatureId } from "@/shared/stores/app-shell-store";
 import { useAppShellStore } from "@/shared/stores/app-shell-store";
@@ -22,7 +23,8 @@ interface AppHomeProps {
 }
 
 export function AppHome({ blockedFeatureId }: AppHomeProps) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const openSettings = useAppShellStore((state) => state.openSettings);
   const openFeature = useAppShellStore((state) => state.openFeature);
   const goHome = useAppShellStore((state) => state.goHome);
   const licensePlan = useLicenseStore((state) => state.plan);
@@ -67,6 +69,7 @@ export function AppHome({ blockedFeatureId }: AppHomeProps) {
           <div className="max-w-2xl mb-10">
             <h1 className="text-3xl font-semibold tracking-tight mb-3">{t("appHome.title")}</h1>
             <p className="text-sm leading-6 text-muted-foreground">{t("appHome.subtitle")}</p>
+            <Button className="mt-5" variant="outline" onClick={openSettings}><Plug className="size-4" />{language === 'vi' ? 'Kết nối AI bên ngoài' : 'Connect external AI'}</Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

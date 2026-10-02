@@ -14,15 +14,15 @@ directories:
 files:
   - out/**/*
   - package.json
-  # Desktop-only packaging guard: exclude web/image-toolchain heavy deps
+  # Exclude web-only dependencies; sharp is required by Canvas Motion.
   - "!node_modules/next/**"
   - "!node_modules/@next/**"
-  - "!node_modules/sharp/**"
-  - "!node_modules/@img/**"
 
 asar: true
 asarUnpack:
   - "**/*.node"
+  - "node_modules/sharp/**"
+  - "node_modules/@img/**"
   - "node_modules/ffmpeg-static/**"
 extraResources:
   - from: scripts/media-mcp-stdio.mjs

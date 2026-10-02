@@ -1,16 +1,32 @@
-importScripts('grok-background.js');
-importScripts('flow-batch-bridge.js');
-
 /**
  * Flow Kit — Chrome Extension Background Service Worker
  *
  * Connects to local Python agent via WebSocket (agent runs WS server).
- * Captures bearer token, solves reCAPTCHA, proxies API calls through browser.
+ * Mints reCAPTCHA and runs Flow's batchexecute RPCs inside the Flow tab.
+ *
+ * Flow moved to flow.google.com in September 2026 and stopped minting the
+ * `Bearer ya29.…` the old REST host needed. The current path is `batch_rpc`:
+ * the agent builds an `f.req` envelope, this worker mints a captcha for it and
+ * runs the POST in the page's MAIN world, where the `at` CSRF token lives.
+ * The bearer capture and the `api_request` / `trpc_request` proxies below are
+ * the pre-migration path. The agent no longer sends either — it speaks only
+ * `batch_rpc`. They stay so an extension updated ahead of its agent keeps
+ * serving an older one; remove them once no agent in the wild sends them.
  */
 
 const AGENT_WS_URL = 'ws://127.0.0.1:9224';
 // NOTE: This is a browser-restricted public API key — safe to ship in extension bundles.
 const API_KEY = 'AIzaSyDSjGxWlo68HcGt6mbaIq9YbkKhFQnt3sk';
+
+// labs.google/fx/tools/flow still resolves but redirects here, so in practice a
+// signed-in tab is only ever flow.google.com/*. The legacy patterns stay for an
+// old pinned tab. Every tab lookup in this file goes through this list.
+const flowUrls = [
+  'https://flow.google.com/*',
+  'https://labs.google/fx/tools/flow*',
+  'https://labs.google/fx/*/tools/flow*',
+];
+const FLOW_TAB_URL = 'https://flow.google.com/';
 
 let ws = null;
 let flowKey = null;
@@ -70,90 +86,52 @@ function broadcastRequestLog() {
   chrome.runtime.sendMessage({ type: 'REQUEST_LOG_UPDATE', log: requestLog }).catch(() => {});
 }
 
-function generationLogType(kind) {
-  if (kind === 'sync') return 'SYNC_REF';
-  if (kind === 'image') return 'GEN_IMG';
-  if (kind === 'upscale') return 'UPSCALE';
-  return 'GEN_VID';
-}
-
-function handleGenerationUpdate(msg) {
-  const activityId = typeof msg.activityId === 'string' ? msg.activityId : '';
-  if (!activityId) return;
-  let entry = requestLog.find((item) => item.id === activityId);
-  if (!entry) {
-    entry = {
-      id: activityId,
-      type: generationLogType(msg.kind),
-      time: new Date().toISOString(),
-      status: 'PROCESSING',
-      error: null,
-      metricFinalized: false,
-    };
-    addRequestLog(entry);
-  }
-
-  const terminalStatus = msg.status === 'completed'
-    ? 'COMPLETED'
-    : (msg.status === 'failed' || msg.status === 'cancelled') ? 'FAILED' : 'PROCESSING';
-  const updates = {
-    type: generationLogType(msg.kind),
-    status: terminalStatus,
-    phase: msg.phase || msg.status || entry.phase,
-    progress: typeof msg.progress === 'number' ? msg.progress : entry.progress,
-  };
-  if (typeof msg.thumbnailUrl === 'string' && (/^https:\/\//i.test(msg.thumbnailUrl) || /^data:image\//i.test(msg.thumbnailUrl))) {
-    updates.thumbnailUrl = msg.thumbnailUrl;
-  }
-  if (typeof msg.outputUrl === 'string' && /^https:\/\//i.test(msg.outputUrl)) updates.outputUrl = msg.outputUrl;
-  if (typeof msg.mediaId === 'string') updates.mediaId = msg.mediaId;
-  if (typeof msg.message === 'string' && msg.message) updates.diagnostic = msg.message;
-  if (terminalStatus === 'FAILED') updates.error = msg.message || (msg.status === 'cancelled' ? 'CANCELLED' : 'GENERATION_FAILED');
-  if (terminalStatus === 'COMPLETED') {
-    updates.error = null;
-    updates.completedAt = new Date().toISOString();
-  }
-
-  if ((terminalStatus === 'COMPLETED' || terminalStatus === 'FAILED') && !entry.metricFinalized) {
-    if (terminalStatus === 'COMPLETED') metrics.successCount++;
-    else metrics.failedCount++;
-    metrics.lastError = terminalStatus === 'FAILED' ? updates.error : null;
-    updates.metricFinalized = true;
-    chrome.storage.local.set({ metrics });
-    broadcastStatus();
-  }
-  updateRequestLog(activityId, updates);
-}
-
 // ─── Startup ────────────────────────────────────────────────
 
-chrome.runtime.onInstalled.addListener(init);
-chrome.runtime.onStartup.addListener(init);
+let initializationPromise = null;
+
+chrome.runtime.onInstalled.addListener(() => {
+  void ensureInitialized();
+});
+chrome.runtime.onStartup.addListener(() => {
+  void ensureInitialized();
+});
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  await ensureInitialized();
   if (alarm.name === 'reconnect') connectToAgent();
   if (alarm.name === 'keepAlive') keepAlive();
   if (alarm.name === 'token-refresh') {
-    await captureTokenFromFlowTab();
+    // Passive maintenance must never create browser tabs. If the user has no
+    // Flow tab open, wait for an explicit action or an actual RPC to open one.
+    await captureTokenFromFlowTab({ createIfMissing: false });
   }
 });
 
-let initialization;
-function init() {
-  if (initialization) return initialization;
-  initialization = initializeFlow();
-  return initialization;
+function ensureInitialized() {
+  if (!initializationPromise) {
+    initializationPromise = initialize().catch((error) => {
+      initializationPromise = null;
+      console.error('[FlowAgent] Initialization failed', error);
+      throw error;
+    });
+  }
+  return initializationPromise;
 }
 
-async function initializeFlow() {
+async function initialize() {
   const data = await chrome.storage.local.get(['flowKey', 'metrics', 'callbackSecret', 'extensionInstanceId']);
   if (data.flowKey) flowKey = data.flowKey;
   if (data.metrics) Object.assign(metrics, data.metrics);
   if (data.callbackSecret) callbackSecret = data.callbackSecret;
-  extensionInstanceId = data.extensionInstanceId || crypto.randomUUID();
-  if (!data.extensionInstanceId) await chrome.storage.local.set({ extensionInstanceId });
+  extensionInstanceId = data.extensionInstanceId || (typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : `logdd-${Math.random().toString(36).slice(2)}`);
+  await chrome.storage.local.set({ extensionInstanceId });
   connectToAgent();
   chrome.alarms.create('keepAlive', { periodInMinutes: 0.4 });
 }
+
+// MV3 workers can be suspended and restarted without onStartup firing.
+// Rehydrate the persisted Flow key on every worker start.
+void ensureInitialized();
 
 // ─── Token Capture ──────────────────────────────────────────
 
@@ -186,29 +164,29 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
 
 let _openingFlowTab = false;
 
-async function captureTokenFromFlowTab() {
-  const tabs = await chrome.tabs.query({
-    url: FLOW_PAGE_PATTERNS,
-  });
+async function captureTokenFromFlowTab({ createIfMissing = false } = {}) {
+  let tabs = await chrome.tabs.query({ url: flowUrls });
   if (!tabs.length) {
+    if (!createIfMissing) {
+      console.log('[FlowAgent] No Flow tab found — passive refresh skipped');
+      return { skipped: 'NO_FLOW_TAB' };
+    }
     if (_openingFlowTab) {
       console.log('[FlowAgent] Flow tab already opening, skipping');
       return;
     }
     _openingFlowTab = true;
     try {
-      console.log('[FlowAgent] No Flow tab found — opening one in background');
-      await chrome.tabs.create({ url: 'https://flow.google.com/', active: false });
+      console.log('[FlowAgent] No Flow tab found — opening one for explicit refresh');
+      const opened = await chrome.tabs.create({ url: FLOW_TAB_URL, active: false });
       await sleep(3000);
-      const retryTabs = await chrome.tabs.query({
-        url: FLOW_PAGE_PATTERNS,
-      });
-      if (!retryTabs.length) {
+      const target = opened?.id ? await chrome.tabs.get(opened.id).catch(() => null) : null;
+      if (!target) {
         console.log('[FlowAgent] Flow tab not ready yet after open');
         return;
       }
       await chrome.scripting.executeScript({
-        target: { tabId: retryTabs[0].id },
+        target: { tabId: target.id },
         files: ['content.js'],
       });
       console.log('[FlowAgent] Token refresh triggered on newly opened Flow tab');
@@ -232,14 +210,8 @@ async function captureTokenFromFlowTab() {
 
 // ─── WebSocket to Agent ─────────────────────────────────────
 
-async function connectToAgent() {
+function connectToAgent() {
   if (manualDisconnect) return;
-  // MV3 can restart the worker without onStartup/onInstalled. Restore the
-  // identity before the first handshake, including reconnect alarms.
-  if (!extensionInstanceId) {
-    await init();
-    return;
-  }
   if (ws?.readyState === WebSocket.CONNECTING) return;
   if (ws?.readyState === WebSocket.OPEN) return;
 
@@ -263,21 +235,23 @@ async function connectToAgent() {
     ws.send(JSON.stringify({
       type: 'extension_ready',
       legacyInstanceId: extensionInstanceId,
+      extensionInstanceId: extensionInstanceId,
+      protocolVersion: 1,
+      flowKeyPresent: !!flowKey,
       extensionVersion: chrome.runtime.getManifest().version,
       flowUrlSupported: true,
       transport: 'batch',
       capabilities: ['batch_rpc', 'flow_projects'],
-      flowKeyPresent: !!flowKey,
       tokenAge: flowKey && metrics.tokenCapturedAt ? Date.now() - metrics.tokenCapturedAt : null,
     }));
     if (flowKey) {
       ws.send(JSON.stringify({ type: 'token_captured', flowKey }));
     }
-    // Identity only. Never use session access_token/error to decide readiness.
+
     const identitySocket = ws;
     void fetch('https://labs.google/fx/api/auth/session', {
       credentials: 'include', signal: AbortSignal.timeout(10000),
-    }).then(response => response.ok ? response.json() : null).then(session => {
+    }).then(r => r.ok ? r.json() : null).then(session => {
       const email = session?.user?.email;
       if (typeof email === 'string' && email.includes('@') && ws === identitySocket && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'account_identity', email }));
@@ -290,7 +264,7 @@ async function connectToAgent() {
       const msg = JSON.parse(data);
 
       if (msg.method === 'batch_rpc') {
-        await handleFlowBatchRpc(msg);
+        await handleBatchRpc(msg);
       } else if (msg.method === 'flow_projects') {
         await handleFlowProjects(msg);
       } else if (msg.method === 'api_request') {
@@ -350,23 +324,22 @@ function keepAlive() {
 }
 
 function sendToAgent(msg) {
-  // The standalone Flow Kit agent exposes an HTTP callback endpoint on 8100.
-  // logdd's Electron runtime uses a WebSocketServer on that port instead and
-  // resolves replies on the same socket that received the request. Sending the
-  // callback with fetch can resolve with an HTTP error without entering catch,
-  // leaving the desktop request pending until timeout. Prefer the live socket.
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(msg));
+  // API responses (with msg.id) go via HTTP — immune to WS disconnect
+  if (msg.id) {
+    fetch('http://127.0.0.1:8100/api/ext/callback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(msg),
+    }).catch(() => {
+      // HTTP failed — fallback to WS
+      if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+    });
     return;
   }
-
-  // Retain the standard agent callback as a compatibility fallback when this
-  // merged extension is used without the Electron WebSocket runtime.
-  if (msg.id) fetch('http://127.0.0.1:8100/api/ext/callback', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(msg),
-  }).catch(() => {});
+  // Non-response messages (ping, status) or no secret yet — use WS
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+  }
 }
 
 // ─── reCAPTCHA Solving ──────────────────────────────────────
@@ -399,39 +372,95 @@ async function requestCaptchaFromTab(tabId, requestId, pageAction) {
   }
 }
 
-async function solveCaptcha(requestId, captchaAction) {
-  const tabs = await chrome.tabs.query({
-    url: FLOW_PAGE_PATTERNS,
-  });
+/** Try to wake a discarded Flow tab so `sendMessage` can reach it.
+ *  Chrome auto-discards backgrounded tabs to save memory; the tab still shows
+ *  up in `chrome.tabs.query` but cross-context calls fail with "No current
+ *  window" / "No tab with id". A reload re-hydrates it. */
+async function reviveTabIfNeeded(tab) {
+  if (!tab?.discarded) return tab;
+  try {
+    await chrome.tabs.reload(tab.id);
+    await sleep(2500);
+    return await chrome.tabs.get(tab.id);
+  } catch {
+    return null;
+  }
+}
 
+function captchaFromTab(tabId, requestId, captchaAction) {
+  return Promise.race([
+    requestCaptchaFromTab(tabId, requestId, captchaAction),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('CAPTCHA_TIMEOUT')), 30000)),
+  ]);
+}
+
+async function solveCaptcha(requestId, captchaAction) {
+  let tabs = await chrome.tabs.query({ url: flowUrls });
+
+  // No Flow tab at all — spawn one and let it settle. Keep the exact tab id:
+  // a redirected or stale tab must not make us select some older candidate.
   if (!tabs.length) {
-    // Auto-open Flow tab and wait briefly before returning error
+    let opened;
     try {
-      await chrome.tabs.create({ url: 'https://flow.google.com/', active: false });
+      opened = await chrome.tabs.create({ url: FLOW_TAB_URL, active: false });
       await sleep(3000);
-      // Retry tab query after opening
-      const retryTabs = await chrome.tabs.query({
-        url: FLOW_PAGE_PATTERNS,
-      });
-      if (!retryTabs.length) return { error: 'NO_FLOW_TAB' };
-      const resp = await Promise.race([
-        requestCaptchaFromTab(retryTabs[0].id, requestId, captchaAction),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('CAPTCHA_TIMEOUT')), 30000)),
-      ]);
-      return resp;
     } catch (e) {
       return { error: e.message || 'NO_FLOW_TAB' };
     }
+    const target = opened?.id ? await chrome.tabs.get(opened.id).catch(() => null) : null;
+    if (!target) return { error: 'NO_FLOW_TAB' };
+    tabs = [target];
   }
 
+  // Try each Flow tab in turn. A tab that answers "no grecaptcha" is a tab
+  // sitting on a page that never loaded it — another Flow tab may well be
+  // fine. Returning on the first one let one stale tab veto every generation.
+  const errors = [];
+  for (const candidate of tabs) {
+    const tab = await reviveTabIfNeeded(candidate);
+    if (!tab) continue;
+    try {
+      const resp = await captchaFromTab(tab.id, requestId, captchaAction);
+      if (!resp?.token) {
+        errors.push(resp?.error || 'NO_TOKEN');
+        continue;
+      }
+      return resp;
+    } catch (e) {
+      const msg = e?.message || '';
+      errors.push(msg);
+      // Tab evaporated mid-call (window closed, discarded again, navigated
+      // away). Move on to the next candidate rather than failing the job.
+      if (
+        msg.includes('No current window') ||
+        msg.includes('No tab with id') ||
+        msg.includes('Receiving end does not exist')
+      ) {
+        continue;
+      }
+      return { error: msg };
+    }
+  }
+
+  // Every candidate failed — last-ditch, spawn a fresh temporary tab and
+  // target THAT exact tab. Previously we re-queried all Flow tabs and picked
+  // fresh[0], which could select the same stale tab again while leaking the
+  // newly-created one on every retry.
+  let recoveryTab = null;
   try {
-    const resp = await Promise.race([
-      requestCaptchaFromTab(tabs[0].id, requestId, captchaAction),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('CAPTCHA_TIMEOUT')), 30000)),
-    ]);
-    return resp;
+    recoveryTab = await chrome.tabs.create({ url: FLOW_TAB_URL, active: false });
+    await sleep(3000);
+    const target = await chrome.tabs.get(recoveryTab.id);
+    if (!target || target.discarded) return { error: 'NO_FLOW_TAB' };
+    return await captchaFromTab(target.id, requestId, captchaAction);
   } catch (e) {
-    return { error: e.message };
+    return { error: e?.message || errors[0] || 'NO_FLOW_TAB' };
+  } finally {
+    // A recovery tab is disposable: there were already Flow tabs available
+    // for the signed RPC. Do not let CAPTCHA retries accumulate root tabs.
+    if (recoveryTab?.id) {
+      try { await chrome.tabs.remove(recoveryTab.id); } catch { /* already gone */ }
+    }
   }
 }
 
@@ -452,11 +481,219 @@ async function handleSolveCaptcha(msg) {
   sendToAgent({ id, result });
 }
 
+// ─── Page-context RPC runner (the current path) ─────────────
+//
+// Flow's frontend signs its calls with cookies and a per-page `at` token, and
+// every generate carries a single-use reCAPTCHA. None of that can be replayed
+// from the service worker, so the request has to be issued by the Flow page
+// itself: mint a fresh captcha through the grecaptcha bridge, then run the
+// batchexecute POST in the page's MAIN world, where at / f.sid / bl live.
+
+const CAPTCHA_SLOT = '__CAPTCHA__';
+const MAX_RPC_TEXT = 32000000; // the project listing alone is past 17 MB
+
+async function runBatchRpc(cmd) {
+  const tabs = await chrome.tabs.query({ url: flowUrls });
+  let candidate = tabs.find((t) => !t.discarded) || tabs[0];
+  if (!candidate) {
+    // No Flow tab — open one and give the app a moment to boot, otherwise
+    // WIZ_global_data is not on the page yet and `at` comes back empty. Keep
+    // the exact created tab id so redirects/stale tabs cannot hijack recovery.
+    let opened;
+    try {
+      opened = await chrome.tabs.create({ url: FLOW_TAB_URL, active: false });
+      await sleep(5000);
+      candidate = opened?.id ? await chrome.tabs.get(opened.id).catch(() => null) : null;
+    } catch (e) {
+      return { error: e?.message || 'NO_FLOW_TAB' };
+    }
+    if (!candidate) return { error: 'NO_FLOW_TAB' };
+  }
+  // Chrome discards backgrounded tabs; executeScript throws on a dead one.
+  const tab = await reviveTabIfNeeded(candidate);
+  if (!tab) return { error: 'FLOW_TAB_DISCARDED' };
+
+  let freq = cmd.freq;
+  if (cmd.captchaAction) {
+    const solved = await solveCaptcha(cmd.id, cmd.captchaAction);
+    if (!solved?.token) return { error: `CAPTCHA_FAILED: ${solved?.error || 'no token'}` };
+    freq = freq.split(CAPTCHA_SLOT).join(solved.token);
+  }
+
+  const [injected] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    world: 'MAIN',
+    args: [cmd.rpcid, freq, MAX_RPC_TEXT, cmd.match || null],
+    func: async (rpcid, freqStr, maxText, match) => {
+      const wiz = globalThis.WIZ_global_data || {};
+      const at = wiz.SNlM0e;
+      const sid = wiz.FdrFJe;
+      const bl = wiz.cfb2h;
+      if (!at) return { error: 'NO_AT_TOKEN' };
+      const reqid = Math.floor(Math.random() * 900000) + 100000;
+      // Match Flow's own WIZ metadata. GEM_PIX_2 (Nano Banana Pro) rejects
+      // image generation when source-path is missing even though Lite may not.
+      const sourcePath = location.pathname || '/';
+      const hl = (document.documentElement.lang || navigator.language || 'en').split('-')[0];
+      const url =
+        `/_/AiSandboxAngularFrontend/data/batchexecute?rpcids=${encodeURIComponent(rpcid)}` +
+        `&source-path=${encodeURIComponent(sourcePath)}` +
+        `&bl=${encodeURIComponent(bl || '')}&f.sid=${encodeURIComponent(sid || '')}` +
+        `&hl=${encodeURIComponent(hl)}&_reqid=${reqid}&rt=c`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'x-same-domain': '1',
+        },
+        body: new URLSearchParams({ 'f.req': freqStr, at }),
+      });
+      const text = await resp.text();
+      // The project listing is tens of megabytes and all we ever want from it
+      // is one entry. Cutting it down here keeps that payload inside the tab
+      // instead of pushing it through the bridge on every poll.
+      if (match) {
+        const found = text.indexOf(match);   // not `at` — that is the CSRF token above
+        return {
+          status: resp.status,
+          matched: found !== -1,
+          text: found === -1 ? '' : text.slice(found, found + 800),
+        };
+      }
+      return { status: resp.status, text: text.slice(0, maxText) };
+    },
+  });
+
+  return injected?.result || { error: 'NO_INJECTION_RESULT' };
+}
+
+async function handleBatchRpc(msg) {
+  const { id, params } = msg;
+  const { rpcid, freq, captchaAction, match } = params || {};
+  if (!rpcid || !freq) {
+    sendToAgent({ id, status: 400, error: 'INVALID_BATCH_RPC' });
+    return;
+  }
+
+  setState('running');
+  const hasCaptcha = !!captchaAction;
+  if (hasCaptcha) metrics.requestCount++;
+  // Polls and listing lookups run constantly; only the generates are worth
+  // a row in the log the popup shows.
+  const visible = hasCaptcha;
+  const _RPC_LABELS = {
+    ogiZ0b: 'Gen Image', eb1hJf: 'Gen Video', YhhmEf: 'Gen Video (text)',
+    nprQif: 'Gen Video (chain)', MZZa6b: 'Gen Video (refs)',
+    maseQ: 'Upload Image', SPrCad: 'Upscale Image',
+    jHPbke: 'Create Project', jwpduf: 'Poll Operation',
+    Zzl0ze: 'Project Media', as29s: 'Get Media',
+  };
+  const logType = _RPC_LABELS[rpcid] || `RPC:${rpcid}`;
+  if (visible) {
+    addRequestLog({
+      id, type: logType, time: new Date().toISOString(),
+      status: 'processing', error: null, outputUrl: null, url: rpcid,
+      payloadSummary: freq.slice(0, 200),
+    });
+  }
+
+  try {
+    const out = await runBatchRpc({ id, rpcid, freq, captchaAction, match });
+    if (out.error) {
+      if (hasCaptcha) { metrics.failedCount++; metrics.lastError = out.error; }
+      if (visible) updateRequestLog(id, { status: 'failed', error: out.error });
+      sendToAgent({ id, status: 502, error: out.error });
+    } else {
+      if (hasCaptcha) { metrics.successCount++; metrics.lastError = null; }
+      if (visible) {
+        updateRequestLog(id, {
+          status: 'success', httpStatus: out.status,
+          responseSummary: (out.text || '').slice(0, 300),
+        });
+      }
+      sendToAgent({ id, status: out.status, data: out.text });
+    }
+  } catch (e) {
+    const err = e?.message || 'BATCH_RPC_FAILED';
+    if (hasCaptcha) { metrics.failedCount++; metrics.lastError = err; }
+    if (visible) updateRequestLog(id, { status: 'failed', error: err });
+    sendToAgent({ id, status: 500, error: err });
+  }
+
+  chrome.storage.local.set({ metrics });
+  setState('idle');
+}
+
+const FLOW_PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function handleFlowProjects(msg) {
+  try {
+    const tabs = await chrome.tabs.query({ url: flowUrls });
+    const ids = tabs.map(t => /\/project\/([0-9a-f-]{36})/i.exec(t.url || '')?.[1]).filter(id => id && FLOW_PROJECT_ID.test(id));
+    if (ids.length) {
+      sendToAgent({ id: msg.id, result: { projectIds: [...new Set(ids)] } });
+      return;
+    }
+    let candidate = tabs.find((t) => !t.discarded) || tabs[0];
+    if (!candidate) {
+      const opened = await chrome.tabs.create({ url: FLOW_TAB_URL, active: false });
+      await sleep(3000);
+      candidate = opened?.id ? await chrome.tabs.get(opened.id).catch(() => null) : null;
+    }
+    if (!candidate) {
+      sendToAgent({ id: msg.id, result: { projectIds: [] } });
+      return;
+    }
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: candidate.id },
+      world: 'MAIN',
+      func: () => [...new Set([...document.documentElement.innerHTML.matchAll(/\/project\/([0-9a-f-]{36})/gi)].map(m => m[1]))].slice(0, 50),
+    });
+    const foundIds = (result?.result || []).filter(id => FLOW_PROJECT_ID.test(id));
+    sendToAgent({ id: msg.id, result: { projectIds: foundIds } });
+  } catch (error) {
+    sendToAgent({ id: msg.id, error: error.message || 'FLOW_PROJECT_LOOKUP_FAILED' });
+  }
+}
+
+function generationLogType(kind) {
+  if (kind === 'sync') return 'SYNC_REF';
+  if (kind === 'image') return 'GEN_IMG';
+  if (kind === 'upscale') return 'UPSCALE';
+  return 'GEN_VID';
+}
+
+function handleGenerationUpdate(msg) {
+  const activityId = typeof msg.activityId === 'string' ? msg.activityId : '';
+  if (!activityId) return;
+  let entry = requestLog.find((item) => item.id === activityId);
+  if (!entry) {
+    entry = {
+      id: activityId,
+      type: generationLogType(msg.kind),
+      time: new Date().toISOString(),
+      status: 'PROCESSING',
+      error: null,
+    };
+    addRequestLog(entry);
+  }
+  const terminalStatus = msg.status === 'completed'
+    ? 'COMPLETED'
+    : (msg.status === 'failed' || msg.status === 'cancelled') ? 'FAILED' : 'PROCESSING';
+  updateRequestLog(activityId, {
+    type: generationLogType(msg.kind),
+    status: terminalStatus,
+    error: msg.error || null,
+    outputUrl: msg.outputUrl || null,
+  });
+}
+
 // ─── API Request Proxy ──────────────────────────────────────
 
 async function handleTrpcRequest(msg) {
   const { id, params } = msg;
-  const { url, method = 'POST', headers = {}, body, responseMode } = params;
+  const { url, method = 'POST', headers = {}, body, responseMode = 'json' } = params;
 
   if (!url || !url.startsWith('https://labs.google/')) {
     sendToAgent({ id, error: 'INVALID_TRPC_URL' });
@@ -483,9 +720,15 @@ async function handleTrpcRequest(msg) {
       credentials: 'include',
     });
     let data;
-    if (responseMode === 'final-url') {
-      data = { url: resp.url };
-      if (resp.body) await resp.body.cancel().catch(() => {});
+    if (responseMode === 'url') {
+      // fetch() has already followed the authenticated Flow redirect. Return
+      // only the final signed URL and cancel the body so large videos are not
+      // buffered in the extension or copied through the WebSocket bridge.
+      data = {
+        url: resp.url,
+        contentType: resp.headers.get('content-type'),
+      };
+      await resp.body?.cancel();
     } else {
       data = await resp.json();
     }
@@ -502,9 +745,15 @@ async function handleTrpcRequest(msg) {
   }
 }
 
+// Legacy REST proxy against aisandbox-pa. No current agent sends `api_request`;
+// kept only so an extension updated ahead of its agent still serves an older
+// one. It needs a `Bearer ya29.…` that Flow stopped minting, so it 401s on any
+// post-migration profile — as does sendTelemetry below, which early-returns
+// without a flowKey. Nothing here reaches aisandbox-pa any more; when the
+// oldest agent in the wild speaks batch_rpc, this and the host permission go.
 async function handleApiRequest(msg) {
   const { id, params } = msg;
-  const { url, method, headers, body, captchaAction, activityId, activityKind } = params;
+  const { url, method, headers, body, captchaAction } = params;
 
   if (!url) {
     sendToAgent({ id, error: 'MISSING_URL' });
@@ -520,26 +769,11 @@ async function handleApiRequest(msg) {
   const hasCaptcha = !!captchaAction;
   if (hasCaptcha) metrics.requestCount++;
 
-  const logId = typeof activityId === 'string' && activityId ? activityId : id;
-  const tracksGeneration = logId !== id;
+  const logId = id;
   const logType = _classifyApiUrl(url);
   if (_VISIBLE_TYPES.has(logType)) {
     const payloadSummary = body ? JSON.stringify(body).slice(0, 200) : null;
-    const firstRequest = body && Array.isArray(body.requests) ? body.requests[0] : null;
-    const modelKey = firstRequest && (firstRequest.videoModelKey || firstRequest.imageModelName);
-    addRequestLog({
-      id: logId,
-      type: activityKind === 'upscale' ? 'UPSCALE' : logType,
-      time: new Date().toISOString(),
-      status: 'PROCESSING',
-      phase: 'submitting',
-      error: null,
-      outputUrl: null,
-      url,
-      payloadSummary,
-      modelKey: modelKey || null,
-      metricFinalized: false,
-    });
+    addRequestLog({ id: logId, type: logType, time: new Date().toISOString(), status: 'processing', error: null, outputUrl: null, url, payloadSummary });
   }
 
   try {
@@ -555,7 +789,7 @@ async function handleApiRequest(msg) {
         sendToAgent({ id, status: 403, error: `CAPTCHA_FAILED: ${err}` });
         if (hasCaptcha) { metrics.failedCount++; metrics.lastError = `CAPTCHA_FAILED: ${err}`; }
         chrome.storage.local.set({ metrics });
-        updateRequestLog(logId, { status: 'FAILED', error: `CAPTCHA_FAILED: ${err}`, metricFinalized: true });
+        updateRequestLog(logId, { status: 'failed', error: `CAPTCHA_FAILED: ${err}` });
         setState('idle');
         return;
       }
@@ -583,7 +817,7 @@ async function handleApiRequest(msg) {
       sendToAgent({ id, status: 503, error: 'NO_FLOW_KEY' });
       if (hasCaptcha) { metrics.failedCount++; metrics.lastError = 'NO_FLOW_KEY'; }
       chrome.storage.local.set({ metrics });
-      updateRequestLog(logId, { status: 'FAILED', error: 'NO_FLOW_KEY', metricFinalized: true });
+      updateRequestLog(logId, { status: 'failed', error: 'NO_FLOW_KEY' });
       setState('idle');
       return;
     }
@@ -615,17 +849,11 @@ async function handleApiRequest(msg) {
 
     const responseSummary = responseText ? responseText.slice(0, 300) : null;
     if (response.ok) {
-      if (tracksGeneration) {
-        // A successful video submit only means Flow accepted the asynchronous
-        // job. The desktop runtime will send the real terminal state later.
-        updateRequestLog(logId, { status: 'PROCESSING', phase: 'polling', httpStatus: response.status, responseSummary });
-      } else {
-        if (hasCaptcha) { metrics.successCount++; metrics.lastError = null; }
-        updateRequestLog(logId, { status: 'COMPLETED', httpStatus: response.status, responseSummary, metricFinalized: hasCaptcha });
-      }
+      if (hasCaptcha) { metrics.successCount++; metrics.lastError = null; }
+      updateRequestLog(logId, { status: 'success', httpStatus: response.status, responseSummary });
     } else {
       if (hasCaptcha) { metrics.failedCount++; metrics.lastError = `API_${response.status}`; }
-      updateRequestLog(logId, { status: 'FAILED', error: `API_${response.status}`, httpStatus: response.status, responseSummary, metricFinalized: hasCaptcha });
+      updateRequestLog(logId, { status: 'failed', error: `API_${response.status}`, httpStatus: response.status, responseSummary });
     }
   } catch (e) {
     sendToAgent({
@@ -634,7 +862,7 @@ async function handleApiRequest(msg) {
       error: e.message || 'API_REQUEST_FAILED',
     });
     if (hasCaptcha) { metrics.failedCount++; metrics.lastError = e.message; }
-    updateRequestLog(logId, { status: 'FAILED', error: e.message || 'API_REQUEST_FAILED', metricFinalized: hasCaptcha });
+    updateRequestLog(logId, { status: 'failed', error: e.message || 'API_REQUEST_FAILED' });
   }
 
   chrome.storage.local.set({ metrics });
@@ -662,7 +890,6 @@ chrome.runtime.onMessage.addListener((msg, _, reply) => {
       connected: ws?.readyState === WebSocket.OPEN,
       agentConnected: ws?.readyState === WebSocket.OPEN,
       flowKeyPresent: !!flowKey,
-      transport: 'batch',
       manualDisconnect,
       tokenAge: metrics.tokenCapturedAt ? Date.now() - metrics.tokenCapturedAt : null,
       metrics: {
@@ -695,14 +922,12 @@ chrome.runtime.onMessage.addListener((msg, _, reply) => {
   }
 
   if (msg.type === 'OPEN_FLOW_TAB') {
-    chrome.tabs.query({
-      url: FLOW_PAGE_PATTERNS,
-    }).then((tabs) => {
+    chrome.tabs.query({ url: flowUrls }).then((tabs) => {
       if (tabs.length) {
         chrome.tabs.update(tabs[0].id, { active: true });
         reply({ ok: true, tabId: tabs[0].id });
       } else {
-        chrome.tabs.create({ url: 'https://flow.google.com/' })
+        chrome.tabs.create({ url: FLOW_TAB_URL })
           .then((tab) => reply({ ok: true, tabId: tab.id }))
           .catch((e) => reply({ error: e.message }));
       }
@@ -711,7 +936,7 @@ chrome.runtime.onMessage.addListener((msg, _, reply) => {
   }
 
   if (msg.type === 'REFRESH_TOKEN') {
-    captureTokenFromFlowTab()
+    captureTokenFromFlowTab({ createIfMissing: true })
       .then(() => reply({ ok: true }))
       .catch((e) => reply({ error: e.message }));
     return true;
@@ -839,6 +1064,8 @@ function _buildFrontendEventsPayload() {
 }
 
 async function sendTelemetry() {
+  // Legacy-path camouflage: these endpoints want the bearer Flow no longer
+  // mints, so on the batch path there is no flowKey and this is a no-op.
   if (!flowKey || state === 'off') return;
 
   const headers = {
@@ -877,4 +1104,3 @@ setInterval(() => { _telemetrySessionId = `;${Date.now()}`; }, _rand(25, 35) * 6
 scheduleTelemetry();
 
 console.log('[FlowAgent] Extension loaded');
-void init();

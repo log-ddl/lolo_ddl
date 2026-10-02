@@ -1,11 +1,10 @@
 import { validateMediaArguments } from './media-tool-definitions'
 import { MediaTasks, type MediaAsset } from './media-tasks'
 import { createSpeech, createVoiceProfile, listTtsModels, listVoices } from './voice-tools'
-import { GOOGLE_FLOW_IMAGE_MODELS, GOOGLE_FLOW_VIDEO_MODELS, GROK_VIDEO_MODELS, QWEN_LOCAL_IMAGE_MODEL } from '@/features/video-studio/lib/api-key-manager'
+import { GOOGLE_FLOW_IMAGE_MODELS, GOOGLE_FLOW_VIDEO_MODELS, QWEN_LOCAL_IMAGE_MODEL } from '@/features/video-studio/lib/api-key-manager'
 import { configuredImageModel, configuredVideoModel, resolveSettingsMediaRouting } from '@/features/video-studio/lib/ai/media-routing'
 import { generateImageWithSelectedProvider } from '@/features/video-studio/lib/ai/qwen-local-provider'
 import { googleFlowProvider } from '@/features/video-studio/lib/ai/google-flow-provider'
-import { grokVideoProvider } from '@/features/video-studio/lib/ai/grok-video-provider'
 import { videoDuration, videoDurations } from '@/features/video-studio/lib/ai/video-duration'
 import { getAbsoluteImagePath, readImageAsBase64 } from '@/features/video-studio/lib/image-storage'
 import { useProjectStore } from '@/features/video-studio/stores/project-store'
@@ -72,19 +71,19 @@ export async function executeMediaTool(name: string, input: unknown): Promise<un
   if (name === 'list_media_capabilities') {
     let tts: unknown
     try { tts = await listTtsModels() } catch (error) { tts = { error: error instanceof Error ? error.message : String(error) } }
-    const connectionStatus = async (runtime: typeof window.googleFlowRuntime | typeof window.grokVideoRuntime) => {
+    const connectionStatus = async (runtime: typeof window.googleFlowRuntime) => {
       try {
         const status = await runtime?.getStatus()
         return status ? { running: status.running, readyAccounts: status.readyCredentialCount, videoLanes: status.videoLaneCount } : { running: false, readyAccounts: 0 }
       } catch { return { running: false, readyAccounts: 0 } }
     }
     return {
-      connections: { googleflow: await connectionStatus(window.googleFlowRuntime), grok: await connectionStatus(window.grokVideoRuntime) },
+      connections: { googleflow: await connectionStatus(window.googleFlowRuntime) },
       images: [...GOOGLE_FLOW_IMAGE_MODELS, QWEN_LOCAL_IMAGE_MODEL].map((model) => ({ model, provider: model === QWEN_LOCAL_IMAGE_MODEL ? 'qwen-local' : 'googleflow', maxReferences: 10 })),
-      videos: [...GOOGLE_FLOW_VIDEO_MODELS, ...GROK_VIDEO_MODELS].map((model) => ({
-        model, provider: GROK_VIDEO_MODELS.includes(model) ? 'grok' : 'googleflow', durations: videoDurations(model),
-        modes: GROK_VIDEO_MODELS.includes(model) ? ['text-to-video', 'image-to-video'] : ['text-to-video', 'image-to-video', 'reference-to-video'],
-        maxReferences: GROK_VIDEO_MODELS.includes(model) ? 0 : 3,
+      videos: [...GOOGLE_FLOW_VIDEO_MODELS].map((model) => ({
+        model, provider: 'googleflow', durations: videoDurations(model),
+        modes: ['text-to-video', 'image-to-video', 'reference-to-video'],
+        maxReferences: 3,
       })),
       defaults: { image: configuredImageModel('scene_generation'), video: configuredVideoModel() },
       tts, note: 'Model availability depends on app account sessions, quota and installed local models. No models are installed automatically. Media tasks require the app to remain open.',
@@ -93,16 +92,14 @@ export async function executeMediaTool(name: string, input: unknown): Promise<un
   const kind = name === 'generate_image' ? 'image' : 'video'
   const model = text(args, 'model') || (kind === 'image' ? configuredImageModel('scene_generation') : configuredVideoModel())
   if (!model) throw new Error('Choose a model or configure the generation feature in app settings')
-  const models = kind === 'image' ? [...GOOGLE_FLOW_IMAGE_MODELS, QWEN_LOCAL_IMAGE_MODEL] : [...GOOGLE_FLOW_VIDEO_MODELS, ...GROK_VIDEO_MODELS]
+  const models = kind === 'image' ? [...GOOGLE_FLOW_IMAGE_MODELS, QWEN_LOCAL_IMAGE_MODEL] : [...GOOGLE_FLOW_VIDEO_MODELS]
   if (!models.includes(model)) throw new Error(`Unsupported ${kind} model: ${model}`)
-  const grok = GROK_VIDEO_MODELS.includes(model)
   const references = (args.references || []) as string[]
   const start = text(args, 'startImage'), end = text(args, 'endImage')
   if (kind === 'video') {
     if (args.mode === 'text-to-video' && (start || end || references.length)) throw new Error('text-to-video does not accept images')
     if (args.mode === 'image-to-video' && (!start || references.length)) throw new Error('image-to-video requires startImage and does not accept references')
     if (args.mode === 'reference-to-video' && (!references.length || start || end)) throw new Error('reference-to-video requires references and does not accept startImage/endImage')
-    if (grok && args.mode === 'reference-to-video') throw new Error('Grok does not support reference-to-video in this app; choose a Google Flow model')
     if (args.duration && !videoDurations(model).some((duration) => duration === args.duration)) throw new Error('Unsupported duration for this model')
     if (args.mode === 'reference-to-video' && model !== 'Gemini_Omni_Flash' && args.duration && args.duration !== 8) throw new Error('Veo reference-to-video requires 8 seconds')
   }
@@ -114,13 +111,13 @@ export async function executeMediaTool(name: string, input: unknown): Promise<un
       await window.videoStudioBrowser.startRuntimes()
       // Startup registers IPC immediately, while saved browser sessions restore asynchronously.
       // Wait for the provider handshake instead of failing the first external MCP call.
-      const runtime = grok ? window.grokVideoRuntime : window.googleFlowRuntime
+      const runtime = window.googleFlowRuntime
       if (!runtime) throw new Error('The selected browser provider is unavailable')
       progress('connecting-account')
       const deadline = Date.now() + 60_000
       while (!signal.aborted) {
         if ((await runtime.getStatus()).readyCredentialCount > 0) break
-        if (Date.now() >= deadline) throw new Error(`No connected ${grok ? 'Grok' : 'Google Flow'} account. Connect an account in Video Studio and retry with a new requestKey.`)
+        if (Date.now() >= deadline) throw new Error(`No connected Google Flow account. Connect an account in Video Studio and retry with a new requestKey.`)
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
       if (signal.aborted) throw new DOMException('Cancelled', 'AbortError')
@@ -130,7 +127,7 @@ export async function executeMediaTool(name: string, input: unknown): Promise<un
     const startImage = start ? await imageRef(start) : undefined
     const endImage = end ? await imageRef(end) : undefined
     if (signal.aborted) throw new DOMException('Cancelled', 'AbortError')
-    const routing = grok ? undefined : await resolveSettingsMediaRouting(kind, model)
+    const routing = await resolveSettingsMediaRouting(kind, model)
     if (signal.aborted) throw new DOMException('Cancelled', 'AbortError')
     const common = {
       taskId, projectId, model, prompt: String(args.prompt).trim(), aspectRatio: text(args, 'aspectRatio') || '16:9',
@@ -141,7 +138,7 @@ export async function executeMediaTool(name: string, input: unknown): Promise<un
     progress('queued')
     const output = kind === 'image'
       ? await generateImageWithSelectedProvider(common)
-      : await (grok ? grokVideoProvider : googleFlowProvider).generateVideo({ ...common, sceneId: taskId, startImage, endImage, duration: videoDuration(model, args.duration as number | undefined) })
+      : await googleFlowProvider.generateVideo({ ...common, sceneId: taskId, startImage, endImage, duration: videoDuration(model, args.duration as number | undefined) })
     return outputAsset(taskId, kind, model, output)
   })
 }

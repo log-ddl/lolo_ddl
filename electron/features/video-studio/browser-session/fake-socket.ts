@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 
-// Stand-in for a `ws` WebSocket that GoogleFlowRuntime.attachSocket() (and
-// later GrokVideoRuntime.attachSocket()) accept without any changes to
+// Stand-in for a `ws` WebSocket that GoogleFlowRuntime.attachSocket()
+// accepts without any changes to
 // those methods — they only ever touch `.readyState`, `.send()`,
 // `.close()`, and the EventEmitter `'message'`/`'close'` events, so a
 // duck-typed object here lets an app-driven Chrome stand in for a real

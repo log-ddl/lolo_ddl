@@ -1,23 +1,28 @@
 {
   "manifest_version": 3,
   "name": "logdd",
-  "version": "1.1.29",
-  "description": "Cầu nối cục bộ Google Flow và Grok Video cho ứng dụng logdd.",
+  "version": "1.2.0",
+  "description": "Cầu nối cục bộ Google Flow cho ứng dụng logdd.",
   "icons": {
     "16": "logo.png",
     "32": "logo.png",
     "48": "logo.png",
     "128": "logo.png"
   },
-  "permissions": ["storage", "alarms", "tabs", "webRequest", "scripting", "declarativeNetRequest", "sidePanel"],
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "webRequest",
+    "scripting",
+    "declarativeNetRequest",
+    "sidePanel"
+  ],
   "host_permissions": [
     "https://flow.google.com/*",
+    "https://flow-content.google/*",
     "https://labs.google/*",
     "https://aisandbox-pa.googleapis.com/*",
-    "https://flow-content.google/*",
-    "https://grok.com/*",
-    "https://*.grok.com/*",
-    "https://assets.grok.com/*",
     "http://127.0.0.1:8100/*"
   ],
   "background": {
@@ -30,7 +35,12 @@
         "https://labs.google/fx/tools/flow*",
         "https://labs.google/fx/*/tools/flow*"
       ],
-      "js": ["hijack_bypass.js"],
+      "js": [
+        "hijack_bypass.js",
+        "recaptcha_enterprise.js",
+        "recaptcha__en.js",
+        "injected.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
@@ -40,25 +50,23 @@
         "https://labs.google/fx/tools/flow*",
         "https://labs.google/fx/*/tools/flow*"
       ],
-      "js": ["content.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": ["https://grok.com/*", "https://*.grok.com/*"],
-      "js": ["grok-page-bridge.js"],
-      "run_at": "document_start",
-      "world": "MAIN"
-    },
-    {
-      "matches": ["https://grok.com/*", "https://*.grok.com/*"],
-      "js": ["grok-content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["injected.js", "hijack_bypass.js"],
-      "matches": ["https://labs.google/*", "https://flow.google.com/*"]
+      "resources": [
+        "injected.js",
+        "recaptcha_enterprise.js",
+        "recaptcha__en.js"
+      ],
+      "matches": [
+        "https://flow.google.com/*",
+        "https://labs.google/*"
+      ]
     }
   ],
   "declarative_net_request": {

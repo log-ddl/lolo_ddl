@@ -11,11 +11,12 @@ import { AudioHistoryItem } from './audio-history-item';
 
 interface AudioHistoryProps {
   items: TtsHistoryItem[];
+  onReuseVoice?: (item: TtsHistoryItem) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
 }
 
-export function AudioHistory({ items, onRename, onRemove }: AudioHistoryProps) {
+export function AudioHistory({ items, onRename, onRemove, onReuseVoice }: AudioHistoryProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
@@ -81,7 +82,7 @@ export function AudioHistory({ items, onRename, onRemove }: AudioHistoryProps) {
           {visibleItems.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">{t('tts.history.noResults')}</div>
           ) : visibleItems.map((item) => (
-            <AudioHistoryItem key={item.id} item={item} onRename={onRename} onRemove={onRemove} />
+            <AudioHistoryItem key={item.id} item={item} onReuseVoice={onReuseVoice} onRename={onRename} onRemove={onRemove} />
           ))}
         </>
       )}

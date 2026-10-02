@@ -5,7 +5,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/shared/components/ui/dialog';
 import { useTaskMetadataStore } from './store';
-import type { TaskMetadata, TaskMetadataKind } from './types';
+import type { TaskMetadataKind } from './types';
 import { useI18n } from '@/shared/i18n';
 
 type Props = {

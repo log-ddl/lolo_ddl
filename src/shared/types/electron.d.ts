@@ -9,12 +9,6 @@ import type {
   GoogleFlowStatus,
   GoogleFlowTaskEvent,
 } from "@/features/video-studio/packages/ai-core/providers/google-flow/types";
-import type {
-  GrokGenerateVideoPayload,
-  GrokGenerationResult,
-  GrokStatus,
-  GrokTaskEvent,
-} from "@/features/video-studio/packages/ai-core/providers/grok/types";
 
 export {};
 
@@ -28,7 +22,7 @@ export interface AutoEditProjectSummary {
 
 export type VideoStudioInAppAccount = {
   accountSlotId: string;
-  provider: "google-flow" | "grok";
+  provider: "google-flow";
   label: string;
   createdAt: number;
 };
@@ -314,6 +308,10 @@ declare global {
       deleteEntry: (workspacePath: string | null | undefined, relativePath: string) => Promise<{ success: boolean }>;
     };
     contentMcp?: {
+      status: () => Promise<import('../components/McpConnectionsPanel').McpStatus>;
+      setEnabled: (enabled: boolean) => Promise<import('../components/McpConnectionsPanel').McpStatus>;
+      rotateToken: () => Promise<import('../components/McpConnectionsPanel').McpStatus>;
+      test: () => Promise<{ count: number }>;
       ready: () => void;
       respond: (payload: { requestId: string; success: boolean; result?: unknown; error?: string }) => void;
       onToolCall: (listener: (payload: {
@@ -368,32 +366,10 @@ declare global {
       startRuntimes: () => Promise<{ ok: boolean }>;
       setHideAfterLogin: (value: boolean) => Promise<{ ok: boolean }>;
     };
-    grokVideoRuntime?: {
-      getStatus: () => Promise<GrokStatus>;
-      refreshQuota: () => Promise<GrokStatus>;
-      getCapacity: () => Promise<{ videoLanes: number }>;
-      updateSettings: (payload: {
-        videoLanesPerExtension?: number;
-        videoSubmitDelayMinMs?: number;
-        videoSubmitDelayMaxMs?: number;
-        extensionStartStaggerMinMs?: number;
-        extensionStartStaggerMaxMs?: number;
-      }) => Promise<{
-        videoLanesPerExtension: number;
-        videoSubmitDelayMinMs: number;
-        videoSubmitDelayMaxMs: number;
-        extensionStartStaggerMinMs: number;
-        extensionStartStaggerMaxMs: number;
-      }>;
-      openGrok: () => Promise<{ ok: boolean }>;
-      generateVideo: (payload: GrokGenerateVideoPayload) => Promise<GrokGenerationResult>;
-      cancelTask: (taskId: string) => Promise<{ cancelled: boolean }>;
-      onStatus: (listener: (payload: GrokStatus) => void) => () => void;
-      onTask: (listener: (payload: GrokTaskEvent) => void) => () => void;
-      listInAppAccounts: () => Promise<VideoStudioInAppAccount[]>;
-      addInAppAccount: () => Promise<VideoStudioInAppAccount>;
-      removeInAppAccount: (accountSlotId: string) => Promise<void>;
-      showInAppAccount: (accountSlotId: string) => Promise<void>;
+    canvasMotion?: {
+      onStarted: (listener: (jobId: string) => void) => () => void;
+      render: (payload: { jobId: string; kind: import('@/features/video-studio/canvas/motion-math').MotionKind; mode?: import('@/features/video-studio/canvas/motion-math').MotionMode; entrance?: import('@/features/video-studio/canvas/motion-math').MotionEntrance; intensity?: number; speed?: number; duration: number; images: ArrayBuffer[] }) => Promise<{ url: string; duration: number }>;
+      cancel: (jobId: string) => Promise<void>;
     };
     ffmpegRuntime?: {
       run: (payload: { jobId: string; args: string[]; totalDurationSec?: number }) => Promise<{
@@ -476,19 +452,22 @@ declare global {
       onProgress: (listener: (payload: import("@/features/media-toolkit/types").MediaToolkitProgress) => void) => () => void;
     };
     ttsRuntime?: {
+      exportColab: (input: import('../../../electron/features/tts-voice/colab-runtime').ColabExportInput) => Promise<{ success: boolean; canceled?: boolean; error?: string; folder?: string; count?: number }>;
+      importColab: () => Promise<{ success: boolean; canceled?: boolean; error?: string; items?: import('@/features/tts-voice/types').TtsHistoryItem[]; failed?: number; missing?: number }>;
+      openColab: () => Promise<void>;
       getModelStatuses: (models: Array<{
         id: string;
         repository: string;
-        capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu';
+        capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' | 'cosyvoice' | 'qwen3';
       }>) => Promise<import('@/features/tts-voice/types').TtsModelStatus[]>;
       installModel: (payload: {
         jobId: string;
-        model: { id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' };
+        model: { id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' | 'cosyvoice' | 'qwen3' };
       }) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
       removeModel: (modelId: string) => Promise<{ success: boolean; error?: string }>;
       generate: (payload: {
         jobId: string;
-        model: { id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' };
+        model: { id: string; repository: string; capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' | 'cosyvoice' | 'qwen3' };
         text: string;
         mode: 'clone' | 'design' | 'auto' | 'preset';
         splitMode?: 'default' | 'line' | 'sentence';
@@ -503,6 +482,9 @@ declare global {
         vbeeVoiceCode?: string;
         vbeeAudioType?: 'mp3' | 'wav';
         vbeeBitrate?: number;
+        localStyle?: string;
+        streamPreview?: boolean;
+        qwenSpeaker?: string;
         vieneuVoice?: string;
         vieneuStyle?: 'tu_nhien' | 'tin_tuc' | 'doc_truyen';
         advancedSettings?: import('@/features/tts-voice/types').TtsAdvancedSettings;

@@ -16,6 +16,7 @@ import { useI18n } from "@/shared/i18n";
 import { cn } from "@/shared/lib/utils";
 
 const KIND_ICONS: Record<CanvasNodeKind, typeof ImageIcon> = {
+  imageMotion: VideoIcon, motionBobbing: VideoIcon, motionBreathing: VideoIcon, motionFrames: VideoIcon,
   imageUpscale: Maximize2,
   ai: TypeIcon,
   output: Download,
@@ -30,6 +31,7 @@ const KIND_ICONS: Record<CanvasNodeKind, typeof ImageIcon> = {
 };
 
 const KIND_COLORS: Record<CanvasNodeKind, string> = {
+  imageMotion: "text-emerald-500", motionBobbing: "text-emerald-500", motionBreathing: "text-emerald-500", motionFrames: "text-emerald-500",
   imageUpscale: "text-blue-500",
   ai: "text-violet-500",
   output: "text-emerald-500",

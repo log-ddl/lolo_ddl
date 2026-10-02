@@ -87,11 +87,11 @@ export async function generateVideo(
 ): Promise<string> {
   const apiKey = config.apiKey || (config as any).videoApiKey || '';
   const provider = (config as any).videoProvider || 'mock';
-  if (provider === 'googleflow' || provider === 'grok') {
+  if (provider === 'googleflow') {
     return requestDesktopRuntime('video', {
       provider,
       imageUrl, prompt, aspectRatio: config.aspectRatio || '9:16', duration: (config as any).duration || 5,
-      model: (config as any).videoModel || (provider === 'grok' ? 'Grok Imagine Video' : 'Veo_3.1-Fast'), referenceImages,
+      model: (config as any).videoModel || 'Veo_3.1-Fast', referenceImages,
     });
   }
   

@@ -1,4 +1,4 @@
-export type MediaProviderId = 'googleflow' | 'grok' | 'qwen-local';
+export type MediaProviderId = 'googleflow' | 'qwen-local';
 
 export type ProviderMediaRef = {
   source: string;

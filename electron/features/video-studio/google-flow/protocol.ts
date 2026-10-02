@@ -1,6 +1,5 @@
 export const GOOGLE_FLOW_PROTOCOL_VERSION = 1;
-// 9222 is commonly occupied by Chrome remote debugging (including on this
-// workstation). Keep logdd's extension bridge separate from CDP and Grok 9223.
+// workstation). Keep logdd's extension bridge separate from CDP.
 export const GOOGLE_FLOW_DEFAULT_PORT = 9224;
 export const GOOGLE_FLOW_API_ROOT = 'https://aisandbox-pa.googleapis.com';
 // tRPC is called with a ROOT-RELATIVE path, never an absolute URL, because the

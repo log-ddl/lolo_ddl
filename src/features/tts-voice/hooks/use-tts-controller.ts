@@ -1,3 +1,4 @@
+import { useLiveAudio } from './use-live-audio';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { taskMetadata } from '@/shared/task-metadata';
 import { toast } from 'sonner';
@@ -8,7 +9,7 @@ import { createTtsJobId, toLocalTtsAudioUrl, toRuntimeModel } from '../lib/runti
 import { CAPCUT_API_VOICES, getCapCutVoice } from '../lib/capcut-voices';
 import { GEMINI_VOICES, getGeminiVoice } from '../lib/gemini-voices';
 import { useTtsBatch } from './use-tts-batch';
-import type { TtsGenerateResult, TtsModelDefinition, TtsModelStatus, TtsProgressEvent, VieneuVoice, VoiceProfile } from '../types';
+import type { TtsHistoryItem, TtsGenerateResult, TtsModelDefinition, TtsModelStatus, TtsProgressEvent, VieneuVoice, VoiceProfile } from '../types';
 
 /** Model chưa tải: hộp thoại tải model đã mở nên không cần toast thêm. */
 const MODEL_NOT_READY = '__tts-model-not-ready__';
@@ -34,7 +35,9 @@ function unavailableStatuses(message: string): Record<string, TtsModelStatus> {
 export function useTtsController() {
   const { t } = useI18n();
   const store = useTtsStore();
+  const { begin: beginLiveAudio, receive: receiveLiveAudio, stop: stopLiveAudio, playing: livePlaying, blocked: liveBlocked, resume: resumeLiveAudio } = useLiveAudio();
   const [statuses, setStatuses] = useState<Record<string, TtsModelStatus>>({});
+  const [destination, setDestination] = useState<'local' | 'colab'>('local');
   const [managerOpen, setManagerOpen] = useState(false);
   const [missingModelOpen, setMissingModelOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -53,13 +56,19 @@ export function useTtsController() {
   const availableModels = selectedEngine.models;
   const selectedModel = availableModels.find((model) => model.id === store.selectedModelId) || availableModels[0];
   const selectedStatus = statuses[selectedModel.id];
+  useEffect(() => { stopLiveAudio(); }, [selectedModel.id, stopLiveAudio]);
   const isCapCut = selectedEngine.id === 'capcut';
   const isGemini = selectedEngine.id === 'gemini';
   const isVbee = selectedEngine.id === 'vbee';
   const isVieneu = selectedEngine.id === 'vieneu';
   const vieneuStatus = statuses['vieneu-v3-turbo']?.status;
   const isOnline = isCapCut || isGemini || isVbee;
-  const mode = store.mode;
+  const isNewLocal = selectedModel.runtimeCapability === 'cosyvoice' || selectedModel.runtimeCapability === 'qwen3';
+  const supportsLocalStyle = selectedModel.runtimeCapability === 'cosyvoice' || selectedModel.id === 'qwen3-1.7b-custom';
+  const mode = isNewLocal
+    ? selectedModel.capabilities.includes('voice-clone') ? 'clone'
+      : selectedModel.capabilities.includes('voice-design') ? 'design' : 'preset'
+    : store.mode;
   const capcutVoices = useMemo(
     () => CAPCUT_API_VOICES.filter((voice) => voice.language === store.capcutLanguage),
     [store.capcutLanguage],
@@ -99,7 +108,10 @@ export function useTtsController() {
     }).catch(() => { /* Keep fallback voices if the runtime is unavailable. */ });
   }, [isVieneu, vieneuStatus]);
 
-  useEffect(() => window.ttsRuntime?.onEvent(setProgress), []);
+  useEffect(() => window.ttsRuntime?.onEvent((event) => {
+    setProgress(event);
+    receiveLiveAudio(event);
+  }), [receiveLiveAudio]);
 
   useEffect(() => {
     if (!availableModels.some((model) => model.id === store.selectedModelId)) {
@@ -109,8 +121,8 @@ export function useTtsController() {
 
   useEffect(() => {
     if (isVieneu && mode !== 'clone' && mode !== 'preset') store.setMode('preset');
-    if (!isVieneu && !isOnline && mode === 'preset') store.setMode('auto');
-  }, [isOnline, isVieneu, mode, store.setMode]);
+    if (!isNewLocal && !isVieneu && !isOnline && mode === 'preset') store.setMode('auto');
+  }, [isNewLocal, isOnline, isVieneu, mode, store.setMode]);
 
   useEffect(() => {
     if (!isCapCut || capcutVoices.some((voice) => voice.voiceType === store.capcutVoiceType)) return;
@@ -125,8 +137,8 @@ export function useTtsController() {
 
   useEffect(() => {
     const hasStatuses = Object.keys(statuses).length > 0;
-    if (!isOnline && !store.hasSeenModelPrompt && hasStatuses && selectedStatus?.status !== 'ready') setMissingModelOpen(true);
-  }, [isOnline, selectedStatus, statuses, store.hasSeenModelPrompt]);
+    if (destination === 'local' && !isOnline && !store.hasSeenModelPrompt && hasStatuses && selectedStatus?.status !== 'ready') setMissingModelOpen(true);
+  }, [destination, isOnline, selectedStatus, statuses, store.hasSeenModelPrompt]);
 
   const selectEngine = useCallback((engineId: string) => {
     const engine = getTtsModelGroup(engineId);
@@ -179,7 +191,7 @@ export function useTtsController() {
   }, [t]);
 
   const saveProfile = useCallback(() => {
-    if (!profileName.trim() || !referenceAudioPath || (!isVieneu && !referenceText.trim())) {
+    if (!profileName.trim() || !referenceAudioPath || (!isVieneu && !isNewLocal && !referenceText.trim())) {
       toast.error(t('tts.toast.profileRequiredFields'));
       return;
     }
@@ -198,9 +210,23 @@ export function useTtsController() {
     setReferenceAudioPath('');
     setReferenceText('');
     toast.success(t('tts.toast.profileSaved'));
-  }, [isVieneu, profileName, referenceAudioPath, referenceText, selectedModel, store.addVoiceProfile, t]);
+  }, [isNewLocal, isVieneu, profileName, referenceAudioPath, referenceText, selectedModel, store.addVoiceProfile, t]);
 
-  const voiceLabel = isCapCut
+  const reuseDesignedVoice = useCallback((item: TtsHistoryItem) => {
+    if (activeJobId || batchRunningRef.current) return toast.info(t('tts.toast.jobBusy'));
+    if (item.modelId !== 'qwen3-1.7b-design') return;
+    const target = ['qwen3-0.6b-base', 'qwen3-1.7b-base'].find((id) => statuses[id]?.status === 'ready') || 'qwen3-0.6b-base';
+    const profile: VoiceProfile = {
+      id: `designed-${item.id}`, name: item.name || item.text.slice(0, 60), providerId: 'qwen3-local',
+      modelId: target, referenceAudioPath: item.outputPath, referenceText: item.text, createdAt: Date.now(),
+    };
+    store.setSelectedEngineId('qwen3');
+    store.setSelectedModelId(target);
+    store.addVoiceProfile(profile);
+    toast.success(t('tts.local.designSaved'));
+  }, [activeJobId, statuses, store, t]);
+
+  const voiceLabel = isNewLocal && mode === 'preset' ? store.qwenSpeaker : isCapCut
     ? selectedCapCutVoice?.displayName || 'CapCut'
     : isGemini ? selectedGeminiVoice?.name || 'Gemini'
       : isVbee ? store.vbeeVoiceName.trim() || 'Vbee'
@@ -228,8 +254,8 @@ export function useTtsController() {
     text,
     mode: (isOnline ? 'preset' : mode) as typeof mode,
     splitMode: store.splitMode,
-    language: isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
-    speed: store.speed,
+    language: isNewLocal ? store.localLanguage : isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
+    speed: isNewLocal ? 1 : store.speed,
     numStep: store.numStep,
     advancedSettings: store.advancedEnabled ? store.advancedSettings : undefined,
     capcutVoiceType: isCapCut ? selectedCapCutVoice?.voiceType : undefined,
@@ -240,24 +266,35 @@ export function useTtsController() {
     vbeeVoiceCode: isVbee ? store.vbeeVoiceCode.trim() : undefined,
     vbeeAudioType: isVbee ? store.vbeeAudioType : undefined,
     vbeeBitrate: isVbee ? store.vbeeBitrate : undefined,
+    localStyle: supportsLocalStyle ? store.localStyle.trim() : undefined,
+    streamPreview: selectedModel.runtimeCapability === 'cosyvoice' && store.streamPreview && !batchRunningRef.current,
+    qwenSpeaker: selectedModel.runtimeCapability === 'qwen3' ? store.qwenSpeaker : undefined,
     vieneuVoice: isVieneu ? store.vieneuVoice : undefined,
     vieneuStyle: isVieneu ? store.vieneuStyle : undefined,
     instruction: mode === 'design' ? store.instruction.trim() : undefined,
     profileId: mode === 'clone' ? selectedProfile?.id : undefined,
     referenceAudioPath: selectedProfile?.referenceAudioPath,
     referenceText: selectedProfile?.referenceText,
-  }), [isCapCut, isGemini, isOnline, isVbee, isVieneu, mode, selectedCapCutVoice, selectedGeminiVoice, selectedModel, selectedProfile, store.advancedEnabled, store.advancedSettings, store.capcutLanguage, store.geminiLanguage, store.geminiStyle, store.geminiTemperature, store.instruction, store.language, store.numStep, store.speed, store.splitMode, store.vbeeAudioType, store.vbeeBitrate, store.vbeeVoiceCode, store.vieneuStyle, store.vieneuVoice]);
+  }), [supportsLocalStyle, store.localStyle, store.streamPreview, isNewLocal, store.localLanguage, store.qwenSpeaker, isCapCut, isGemini, isOnline, isVbee, isVieneu, mode, selectedCapCutVoice, selectedGeminiVoice, selectedModel, selectedProfile, store.advancedEnabled, store.advancedSettings, store.capcutLanguage, store.geminiLanguage, store.geminiStyle, store.geminiTemperature, store.instruction, store.language, store.numStep, store.speed, store.splitMode, store.vbeeAudioType, store.vbeeBitrate, store.vbeeVoiceCode, store.vieneuStyle, store.vieneuVoice]);
 
   /** Chạy một job và giữ khoá tác vụ; dùng chung cho nút tạo giọng và đọc hàng loạt. */
   const runGeneration = useCallback(async (jobId: string, text: string): Promise<TtsGenerateResult> => {
+    beginLiveAudio(jobId);
     setActiveJobId(jobId);
     setProgress({ jobId, kind: 'generate', stage: 'starting', percent: 2, message: t('tts.toast.preparing') });
     try {
-      return await window.ttsRuntime!.generate(buildGeneratePayload(jobId, text));
+      const result = await window.ttsRuntime!.generate(buildGeneratePayload(jobId, text));
+      // Local workers can discover Apple GPU support on their first request.
+      if (isNewLocal && selectedStatus?.accelerator !== 'mlx' && selectedStatus?.accelerator !== 'mps') void refreshStatuses();
+      if (!result.success) stopLiveAudio();
+      return result;
+    } catch (error) {
+      stopLiveAudio();
+      throw error;
     } finally {
       setActiveJobId(undefined);
     }
-  }, [buildGeneratePayload, t]);
+  }, [beginLiveAudio, stopLiveAudio, buildGeneratePayload, refreshStatuses, isNewLocal, selectedStatus?.accelerator, t]);
 
   const validateBatch = useCallback(() => {
     const invalid = validateGeneration();
@@ -269,13 +306,14 @@ export function useTtsController() {
   const busy = Boolean(activeJobId) || batch.running;
 
   const cancelJob = useCallback(async () => {
+    stopLiveAudio();
     batch.requestStop();
     if (!activeJobId) return;
     await window.ttsRuntime?.cancel(activeJobId);
     setActiveJobId(undefined);
     await refreshStatuses();
     toast.info(t('tts.toast.cancelRequested'));
-  }, [activeJobId, batch.requestStop, refreshStatuses, t]);
+  }, [stopLiveAudio, activeJobId, batch.requestStop, refreshStatuses, t]);
 
   const generate = useCallback(async () => {
     const text = store.text.trim();
@@ -294,8 +332,8 @@ export function useTtsController() {
       prompt: text, instruction: mode === 'design' ? store.instruction.trim() : undefined,
       details: {
         voice: voiceLabel, mode: isOnline ? 'preset' : mode,
-        language: isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
-        speed: store.speed, splitMode: store.splitMode,
+        language: isNewLocal ? store.localLanguage : isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
+        speed: isNewLocal ? 1 : store.speed, splitMode: store.splitMode,
       },
     });
     let result;
@@ -315,8 +353,8 @@ export function useTtsController() {
     taskMetadata.completed(jobId, result.outputPath, {
       voice: voiceLabel,
       mode: isOnline ? 'preset' : mode,
-      language: isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
-      speed: store.speed,
+      language: isNewLocal ? store.localLanguage : isCapCut ? store.capcutLanguage : isGemini ? store.geminiLanguage : store.language,
+      speed: isNewLocal ? 1 : store.speed,
       splitMode: store.splitMode,
       durationSeconds: result.durationSec,
       sampleRate: result.sampleRate,
@@ -333,7 +371,7 @@ export function useTtsController() {
     });
     store.setText('');
     toast.success(t('tts.toast.audioCreated'));
-  }, [isCapCut, isGemini, isOnline, mode, runGeneration, selectedModel, store.addHistory, store.capcutLanguage, store.geminiLanguage, store.instruction, store.language, store.speed, store.splitMode, store.setText, store.text, t, validateGeneration, voiceLabel]);
+  }, [isNewLocal, store.localLanguage, isCapCut, isGemini, isOnline, mode, runGeneration, selectedModel, store.addHistory, store.capcutLanguage, store.geminiLanguage, store.instruction, store.language, store.speed, store.splitMode, store.setText, store.text, t, validateGeneration, voiceLabel]);
 
   const previewCapCutVoice = useCallback(async () => {
     if (!isCapCut || !selectedCapCutVoice) return;
@@ -422,6 +460,7 @@ export function useTtsController() {
   }, [closeMissingModelPrompt, installModel, selectedModel]);
 
   return {
+    destination, setDestination, buildGeneratePayload, voiceLabel, addHistory: store.addHistory,
     statuses, engineGroups: TTS_MODEL_GROUPS, selectedEngine, availableModels, selectedModel, selectedStatus, isCapCut, isGemini, isVbee, isVieneu, isOnline, mode, compatibleProfiles, selectedProfile,
     capcutVoices, selectedCapCutVoice,
     geminiVoices: GEMINI_VOICES, selectedGeminiVoice,
@@ -436,7 +475,7 @@ export function useTtsController() {
     savedLanguages: store.savedLanguages,
     addSavedLanguage: store.addSavedLanguage,
     removeSavedLanguage: store.removeSavedLanguage,
-    speed: store.speed, setSpeed: store.setSpeed,
+    speed: isNewLocal ? 1 : store.speed, setSpeed: store.setSpeed,
     numStep: store.numStep, setNumStep: store.setNumStep,
     splitMode: store.splitMode, setSplitMode: store.setSplitMode,
     capcutLanguage: store.capcutLanguage, setCapcutLanguage: store.setCapcutLanguage,
@@ -449,6 +488,12 @@ export function useTtsController() {
     vbeeVoiceName: store.vbeeVoiceName, setVbeeVoiceName: store.setVbeeVoiceName,
     vbeeAudioType: store.vbeeAudioType, setVbeeAudioType: store.setVbeeAudioType,
     vbeeBitrate: store.vbeeBitrate, setVbeeBitrate: store.setVbeeBitrate,
+    reuseDesignedVoice, supportsLocalStyle,
+    stopLiveAudio, livePlaying, liveBlocked, resumeLiveAudio,
+    localStyle: store.localStyle, setLocalStyle: store.setLocalStyle,
+    streamPreview: store.streamPreview, setStreamPreview: store.setStreamPreview,
+    localLanguage: store.localLanguage, setLocalLanguage: store.setLocalLanguage,
+    qwenSpeaker: store.qwenSpeaker, setQwenSpeaker: store.setQwenSpeaker,
     vieneuVoices, vieneuVoice: store.vieneuVoice, setVieneuVoice: store.setVieneuVoice,
     vieneuStyle: store.vieneuStyle, setVieneuStyle: store.setVieneuStyle,
     advancedEnabled: store.advancedEnabled, setAdvancedEnabled: store.setAdvancedEnabled,

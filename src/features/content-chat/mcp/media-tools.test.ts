@@ -81,7 +81,7 @@ async function main() {
     assert.equal(result.status, 'completed', mode)
   }
   await assert.rejects(call('generate_video', { requestKey: 'bad-video', prompt: 'x', mode: 'image-to-video', model: 'Veo_3.1-Fast' }), /startImage/)
-  await assert.rejects(call('generate_video', { requestKey: 'bad-grok', prompt: 'x', mode: 'reference-to-video', model: 'Grok Imagine Video', references: [image.result.assetId] }), /does not support/)
+  await assert.rejects(call('generate_video', { requestKey: 'bad-grok', prompt: 'x', mode: 'reference-to-video', model: 'Grok Imagine Video', references: [image.result.assetId] }), /Unsupported video model/)
   const profileJob = await call('create_voice_profile', { requestKey: 'clone-profile', name: 'Narrator', modelId: 'omnivoice-main', referenceAudioPath: 'D:\\sample.wav', referenceText: 'Hello' })
   const profile = await done(profileJob)
   const cloned = await done(await call('create_tts_audio', { requestKey: 'clone', text: 'Hello world', modelId: 'omnivoice-main', voiceProfileId: profile.result.voiceProfileId }))

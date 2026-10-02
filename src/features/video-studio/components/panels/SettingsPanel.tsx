@@ -28,7 +28,6 @@ import { AddProviderDialog, EditProviderDialog } from "@/features/video-studio/c
 import { AddImageHostDialog } from "@/features/video-studio/components/image-host-manager/AddImageHostDialog";
 import { EditImageHostDialog } from "@/features/video-studio/components/image-host-manager/EditImageHostDialog";
 import { useGoogleFlowRuntimeStore } from "@/features/video-studio/stores/google-flow-runtime-store";
-import { useGrokRuntimeStore } from "@/features/video-studio/stores/grok-runtime-store";
 import { ProviderList } from "./settings/provider-list";
 import { MediaModelSelectors } from "./settings/media-model-selectors";
 import { CliRuntimeSection } from "./settings/cli-runtime-section";
@@ -51,10 +50,7 @@ export function SettingsPanel() {
 
   const googleFlowStatus = useGoogleFlowRuntimeStore((state) => state.status);
   const initializeGoogleFlowRuntime = useGoogleFlowRuntimeStore((state) => state.initialize);
-  const grokStatus = useGrokRuntimeStore((state) => state.status);
-  const initializeGrokRuntime = useGrokRuntimeStore((state) => state.initialize);
   useEffect(() => initializeGoogleFlowRuntime(), [initializeGoogleFlowRuntime]);
-  useEffect(() => initializeGrokRuntime(), [initializeGrokRuntime]);
 
   const [activeTab, setActiveTab] = useState<string>("api");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -69,16 +65,13 @@ export function SettingsPanel() {
   const [appVersion, setAppVersion] = useState(packageJson.version);
 
   const googleFlowReady = Boolean(googleFlowStatus?.readyCredentialCount);
-  const grokReady = Boolean(grokStatus?.readyCredentialCount);
 
   const existingPlatforms = useMemo(() => providers.map((p) => p.platform), [providers]);
 
   const configuredCount = providers.filter(
     (p) => p.platform === 'googleflow'
       ? googleFlowReady
-      : p.platform === 'grok'
-        ? grokReady
-        : isProviderCredentialConfigured(p.platform, p.apiKey)
+      : isProviderCredentialConfigured(p.platform, p.apiKey)
   ).length;
 
   useEffect(() => {
@@ -178,7 +171,6 @@ export function SettingsPanel() {
               <ProviderList
                 providers={providers}
                 googleFlowReady={googleFlowReady}
-                grokReady={grokReady}
                 syncingProvider={syncingProvider}
                 setSyncingProvider={setSyncingProvider}
                 onEdit={(provider) => {

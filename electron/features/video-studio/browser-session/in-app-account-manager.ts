@@ -4,15 +4,12 @@ const AUTO_MINIMIZE_DELAY_MS = 4000
 
 type InAppRuntimeLike = { forgetInAppCredential(extensionInstanceId: string): void }
 
-// Orchestrates "log in to a provider inside the app" — one CDP-driven Chrome
-// + provider bridge per account, backed by the shared session manager.
-// Shared by the Google Flow and Grok runtimes (they differ only in provider
-// id, login URL and bridge construction).
+// Used by Google Flow runtime backed by the shared session manager.
 export class InAppAccountManager<B extends { dispose(): void }> {
   private readonly bridges = new Map<string, B>()
 
   constructor(
-    private readonly providerId: 'google-flow' | 'grok',
+    private readonly providerId: 'google-flow',
     private readonly loginUrl: string,
     private readonly displayName: string,
     private readonly sessionManager: InAppBrowserSessionManager,

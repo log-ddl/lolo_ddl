@@ -78,12 +78,11 @@ const FEATURE_DEFAULT_MODEL: Partial<Record<AIFeature, Record<string, string>>> 
   },
   video_generation: {
     googleflow: 'Veo_3.1-Fast',
-    grok: 'Grok Imagine Video',
   },
 };
 
 function isBrowserRuntimePlatform(platform: string): boolean {
-  return platform === 'googleflow' || platform === 'grok' || platform === 'qwen-local';
+  return platform === 'googleflow' || platform === 'qwen-local';
 }
 
 function getFeatureProviderKeys(provider: IProvider): string[] {

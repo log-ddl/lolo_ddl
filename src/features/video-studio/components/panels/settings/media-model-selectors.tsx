@@ -30,7 +30,7 @@ export function MediaModelSelectors() {
   const setMediaRouting = useVideoStudioSettingsStore((state) => state.setMediaRouting);
 
   const mediaProviders = useMemo(
-    () => providers.filter((provider) => ['googleflow', 'grok'].includes(provider.platform) || (provider.platform === 'qwen-local' && qwenStatus?.installed)),
+    () => providers.filter((provider) => provider.platform === 'googleflow' || (provider.platform === 'qwen-local' && qwenStatus?.installed)),
     [providers, qwenStatus?.installed],
   );
 
@@ -96,9 +96,7 @@ export function MediaModelSelectors() {
     if (!provider) return;
     const model = getProviderMediaModels(provider, kind)[0];
     if (model) setMediaModelBinding(feature, provider, model);
-    // The fallback order belongs to the provider it was picked from — keeping
-    // Veo models around after a switch to Grok would leave the chain pointing at
-    // models this provider cannot run.
+    // The fallback order belongs to the provider it was picked from
     setMediaRouting(kind === 'image' ? { imageModelFallbacks: [] } : { videoModelFallbacks: [] });
   }, [mediaProviders, setMediaModelBinding, setMediaRouting]);
 
@@ -148,7 +146,7 @@ export function MediaModelSelectors() {
 
       {mediaProviders.length === 0 ? (
         <p className="text-xs text-amber-600">
-          Hãy kết nối Google Flow hoặc Grok trước để chọn mô hình.
+          Hãy kết nối Google Flow trước để chọn mô hình.
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">

@@ -1,6 +1,15 @@
-# logdd Media MCP
+# logdd MCP connections
 
-The desktop app exposes its existing image, video and speech engines through MCP. Grok and Qwen Image remain available. The tool host is mounted in AppShell, so switching away from Content Chat does not disconnect it. Open the app and sign in before connecting an AI client.
+Open logdd (including `npm run dev:electron`), then choose **Connect external AI** on the home screen or **AI settings → AI connections** in the rail. Copy the configuration for Codex, Claude Code, Cursor/HTTP, Antigravity or OpenCode into that client's MCP settings. Keep logdd open. This does not install a plugin or edit the AI client's configuration automatically.
+
+The local Streamable HTTP endpoint starts with Electron. The first successful startup selects a free loopback port; that port, a random bearer token and the enabled preference persist in `userData/mcp-connection.json` with owner-only permissions. Restarting logdd preserves the configuration. Disabling stops new connections (including internal Content Chat MCP); it does not cancel media already submitted. Rotating the token invalidates old client configurations. An occupied saved port is reported in Settings instead of silently changing the address.
+
+Stdio clients can use the bundled bridge described below. Requests with a foreign Origin or missing bearer token are rejected. Credentials are hidden in the UI preview but included in the copy action. Codex uses `http_headers` in its TOML configuration, as documented in [OpenAI Docs](https://developers.openai.com/codex/mcp).
+
+
+# Media tools
+
+The desktop app exposes its existing image, video and speech engines through MCP. Qwen Image remains available. The tool host is mounted in AppShell, so switching away from Content Chat does not disconnect it. Open the app and sign in before connecting an AI client.
 
 ## Connect an external AI client
 
@@ -55,7 +64,7 @@ Cancellation can take time. If a provider finishes first, the task keeps the com
 
 For cloning, pass an existing `voiceProfileId` or `referenceAudioPath` plus `referenceText` directly to `create_tts_audio`. OmniVoice requires a transcript; VieNeu may omit it. Clone profiles must match the engine. Saving a profile records its source path; keep that audio file in place. The runtime checks readability when synthesis starts. Local models must already be installed; online providers must be configured.
 
-Grok supports text and start/end-image video; reference video uses Google Flow. Veo reference video uses 8 seconds. Account-tier restrictions remain enforced by the underlying runtimes. MCP follows the interface's Video Studio plan requirement and does not install models or open login dialogs automatically.
+Google Flow supports text, image and reference video. Veo reference video uses 8 seconds. Account-tier restrictions remain enforced by the underlying runtimes. MCP follows the interface's Video Studio plan requirement and does not install models or open login dialogs automatically.
 
 ## Validation
 

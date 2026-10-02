@@ -32,13 +32,11 @@ import {
   maskApiKey,
 } from "@/features/video-studio/lib/api-key-manager";
 import { GoogleFlowRuntimePanel } from "@/features/video-studio/components/GoogleFlowRuntimePanel";
-import { GrokRuntimePanel } from "@/features/video-studio/components/GrokRuntimePanel";
 import { PLATFORM_ICONS, getProviderDisplayName, isBrowserRuntimePlatform } from "./shared";
 
 export interface ProviderListProps {
   providers: IProvider[];
   googleFlowReady: boolean;
-  grokReady: boolean;
   syncingProvider: string | null;
   setSyncingProvider: (id: string | null) => void;
   onEdit: (provider: IProvider) => void;
@@ -49,7 +47,6 @@ export interface ProviderListProps {
 export function ProviderList({
   providers,
   googleFlowReady,
-  grokReady,
   syncingProvider,
   setSyncingProvider,
   onEdit,
@@ -73,25 +70,10 @@ export function ProviderList({
   const isConfigured = (provider: IProvider) =>
     provider.platform === 'googleflow'
       ? googleFlowReady
-      : provider.platform === 'grok'
-        ? grokReady
-        : isProviderCredentialConfigured(provider.platform, provider.apiKey);
+      : isProviderCredentialConfigured(provider.platform, provider.apiKey);
 
   // Test connection - directly call external APIs
   const testConnection = async (provider: IProvider) => {
-    if (provider.platform === 'grok') {
-      setTestingProvider(provider.id);
-      try {
-        const status = await window.grokVideoRuntime?.getStatus();
-        const success = Boolean(status?.readyCredentialCount);
-        setTestResults((prev) => ({ ...prev, [provider.id]: success }));
-        if (success) toast.success(`Grok đã sẵn sàng: ${status!.readyCredentialCount} extension`);
-        else toast.error('Chưa kết nối Grok. Hãy nạp extension logdd, mở Grok Imagine và đăng nhập.');
-      } finally {
-        setTestingProvider(null);
-      }
-      return;
-    }
     if (provider.platform === 'googleflow') {
       setTestingProvider(provider.id);
       try {
@@ -395,10 +377,6 @@ export function ProviderList({
 
                       {provider.platform === 'googleflow' && (
                         <GoogleFlowRuntimePanel alwaysVisible />
-                      )}
-
-                      {provider.platform === 'grok' && (
-                        <GrokRuntimePanel alwaysVisible />
                       )}
 
                       {/* Models */}

@@ -1,3 +1,4 @@
+import { ColabPanel } from './colab-panel';
 import { Download, Play } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { useI18n } from '@/shared/i18n';
@@ -22,17 +23,25 @@ export function TtsWorkspace() {
       <TtsSidebar onOpenSettings={() => controller.setManagerOpen(true)} />
 
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-        <TtsHeader provider={controller.isVieneu ? 'vieneu' : controller.isVbee ? 'vbee' : controller.isGemini ? 'gemini' : controller.isCapCut ? 'capcut' : 'omnivoice'} />
+        <TtsHeader provider={controller.selectedEngine.id} />
 
         <main className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(420px,1.25fr)_minmax(340px,0.75fr)] overflow-hidden">
           <section className="min-h-0 overflow-y-auto border-r border-border/60 p-4">
             <div className="w-full space-y-4">
+              <label className="flex items-center gap-3 text-sm">
+                {t('tts.colab.destination')}
+                <select className="rounded-md border border-input bg-background px-3 py-2" value={controller.destination} disabled={controller.busy} onChange={event => controller.setDestination(event.target.value as 'local' | 'colab')}>
+                  <option value="local">{t('tts.colab.local')}</option>
+                  <option value="colab">Google Colab</option>
+                </select>
+              </label>
               <TextEditorCard value={controller.text} onChange={controller.setText} splitMode={controller.splitMode} />
 
               {controller.busy && controller.progress && (
                 <GenerationProgress progress={controller.progress} onCancel={controller.cancelJob} />
               )}
 
+              {controller.destination === 'colab' ? <ColabPanel controller={controller} /> : <>
               <div className="flex justify-end">
                 <Button
                   size="lg"
@@ -53,8 +62,11 @@ export function TtsWorkspace() {
                 onStop={controller.cancelJob}
               />
 
+              </>}
+
               <AudioHistory
                 items={controller.history}
+                onReuseVoice={controller.reuseDesignedVoice}
                 onRename={controller.renameHistory}
                 onRemove={controller.removeHistory}
               />

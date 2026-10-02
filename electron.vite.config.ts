@@ -7,6 +7,8 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
+        // Native bindings must be loaded by Node at runtime, outside the bundle.
+        external: ['sharp'],
         input: {
           index: path.resolve(__dirname, 'electron/main.ts')
         },

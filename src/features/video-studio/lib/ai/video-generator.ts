@@ -1,7 +1,6 @@
 import { videoDuration } from './video-duration';
 import type { VideoLength } from '@/features/video-studio/types/script';
 import { googleFlowProvider } from './google-flow-provider';
-import { grokVideoProvider } from './grok-video-provider';
 import { resolveSettingsMediaRouting } from './media-routing';
 import { runWithModelFallback } from '@/features/video-studio/autopilot/model-fallback';
 import { useProjectStore } from '@/features/video-studio/stores/project-store';
@@ -51,29 +50,8 @@ function toGoogleFlowMediaRef(source: string, state?: GoogleFlowSourceState, fil
 }
 
 export async function generateProviderVideo(params: VideoGenerationParams): Promise<{ videoUrl: string; taskId: string; mediaId?: string; credentialId?: string; accountId?: string; ownerScopeId?: string; flowProjectId?: string }> {
-  if (params.platform === 'grok') {
-    const projectId = params.projectId || useProjectStore.getState().activeProjectId || 'default-project';
-    const result = await grokVideoProvider.generateVideo({
-      projectId,
-      sceneId: String(params.sceneId),
-      prompt: params.prompt,
-      model: params.model,
-      aspectRatio: params.aspectRatio || '16:9',
-      resolution: params.resolution || '720p',
-      duration: Number(params.length as VideoLength | undefined) || undefined,
-      taskId: params.taskId,
-      preferredCredentialId: params.preferredCredentialId,
-      startImage: params.startImageUrl ? { source: params.startImageUrl, provider: 'grok' } : undefined,
-      endImage: params.endImageUrl ? { source: params.endImageUrl, provider: 'grok' } : undefined,
-      onSubmitted: params.onSubmitted,
-      signal: params.signal,
-    });
-    const videoUrl = result.localUrl || result.remoteUrl;
-    if (!videoUrl) throw new Error('Grok returned no video URL');
-    return { videoUrl, taskId: result.taskId, mediaId: result.mediaId, credentialId: result.credentialId };
-  }
   if (params.platform !== 'googleflow') {
-    throw new Error(`Unsupported video platform: ${params.platform}. Only "googleflow" and "grok" are supported.`);
+    throw new Error(`Unsupported video platform: ${params.platform}. Only "googleflow" is supported.`);
   }
   const projectId = params.projectId || useProjectStore.getState().activeProjectId || 'default-project';
   // Accounts and fallback order come from Settings, exactly as they do for an

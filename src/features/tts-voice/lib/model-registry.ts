@@ -87,6 +87,36 @@ const VBEE_MODELS: TtsModelDefinition[] = [
   },
 ];
 
+const COSYVOICE_MODELS: TtsModelDefinition[] = [{
+  id: 'cosyvoice3-0.5b', providerId: 'cosyvoice-local', runtimeCapability: 'cosyvoice',
+  runtimeKind: 'local', repository: 'FunAudioLLM/Fun-CosyVoice3-0.5B-2512',
+  name: 'CosyVoice 3 · 0.5B', descriptionKey: 'tts.model.cosyvoice',
+  parameterSize: '0.5B', estimatedDownloadGb: 5, capabilities: ['voice-clone'],
+}];
+
+const QWEN3_MODELS: TtsModelDefinition[] = [
+  ...(['0.6B', '1.7B'] as const).flatMap((size): TtsModelDefinition[] => [
+    {
+      id: `qwen3-${size.toLowerCase()}-custom`, providerId: 'qwen3-local', runtimeCapability: 'qwen3',
+      runtimeKind: 'local', repository: `Qwen/Qwen3-TTS-12Hz-${size}-CustomVoice`,
+      name: `Qwen3-TTS · ${size} CustomVoice`, descriptionKey: 'tts.model.qwenCustom',
+      parameterSize: size, estimatedDownloadGb: size === '0.6B' ? 2.5 : 4.5, capabilities: ['preset-voice'],
+    },
+    {
+      id: `qwen3-${size.toLowerCase()}-base`, providerId: 'qwen3-local', runtimeCapability: 'qwen3',
+      runtimeKind: 'local', repository: `Qwen/Qwen3-TTS-12Hz-${size}-Base`,
+      name: `Qwen3-TTS · ${size} Base`, descriptionKey: 'tts.model.qwenBase',
+      parameterSize: size, estimatedDownloadGb: size === '0.6B' ? 2.5 : 4.5, capabilities: ['voice-clone'],
+    },
+  ]),
+  {
+    id: 'qwen3-1.7b-design', providerId: 'qwen3-local', runtimeCapability: 'qwen3',
+    runtimeKind: 'local', repository: 'Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign',
+    name: 'Qwen3-TTS · 1.7B VoiceDesign', descriptionKey: 'tts.model.qwenDesign',
+    parameterSize: '1.7B', estimatedDownloadGb: 4.5, capabilities: ['voice-design'],
+  },
+];
+
 export const TTS_MODEL_GROUPS: TtsModelGroup[] = [
   {
     id: 'omnivoice',
@@ -100,6 +130,8 @@ export const TTS_MODEL_GROUPS: TtsModelGroup[] = [
     descriptionKey: 'tts.engine.vieneu',
     models: VIENEU_MODELS,
   },
+  { id: 'cosyvoice', name: 'CosyVoice', descriptionKey: 'tts.engine.cosyvoice', models: COSYVOICE_MODELS },
+  { id: 'qwen3', name: 'Qwen3-TTS', descriptionKey: 'tts.engine.qwen3', models: QWEN3_MODELS },
   {
     id: 'capcut',
     name: 'CapCut',

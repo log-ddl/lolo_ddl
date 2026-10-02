@@ -300,7 +300,7 @@ export const useAPIConfigStore = create<APIConfigStore>()(
 
           // Skip stale hidden bindings that no longer exist in the provider's synced model list.
           // This prevents runtime from executing models that the service-mapping UI can no longer display.
-          // Google Flow / Grok list their models in code, so check the constants there:
+          // Google Flow lists its models in code, so check the constants there:
           // a persisted provider saved before a new model existed would otherwise drop a valid binding.
           const knownModels = getRuntimeProviderModels(provider.platform) || provider.model;
           if (knownModels.length > 0 && !knownModels.includes(model)) {

@@ -1,3 +1,4 @@
+import { McpConnectionsPanel } from "./McpConnectionsPanel";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, CircleAlert, ExternalLink, Loader2, RefreshCw, TerminalSquare } from "lucide-react";
 
@@ -28,9 +29,10 @@ const CLI_OPTIONS: Array<{ adapter: CliAdapter; name: string; docs: string }> = 
   { adapter: "codex", name: "Codex", docs: "https://learn.chatgpt.com/docs/codex/cli" },
 ];
 
-/** Chỉ quản lý các CLI dùng chung bởi Chat và Buzz. */
+/** External MCP connections and shared in-app CLI settings. */
 export function GlobalSettingsDialog() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const [tab, setTab] = useState<"mcp" | "cli">("mcp");
   const open = useAppShellStore((state) => state.settingsOpen);
   const setOpen = useAppShellStore((state) => state.setSettingsOpen);
   const [status, setStatus] = useState<CliRuntimeStatus | null>(null);
@@ -50,8 +52,8 @@ export function GlobalSettingsDialog() {
   }, []);
 
   useEffect(() => {
-    if (open) void refresh();
-  }, [open, refresh]);
+    if (open && tab === "cli") void refresh();
+  }, [open, tab, refresh]);
 
   const openDocs = async (url: string) => {
     if (window.authBridge?.openExternal) {
@@ -115,16 +117,22 @@ export function GlobalSettingsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] max-w-4xl gap-0 overflow-hidden rounded-2xl p-0">
-        <DialogHeader className="border-b border-border/60 px-6 py-5 pr-14">
+      <DialogContent className="flex flex-col max-h-[85vh] w-[calc(100vw-2rem)] max-w-4xl gap-0 overflow-hidden rounded-2xl p-0">
+        <DialogHeader className="shrink-0 border-b border-border/60 px-6 py-5 pr-14">
           <DialogTitle className="flex items-center gap-2 text-base">
             <TerminalSquare className="size-5 text-primary" />
-            {t("cliSettings.title")}
+            {language === "vi" ? "Cài đặt AI" : "AI settings"}
           </DialogTitle>
-          <DialogDescription>{t("cliSettings.description")}</DialogDescription>
+          <DialogDescription>{language === "vi" ? "Kết nối AI bên ngoài hoặc cấu hình AI dùng trong app." : "Connect external AI or configure AI inside the app."}</DialogDescription>
         </DialogHeader>
 
-        <div className="overflow-y-auto p-6">
+        <div className="flex shrink-0 gap-2 border-b px-6 py-3" role="tablist" aria-label="AI settings">
+          <Button role="tab" aria-selected={tab === 'mcp'} variant={tab === 'mcp' ? 'default' : 'ghost'} onClick={() => setTab('mcp')}>{language === 'vi' ? 'Kết nối AI' : 'AI connections'}</Button>
+          <Button role="tab" aria-selected={tab === 'cli'} variant={tab === 'cli' ? 'default' : 'ghost'} onClick={() => setTab('cli')}>{language === 'vi' ? 'AI trong app' : 'In-app AI'}</Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-6" role="tabpanel">
+          {tab === 'mcp' ? <McpConnectionsPanel /> : <>
+
           <div className="grid gap-4 md:grid-cols-3">
             {CLI_OPTIONS.map(({ adapter, name, docs }) => {
               const info = status?.[adapter];
@@ -190,6 +198,7 @@ export function GlobalSettingsDialog() {
               {t("contentChat.refreshCli")}
             </Button>
           </div>
+          </>}
         </div>
       </DialogContent>
     </Dialog>

@@ -10,7 +10,6 @@
  */
 
 import { getFeatureConfig } from '@/features/video-studio/lib/ai/feature-router';
-import { GROK_VIDEO_MODELS } from '@/features/video-studio/lib/api-key-manager';
 import { useVideoStudioSettingsStore } from '@/features/video-studio/stores/video-studio-settings-store';
 import { buildAccountRouting, listKnownOwnerScopeIds, type AccountRouting } from '@/features/video-studio/autopilot/account-routing';
 import { buildModelChain } from '@/features/video-studio/autopilot/model-fallback';
@@ -46,11 +45,11 @@ export function configuredImageModel(feature: 'character_generation' | 'scene_ge
 
 export function configuredVideoModel(): string | undefined {
   const config = getFeatureConfig('video_generation');
-  return config && (config.platform === 'googleflow' || config.platform === 'grok') ? config.model : undefined;
+  return config && config.platform === 'googleflow' ? config.model : undefined;
 }
 
-export function videoPlatformForModel(model: string): 'googleflow' | 'grok' {
-  return GROK_VIDEO_MODELS.includes(model) ? 'grok' : 'googleflow';
+export function videoPlatformForModel(_model: string): 'googleflow' {
+  return 'googleflow';
 }
 
 export async function resolveSettingsMediaRouting(

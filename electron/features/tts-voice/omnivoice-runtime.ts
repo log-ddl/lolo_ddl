@@ -1,3 +1,5 @@
+import { planCloneParts } from './clone-chunks'
+import { stopLocalModelWorker, cancelLocalInstall, cancelAllLocalInstalls, getLocalModelStatus, installLocalModel, generateLocalModel, removeLocalModel } from './local-model-runtime'
 import { dialog, shell } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
@@ -28,12 +30,12 @@ import {
   workerPath,
 } from './omnivoice/paths'
 import { ensureRuntime, hasNvidiaGpu, probeRuntime, runStep, utf8Environment } from './omnivoice/bootstrap'
-import { generateSplit, lineJobs, safeProfilePromptPath, splitLines, splitSentences, splitVbeeText } from './omnivoice/text-split'
+import { generateSplit, lineJobs, canceledSplitJobs, safeProfilePromptPath, splitLines, splitSentences, splitVbeeText } from './omnivoice/text-split'
 
 export interface TtsModelDescriptor {
   id: string
   repository: string
-  capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu'
+  capability: 'omnivoice' | 'capcut' | 'gemini' | 'vbee' | 'vieneu' | 'cosyvoice' | 'qwen3'
 }
 
 export interface TtsRuntimeProgress {
@@ -42,6 +44,7 @@ export interface TtsRuntimeProgress {
   stage: string
   percent?: number
   message: string
+  audioChunkPath?: string
 }
 
 export interface TtsGeneratePayload {
@@ -61,6 +64,9 @@ export interface TtsGeneratePayload {
   vbeeVoiceCode?: string
   vbeeAudioType?: 'mp3' | 'wav'
   vbeeBitrate?: number
+  localStyle?: string
+  streamPreview?: boolean
+  qwenSpeaker?: string
   vieneuVoice?: string
   vieneuStyle?: 'tu_nhien' | 'tin_tuc' | 'doc_truyen'
   advancedSettings?: {
@@ -84,7 +90,7 @@ export interface TtsGeneratePayload {
 }
 
 export async function getTtsModelStatuses(models: TtsModelDescriptor[]) {
-  models.filter((model) => model.capability === 'omnivoice').forEach(assertAllowedModel)
+  models.filter((model) => ['omnivoice', 'cosyvoice', 'qwen3'].includes(model.capability)).forEach(assertAllowedModel)
   models.filter((model) => model.capability === 'vieneu').forEach(assertAllowedModel)
   const vieneuStatus = models.some((model) => model.capability === 'vieneu') ? await getVieneuStatus() : null
   // Supported desktop targets bootstrap a private Python 3.12 when needed.
@@ -95,7 +101,7 @@ export async function getTtsModelStatuses(models: TtsModelDescriptor[]) {
     hasNvidiaGpu(),
   ])
   const runtimeNeedsRepair = !runtimeReady || (nvidiaAvailable && probe?.backend !== 'cuda')
-  return models.map((model) => model.capability === 'vieneu' && vieneuStatus ? vieneuStatus : model.capability === 'capcut' || model.capability === 'gemini' || model.capability === 'vbee' ? ({
+  return models.map((model) => model.capability === 'cosyvoice' || model.capability === 'qwen3' ? getLocalModelStatus(model) : model.capability === 'vieneu' && vieneuStatus ? vieneuStatus : model.capability === 'capcut' || model.capability === 'gemini' || model.capability === 'vbee' ? ({
     modelId: model.id,
     status: 'ready',
     runtimeReady: true,
@@ -124,6 +130,7 @@ export async function getTtsModelStatuses(models: TtsModelDescriptor[]) {
 export async function installTtsModel(jobId: string, model: TtsModelDescriptor, emit: Emit) {
   try {
     assertAllowedModel(model)
+    if (model.capability === 'cosyvoice' || model.capability === 'qwen3') return await installLocalModel(jobId, model, emit)
     if (model.capability === 'vieneu') return await installVieneu(jobId, emit)
     if (!fs.existsSync(path.join(sourceRoot(), 'omnivoice'))) {
       throw new Error('Không tìm thấy source OmniVoice đi kèm ứng dụng')
@@ -231,6 +238,10 @@ class PersistentOmniVoiceWorker {
 const omniWorker = new PersistentOmniVoiceWorker()
 
 export async function generateTts(payload: TtsGeneratePayload, emit: Emit) {
+  if (payload.mode === 'clone' && ['qwen3', 'cosyvoice'].includes(payload.model.capability)) {
+    const parts = planCloneParts(payload.text, payload.splitMode)
+    if (parts.length > 1) return generateSplit(generateTts, payload, parts, emit, { unitLabel: 'đoạn', stage: 'clone-chunk-generating' })
+  }
   // Checked before any provider branch: an explicit "read line by line" is the
   // user's choice and used to be dropped on the floor for Vbee, whose own branch
   // returned first. It also produces the per-part measurements AutoPilot lays its
@@ -267,6 +278,7 @@ export async function generateTts(payload: TtsGeneratePayload, emit: Emit) {
     }, emit)
   }
 
+  if (payload.model.capability === 'cosyvoice' || payload.model.capability === 'qwen3') return generateLocalModel(payload, emit)
   if (payload.model.capability === 'vieneu') {
     assertAllowedModel(payload.model)
     return generateVieneu({
@@ -350,6 +362,8 @@ export async function generateTts(payload: TtsGeneratePayload, emit: Emit) {
 
 export async function removeTtsModel(modelId: string) {
   if (!ALLOWED_MODELS.has(modelId)) throw new Error('Model TTS không được phép')
+  const descriptor = ALLOWED_MODELS.get(modelId)!
+  if (descriptor.capability === 'cosyvoice' || descriptor.capability === 'qwen3') return removeLocalModel({ id: modelId, ...descriptor })
   if (modelId === 'vieneu-v3-turbo') return removeVieneu()
   omniWorker.stop()
   const target = path.resolve(modelPath(modelId))
@@ -360,11 +374,17 @@ export async function removeTtsModel(modelId: string) {
 }
 
 export function cancelTtsJob(jobId: string) {
+  if (cancelLocalInstall(jobId)) return { canceled: true }
   if (cancelVieneu(jobId)) return { canceled: true }
   const subs = lineJobs.get(jobId)
   if (subs && subs.length) {
-    let canceled = cancelFFmpeg(jobId)
+    canceledSplitJobs.add(jobId)
+    cancelFFmpeg(jobId)
+    let canceled = true
     for (const sub of subs) {
+      const child = jobs.get(sub)
+      if (child) { canceledJobs.add(sub); child.kill(); canceled = true }
+      canceled = cancelVieneu(sub) || canceled
       canceled = cancelCapCutJob(sub) || canceled
       canceled = cancelGeminiJob(sub) || canceled
       canceled = cancelVbeeJob(sub) || canceled
@@ -420,6 +440,8 @@ export async function revealTtsAudio(filePath: string) {
 }
 
 export function cancelAllTtsJobs() {
+  cancelAllLocalInstalls()
+  stopLocalModelWorker()
   cancelAllCapCutJobs()
   cancelAllGeminiJobs()
   cancelAllVbeeJobs()

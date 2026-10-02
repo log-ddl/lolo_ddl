@@ -20,8 +20,9 @@ export const useTaskMetadataStore = create<TaskMetadataState>()(
       begin: (record) => set((state) => {
         const order = [record.id, ...state.order.filter((id) => id !== record.id)].slice(0, MAX_TASK_RECORDS);
         const allowed = new Set(order);
+        const entries: Array<[string, TaskMetadata]> = [...Object.entries(state.records), [record.id, record]];
         const records = Object.fromEntries(
-          [...Object.entries(state.records), [record.id, record]].filter(([id]) => allowed.has(id)),
+          entries.filter(([id]) => allowed.has(id)),
         );
         return { records, order };
       }),

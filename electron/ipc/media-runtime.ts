@@ -1,3 +1,5 @@
+import { renderMotion, cancelMotion, type MotionRequest } from '../features/video-studio/canvas-motion'
+import { exportColab, importColab } from '../features/tts-voice/colab-runtime'
 import { ipcMain, shell } from 'electron'
 import {
   cancelCliTextTask, getCliCommands, getCliModels, getCliStatus, installCli, runCliTextTask,
@@ -76,6 +78,8 @@ export function registerCliRuntimeIpc() {
 }
 
 export function registerFFmpegIpc() {
+  ipcMain.handle('canvas-motion-render', (_event, payload: MotionRequest) => renderMotion(payload, getMediaRoot(), () => { if (!_event.sender.isDestroyed()) _event.sender.send('canvas-motion-started', payload.jobId) }))
+  ipcMain.handle('canvas-motion-cancel', (_event, jobId: string) => { cancelMotion(jobId) })
   ipcMain.handle('ffmpeg-run', async (_event, payload: Omit<FFmpegRunOptions, 'onProgress' | 'onLog'>) => {
     return runFFmpeg({
       ...payload,
@@ -122,6 +126,9 @@ export function registerWhisperIpc() {
 }
 
 export function registerTtsIpc() {
+  ipcMain.handle('tts-colab-export', (_event, input) => exportColab(input))
+  ipcMain.handle('tts-colab-import', () => importColab())
+  ipcMain.handle('tts-colab-open', () => shell.openExternal('https://colab.research.google.com/'))
   ipcMain.handle('tts-model-statuses', async (_event, models: TtsModelDescriptor[]) => getTtsModelStatuses(models))
   ipcMain.handle('tts-gemini-keys-get', async () => getGeminiApiKeys())
   ipcMain.handle('tts-gemini-keys-set', async (_event, keys: string[]) => setGeminiApiKeys(keys))

@@ -1,13 +1,15 @@
 import { NodeAccountPicker } from './node-account-picker';
 import { effectivePrompt } from '@/features/video-studio/canvas/graph';
 "use client";
+import { isMotionKind } from "@/features/video-studio/canvas/motion-math";
+import { MotionControls } from "./motion-controls";
 
 import { ImageEditControls } from "./image-edit-controls";
 import { ImageDownloadMenu } from './image-download-menu';
 import { UpscaleNodeControls } from './upscale-node-controls';
 
 import { videoDuration, videoDurations } from '@/features/video-studio/lib/ai/video-duration';
-import { configuredImageModel, configuredVideoModel, videoPlatformForModel } from '@/features/video-studio/lib/ai/media-routing';
+import { configuredImageModel, configuredVideoModel } from '@/features/video-studio/lib/ai/media-routing';
 import { CompareResults } from "./compare-results";
 import { extractVideoFrame } from "@/features/video-studio/canvas/video-frame";
 import type { GroupPort } from "@/features/video-studio/canvas/group-ports";
@@ -40,7 +42,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { Pencil, Maximize2, Square, History, Copy, Download, ImageIcon, Loader2, Play, Plus, Trash2, TypeIcon, VideoIcon, X } from "lucide-react";
+import { Hourglass, Pencil, Maximize2, Square, History, Copy, Download, ImageIcon, Loader2, Play, Plus, Trash2, TypeIcon, VideoIcon, X } from "lucide-react";
 import { EMPTY_PROMPT } from "@/features/video-studio/canvas/runner";
 import {
   CANVAS_ASPECT_RATIOS,
@@ -50,7 +52,7 @@ import {
   type NodeOutput,
   type PortType,
 } from "@/features/video-studio/canvas/types";
-import { GOOGLE_FLOW_IMAGE_MODELS, GOOGLE_FLOW_VIDEO_MODELS, GROK_VIDEO_MODELS, QWEN_LOCAL_IMAGE_MODEL, getModelDisplayName } from "@/features/video-studio/lib/api-key-manager";
+import { GOOGLE_FLOW_IMAGE_MODELS, GOOGLE_FLOW_VIDEO_MODELS, QWEN_LOCAL_IMAGE_MODEL, getModelDisplayName } from "@/features/video-studio/lib/api-key-manager";
 import { toast } from "sonner";
 import { mediaBlob, downloadBlob } from "@/features/video-studio/canvas/archive";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/components/ui/dialog";
@@ -68,6 +70,7 @@ const PORT_TOP = 20;
 const PORT_GAP = 34;
 
 const KIND_ICONS: Record<CanvasNodeKind, typeof ImageIcon> = {
+  imageMotion: VideoIcon, motionBobbing: VideoIcon, motionBreathing: VideoIcon, motionFrames: VideoIcon,
   imageUpscale: Maximize2,
   ai: TypeIcon,
   output: Download,
@@ -170,10 +173,12 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
     } finally { setDownloading(false); }
   };
   const running = state.status === "running";
+  const queued = running && state.phase === "queued";
   const isLocalVideo = state.kind === "localVideo";
   const isLocal = state.kind === "localImage" || isLocalVideo;
   const resolvedOutput = useResolvedImageUrl(state.output?.url);
   const resolvedPreview = useResolvedImageUrl(preview);
+  const isMotion = isMotionKind(state.kind);
   const isImageEdit = state.kind === "imageEdit";
   const isUpscale = state.kind === 'imageUpscale';
   const isAi = state.kind === 'ai';
@@ -182,9 +187,8 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
   useEffect(() => {
     void window.qwenImage?.status().then((status) => setQwenReady(status.installed));
   }, []);
-  const models = state.kind === "videoGenerator" ? [...GOOGLE_FLOW_VIDEO_MODELS, ...GROK_VIDEO_MODELS] : qwenReady ? [...GOOGLE_FLOW_IMAGE_MODELS, QWEN_LOCAL_IMAGE_MODEL] : GOOGLE_FLOW_IMAGE_MODELS;
+  const models = state.kind === "videoGenerator" ? GOOGLE_FLOW_VIDEO_MODELS : qwenReady ? [...GOOGLE_FLOW_IMAGE_MODELS, QWEN_LOCAL_IMAGE_MODEL] : GOOGLE_FLOW_IMAGE_MODELS;
   const selectedVideoModel = state.kind === 'videoGenerator' ? state.model || configuredVideoModel() || 'Veo_3.1-Fast' : '';
-  const isGrokVideo = state.kind === 'videoGenerator' && videoPlatformForModel(selectedVideoModel) === 'grok';
   const isQwenImage = state.kind === 'imageGenerator' && (state.model || configuredImageModel('scene_generation')) === QWEN_LOCAL_IMAGE_MODEL;
 
   if (state.kind === 'output') return <OutputNode data={data} selected={selected} />;
@@ -214,7 +218,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             </NodeToolButton>
           )}
           <NodeToolButton title={t("canvas.rename")} onClick={() => setNaming(true)}><Pencil className="size-3.5" /></NodeToolButton>
-          {!isLocal && !isImageEdit && !isUpscale && <NodeToolButton title={t("canvas.promptEditor")} onClick={() => { setEditPrompt(displayedPrompt); setEditorOpen(true); }}><Maximize2 className="size-3.5" /></NodeToolButton>}
+          {!isLocal && !isMotion && !isImageEdit && !isUpscale && <NodeToolButton title={t("canvas.promptEditor")} onClick={() => { setEditPrompt(displayedPrompt); setEditorOpen(true); }}><Maximize2 className="size-3.5" /></NodeToolButton>}
           {running && <NodeToolButton title={t("canvas.stop")} onClick={onCancel}><Square className="size-3.5" /></NodeToolButton>}
           <NodeToolButton title={t("canvas.node.duplicate")} onClick={onDuplicate}>
             <Copy className="size-3.5" />
@@ -273,7 +277,8 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
 
       <div className={cn(
         "canvas-node-card overflow-hidden rounded-2xl border-2 bg-card",
-        running ? "border-primary shadow-[0_0_28px_hsl(var(--primary)/0.22)]"
+        queued ? "border-border border-dashed"
+          : running ? "border-primary shadow-[0_0_28px_hsl(var(--primary)/0.22)]"
           : state.status === "failed" ? "border-destructive/60"
             : selected ? "border-primary" : "border-border",
       )}>
@@ -419,7 +424,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
             <input type="file" accept={isLocalVideo ? "video/*" : "image/*"} className="hidden" onChange={(event) => { if (event.target.files?.length) onUpload(event.target.files); event.target.value = ""; }} />
           </label>
         )}
-        {isUpscale ? <UpscaleNodeControls data={data} /> : isImageEdit ? <ImageEditControls data={data} /> : !isLocal && !isText && state.kind !== 'note' ? <MentionEditor value={displayedPrompt} onCommit={commitPrompt} placeholder={t(state.kind === 'videoGenerator' ? 'canvas.node.videoPromptPlaceholder' : 'canvas.node.promptPlaceholder') + ' (@)'} rows={textInputs.length ? 3 : 1} options={data.mentionOptions} /> :
+        {isMotion ? <MotionControls data={data} /> : isUpscale ? <UpscaleNodeControls data={data} /> : isImageEdit ? <ImageEditControls data={data} /> : !isLocal && !isText && state.kind !== 'note' ? <MentionEditor value={displayedPrompt} onCommit={commitPrompt} placeholder={t(state.kind === 'videoGenerator' ? 'canvas.node.videoPromptPlaceholder' : 'canvas.node.promptPlaceholder') + ' (@)'} rows={textInputs.length ? 3 : 1} options={data.mentionOptions} /> :
 !isLocal && <PromptBox dragToMove={isText || state.kind === "note"}
           value={state.prompt}
           onCommit={(prompt) => onChange({ prompt })}
@@ -433,19 +438,18 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
         /> }
 
         {isAi && <AiNodeControls data={data} />}
-        {!isText && !isLocal && !isImageEdit && !isUpscale && !isAi && (
+        {!isText && !isLocal && !isMotion && !isImageEdit && !isUpscale && !isAi && (
           <>
-          {!isQwenImage && <NodeAccountPicker state={state} onChange={onChange} disabled={running} platform={isGrokVideo ? 'grok' : 'googleflow'} model={state.kind === 'videoGenerator' ? selectedVideoModel : state.model || configuredImageModel('scene_generation') || 'GEM_PIX_2'} kind={state.kind === 'videoGenerator' ? 'video' : 'image'} />}
+          {!isQwenImage && <NodeAccountPicker state={state} onChange={onChange} disabled={running} model={state.kind === 'videoGenerator' ? selectedVideoModel : state.model || configuredImageModel('scene_generation') || 'GEM_PIX_2'} kind={state.kind === 'videoGenerator' ? 'video' : 'image'} />}
           {state.kind === 'videoGenerator' && <div className="canvas-node-controls flex items-center gap-2 px-3 pb-1">
             <select aria-label={t('canvas.videoMode')} title={t('canvas.videoMode')}
               value={state.videoMode || 'first'} disabled={running}
               onChange={(event) => onChange({ videoMode: event.target.value as 'first' | 'ref' })}
               className="nodrag nopan shrink-0 rounded-full bg-muted/50 px-2 py-1 text-2xs outline-none">
               <option value="first">{t('canvas.videoMode.first')}</option>
-              {isGrokVideo && state.videoMode === 'ref' && <option value="ref" disabled>{t('canvas.videoMode.ref')}</option>}
-              {!isGrokVideo && <option value="ref">{t('canvas.videoMode.ref')}</option>}
+              <option value="ref">{t('canvas.videoMode.ref')}</option>
             </select>
-            <span className="text-2xs text-muted-foreground">{isGrokVideo ? 'Grok: tạo từ chữ hoặc ảnh khung đầu/cuối' : t(state.videoMode === 'ref' ? 'canvas.videoMode.refHint' : 'canvas.videoMode.hint')}</span>
+            <span className="text-2xs text-muted-foreground">{t(state.videoMode === 'ref' ? 'canvas.videoMode.refHint' : 'canvas.videoMode.hint')}</span>
           </div>}
           <div className="canvas-node-controls flex h-9 items-center gap-1.5 px-3 pb-2">
             <select
@@ -455,7 +459,6 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
                 const effectiveModel = model || configuredVideoModel() || 'Veo_3.1-Fast';
                 onChange({ model, ...(state.kind === 'videoGenerator' ? {
                   videoDuration: videoDuration(effectiveModel, state.videoDuration),
-                  ...(videoPlatformForModel(effectiveModel) === 'grok' ? { videoMode: 'first' as const } : {}),
                 } : {}) });
               }}
               title={t("canvas.node.modelAutoHint")}
@@ -475,12 +478,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
                 <option key={ratio} value={ratio}>{ratio}</option>
               ))}
             </select>
-            {isGrokVideo && <select aria-label="Độ phân giải video" title="Độ phân giải video"
-              value={state.videoResolution || '720p'}
-              onChange={(event) => onChange({ videoResolution: event.target.value as '480p' | '720p' | '1080p' })}
-              className="nodrag nopan shrink-0 rounded-full bg-muted/50 px-1 py-1 text-2xs outline-none">
-              {['480p', '720p', '1080p'].map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>}
+
             {state.kind === 'videoGenerator' && <select aria-label={t('canvas.duration')} title={t('canvas.duration')}
               value={videoDuration(selectedVideoModel, state.videoDuration)}
               onChange={(event) => onChange({ videoDuration: Number(event.target.value) })}
@@ -503,7 +501,7 @@ export const CanvasGraphNode = memo(function CanvasGraphNode({ data, selected }:
         {state.batchProgress && state.batchProgress.total > 1 && <p className="px-3 py-1 text-[10px] text-muted-foreground">{state.batchProgress.done}/{state.batchProgress.total} {t("canvas.items")}</p>}
         {state.status === "failed" && state.error && (
           <p className="nowheel max-h-16 overflow-y-auto border-t border-destructive/30 bg-destructive/5 px-3 py-1.5 text-2xs leading-4 text-destructive">
-            {state.error === "VIDEO_REF_INPUT_INVALID" ? t("canvas.videoRefInvalid") : state.error === "VIDEO_REF_UNAVAILABLE" ? t("canvas.videoRefUnavailable") : state.error === "VIDEO_START_REQUIRED" ? t("canvas.videoStartRequired") : state.error === "INPUT_REQUIRED" ? t("canvas.error.inputRequired") : state.error === "LIST_LENGTH_MISMATCH" ? t("canvas.error.listMismatch") : state.error === "LOCAL_IMAGE_REQUIRED" ? t("canvas.error.localImageRequired") : state.error === "VIDEO_START_REQUIRED" ? t("canvas.videoStartRequired") : state.error === EMPTY_PROMPT ? t("canvas.error.emptyPrompt") : state.error}
+            {state.error === "VIDEO_REF_INPUT_INVALID" ? t("canvas.videoRefInvalid") : state.error === "VIDEO_REF_UNAVAILABLE" ? t("canvas.videoRefUnavailable") : state.error === "VIDEO_START_REQUIRED" ? t("canvas.videoStartRequired") : state.error === "UPSTREAM_FAILED" ? t("canvas.error.upstreamFailed") : state.error === "INPUT_REQUIRED" ? t("canvas.error.inputRequired") : state.error === "LIST_LENGTH_MISMATCH" ? t("canvas.error.listMismatch") : state.error === "LOCAL_IMAGE_REQUIRED" ? t("canvas.error.localImageRequired") : state.error === "VIDEO_START_REQUIRED" ? t("canvas.videoStartRequired") : state.error === EMPTY_PROMPT ? t("canvas.error.emptyPrompt") : state.error}
           </p>
         )}
       </div>
@@ -602,7 +600,7 @@ function RunningNodeStatus({ startedAt, email, phase }: { startedAt?: number; em
   const seconds = Math.max(0, Math.floor((now - (startedAt ?? now)) / 1000));
   return (
     <span className="pointer-events-none absolute inset-x-2 top-2 flex min-w-0 items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-[10px] text-foreground shadow-sm">
-      <Loader2 className="size-3 shrink-0 animate-spin" />
+      {phase === "queued" ? <Hourglass className="size-3 shrink-0" /> : <Loader2 className="size-3 shrink-0 animate-spin" />}
       <span className="shrink-0 tabular-nums">{t(`canvas.phase.${phase || "queued"}`, { seconds })}</span>
       {email && <span className="truncate">· {email.replace(/@gmail\.com$/i, "")}</span>}
     </span>

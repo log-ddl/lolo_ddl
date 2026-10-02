@@ -173,7 +173,6 @@ export const DEFAULT_FEATURE_BINDINGS: FeatureBindings = {
 /** Provider metadata mapping. */
 export const PROVIDER_INFO: Record<ProviderId, { name: string; services: ServiceType[] }> = {
   googleflow: { name: 'Google Flow', services: ['image', 'video'] },
-  grok: { name: 'Grok', services: ['video'] },
   openai: { name: 'OpenAI', services: [] },
   openrouter: { name: 'OpenRouter', services: ['chat', 'vision'] },
   custom: { name: 'Custom', services: [] },

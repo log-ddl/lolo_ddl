@@ -24,6 +24,7 @@ export function safeProfilePromptPath(profileId?: string) {
 // Parent jobId -> per-line sub jobIds, so cancel can stop every line.
 /** Sub-job ids spawned for each split line, keyed by the parent job id. */
 export const lineJobs = new Map<string, string[]>()
+export const canceledSplitJobs = new Set<string>()
 
 export function splitLines(text: string): string[] {
   return text
@@ -135,6 +136,7 @@ export async function generateSplit(
     // lays its shots on exactly these numbers instead of estimating from word count.
     const partDurationsSec: number[] = []
     for (let index = 0; index < parts.length; index += 1) {
+      if (canceledSplitJobs.has(parentJobId)) return { success: false, canceled: true }
       emit({
         jobId: parentJobId,
         kind: 'generate',
@@ -143,12 +145,14 @@ export async function generateSplit(
         message: `Đang đọc ${unitLabel} ${index + 1}/${parts.length}...`,
       })
       const result = await generateTts({ ...payload, jobId: subIds[index], text: parts[index], splitMode: 'default' }, emitParent)
+      if (canceledSplitJobs.has(parentJobId)) return { success: false, canceled: true }
       if (!result.success || !result.outputPath) {
         return { success: false, canceled: result.canceled, error: result.error || `Không thể đọc ${unitLabel} ${index + 1}` }
       }
       outputs.push(result.outputPath)
       partDurationsSec.push(await probeMediaDuration(result.outputPath) || result.durationSec || 0)
     }
+    if (canceledSplitJobs.has(parentJobId)) return { success: false, canceled: true }
     const outputPath = path.join(outputRoot(), `${parentJobId}.wav`)
     emit({ jobId: parentJobId, kind: 'generate', stage: 'merging', percent: 94, message: 'Đang ghép các phần lại...' })
     const merged = await mergeLineAudios(parentJobId, outputs, outputPath, gapSec, payload.model.capability === 'vieneu' ? 48000 : 24000)
@@ -170,6 +174,7 @@ export async function generateSplit(
     }
   } finally {
     lineJobs.delete(parentJobId)
+    canceledSplitJobs.delete(parentJobId)
   }
 }
 
